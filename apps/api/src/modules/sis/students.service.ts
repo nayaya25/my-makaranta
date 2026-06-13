@@ -29,8 +29,18 @@ export class StudentsService {
     });
   }
 
+  // Resolve a stored photo KEY to a fresh time-limited signed URL on read (external http(s)
+  // URLs pass through). Never persist the signed URL — it would expire in the DB.
+  private async signPhoto<T extends { photoUrl?: string | null }>(s: T): Promise<T> {
+    if (s.photoUrl && !/^https?:\/\//.test(s.photoUrl)) {
+      return { ...s, photoUrl: await this.storage.getSignedUrl(s.photoUrl) };
+    }
+    return s;
+  }
+
   async findAll() {
-    return this.prisma.student.findMany();
+    const list = await this.prisma.student.findMany();
+    return Promise.all(list.map((s) => this.signPhoto(s)));
   }
 
   async findOne(id: string) {
@@ -42,7 +52,7 @@ export class StudentsService {
       },
     });
     if (!student) throw new NotFoundException("Student not found");
-    return student;
+    return this.signPhoto(student);
   }
 
   async update(id: string, dto: UpdateStudentDto) {
@@ -82,9 +92,9 @@ export class StudentsService {
     const schoolId = TenantContext.schoolIdOrThrow();
     const key = `photos/${schoolId}/${id}.${ext}`;
     await this.storage.put(key, file.buffer, { contentType: file.mimetype });
-    const photoUrl = await this.storage.getSignedUrl(key);
 
-    await this.prisma.student.update({ where: { id }, data: { photoUrl } });
-    return { photoUrl };
+    // Persist the stable KEY; hand back a fresh signed URL for immediate display.
+    await this.prisma.student.update({ where: { id }, data: { photoUrl: key } });
+    return { photoUrl: await this.storage.getSignedUrl(key) };
   }
 }

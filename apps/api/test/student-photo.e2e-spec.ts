@@ -44,11 +44,14 @@ describe("Student photo upload", () => {
       students.setPhoto(studentId, { buffer: png, mimetype: "image/png", size: png.length }),
     );
     expect(res.photoUrl).toContain(`photos/${schoolId}/${studentId}.png`);
+    expect(res.photoUrl).toMatch(/[?&]sig=/); // returned URL is signed
 
+    // DB persists the stable KEY (not the signed URL); the signed URL contains it.
     const updated = await TenantContext.run({ schoolId, userId: "u" }, () =>
       prisma.student.findUnique({ where: { id: studentId } }),
     );
-    expect(updated?.photoUrl).toBe(res.photoUrl);
+    expect(updated?.photoUrl).toBe(`photos/${schoolId}/${studentId}.png`);
+    expect(res.photoUrl).toContain(updated!.photoUrl!);
   });
 
   it("rejects a non-image file type", async () => {
