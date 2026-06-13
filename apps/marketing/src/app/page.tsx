@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Badge, Button, Card, CardBody, CardHeader } from "@mymakaranta/ui";
 import {
   Clock,
@@ -17,10 +18,10 @@ export default function HomePage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-ink-300/50 bg-paper/90 backdrop-blur-sm dark:border-white/10 dark:bg-paper-dark/90">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <a href="/" className="flex items-center gap-2 font-display text-xl font-700 text-brand-500">
+          <Link href="/" className="flex items-center gap-2 font-display text-xl font-700 text-brand-500">
             <GraduationCap className="h-6 w-6" aria-hidden="true" />
             <span>myMakaranta</span>
-          </a>
+          </Link>
           <div className="flex items-center gap-2 sm:gap-3">
             <a href={APP_URL}>
               <Button variant="ghost" size="sm">
@@ -362,10 +363,10 @@ export default function HomePage() {
       <footer className="border-t border-ink-300/50 bg-paper py-10 dark:border-white/10 dark:bg-paper-dark">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <a href="/" className="flex items-center gap-2 font-display text-lg font-700 text-brand-500">
+            <Link href="/" className="flex items-center gap-2 font-display text-lg font-700 text-brand-500">
               <GraduationCap className="h-5 w-5" aria-hidden="true" />
               <span>myMakaranta</span>
-            </a>
+            </Link>
 
             <nav aria-label="Footer" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-small text-ink-700 dark:text-ink-300">
               <a href="#pricing" className="hover:text-ink-1000 dark:hover:text-ink-100">Pricing</a>
