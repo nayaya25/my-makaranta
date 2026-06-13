@@ -20,6 +20,7 @@
 | D6 | **Email = Mailgun** (overrides SDD's Postmark/Resend). | Founder |
 | D7 | **SMS = Termii** (matches SDD). | Founder |
 | D8 | **DNS = Cloudflare** (already owned) pointing at Vercel (apps) and the container host (api subdomain). | Founder |
+| D9 | **No Docker locally.** Postgres and Redis run natively on the dev machine (ports 5432 / 6379). No docker-compose, no MinIO. Local file uploads use a filesystem `StorageService` adapter (`.storage/`); real S3 only in deployed environments. | Founder |
 
 ## 2. What is explicitly unchanged from the PRD/SDD
 
@@ -33,7 +34,7 @@ The PRD's offline engine (WatermelonDB) is React-Native-only. On web, the equiva
 
 ## 4. Backend provider abstractions (so D5/D6/D7 are swap-in, not rewrites)
 
-- `StorageService` interface → `S3StorageAdapter` (prod) / `MinioStorageAdapter` (local). Signed URLs, TTL ≤ 60 min.
+- `StorageService` interface → `S3StorageAdapter` (prod) / `LocalFsStorageAdapter` (local dev, writes to `.storage/`, serves via API route). Signed URLs, TTL ≤ 60 min in prod.
 - `EmailService` interface → `MailgunEmailAdapter` (prod) / `LogEmailAdapter` (local/test).
 - `SmsService` interface → `TermiiSmsAdapter` (prod) / `MockSmsAdapter` (local/test, exposes code to tests).
 - `PaymentProviderService` interface → `PaystackAdapter` (prod) / `MockPaystackAdapter` (test). Flutterwave slots in later.
