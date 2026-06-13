@@ -22,11 +22,15 @@ BEGIN
   END LOOP;
 END $$;
 
--- 2. Application role that respects RLS (no superuser, no bypass).
+-- 2. Application role that respects RLS (no superuser, no bypass, no login).
+--    No password is provisioned here. RLS is verified by SET ROLE within a transaction
+--    (a superuser that SET ROLEs to this non-superuser role loses its RLS bypass).
+--    In production, the deployed app connects with its own login credentials supplied
+--    out-of-band (env/secret manager) and SET ROLEs to this role per request.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'mymakaranta_app') THEN
-    CREATE ROLE mymakaranta_app LOGIN PASSWORD 'app_dev_password' NOSUPERUSER NOBYPASSRLS;
+    CREATE ROLE mymakaranta_app NOSUPERUSER NOBYPASSRLS NOLOGIN;
   END IF;
 END $$;
 
