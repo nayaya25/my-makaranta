@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@mymakaranta/config": "workspace:*",
+    "eslint": "^9.39.4",
     "@storybook/addon-themes": "^9",
     "@storybook/react": "^9",
     "@storybook/react-vite": "^9",

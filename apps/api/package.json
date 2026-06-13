@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@mymakaranta/config": "workspace:*",
+    "eslint": "^9.39.4",
     "@nestjs/cli": "^11",
     "@nestjs/testing": "^11",
     "@types/bcrypt": "^5.0.2",
