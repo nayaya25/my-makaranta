@@ -28,7 +28,12 @@ const STEP_LABELS: Record<Step, string> = {
 };
 
 const CURRENCIES = ["NGN", "USD", "GBP", "EUR"];
-const COUNTRIES = ["Nigeria", "Ghana", "Kenya", "South Africa", "United Kingdom", "United States"];
+// Values are the API CountryCode enum; labels are display-only.
+const COUNTRIES = [
+  { code: "NG", label: "Nigeria" },
+  { code: "GH", label: "Ghana" },
+  { code: "KE", label: "Kenya" },
+];
 
 const DEFAULT_CLASS_LEVELS = [
   { name: "JSS 1", order: 1 },
@@ -90,7 +95,7 @@ function StepIndicator({ current }: { current: Step }) {
 function SchoolStep({ onNext }: { onNext: () => void }) {
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("NGN");
-  const [country, setCountry] = useState("Nigeria");
+  const [country, setCountry] = useState("NG");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -135,8 +140,8 @@ function SchoolStep({ onNext }: { onNext: () => void }) {
           </Select.Trigger>
           <Select.Content>
             {COUNTRIES.map((c) => (
-              <Select.Item key={c} value={c}>
-                {c}
+              <Select.Item key={c.code} value={c.code}>
+                {c.label}
               </Select.Item>
             ))}
           </Select.Content>
