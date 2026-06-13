@@ -11,14 +11,14 @@ import { verifyFileToken } from "./file-signing";
 export class FilesController {
   private readonly root = resolve(process.env.STORAGE_LOCAL_DIR ?? ".storage");
 
-  @Get("*")
+  @Get("*path")
   get(
     @Param() params: Record<string, string>,
     @Query("exp") exp: string,
     @Query("sig") sig: string,
   ): StreamableFile {
     if (process.env.STORAGE_PROVIDER === "s3") throw new NotFoundException();
-    const rel = params["0"] ?? "";
+    const rel = params["path"] ?? params["0"] ?? "";
     if (!verifyFileToken(rel, Number(exp), sig)) throw new NotFoundException();
 
     const safe = normalize(rel).replace(/^(\.\.(\/|\\|$))+/, "");
