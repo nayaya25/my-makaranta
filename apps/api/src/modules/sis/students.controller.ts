@@ -6,8 +6,11 @@ import {
   Param,
   Patch,
   Post,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from "@nestjs/common";
+import { FileInterceptor } from "@nestjs/platform-express";
 import { JwtAuthGuard } from "../../core/auth/jwt-auth.guard";
 import { PermissionGuard } from "../../core/auth/permissions/permission.guard";
 import { RequirePermissions } from "../../core/auth/permissions/require-permissions.decorator";
@@ -51,5 +54,13 @@ export class StudentsController {
   @RequirePermissions("students.update")
   remove(@Param("id") id: string) {
     return this.students.remove(id);
+  }
+
+  @Post(":id/photo")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("students.update")
+  @UseInterceptors(FileInterceptor("file"))
+  setPhoto(@Param("id") id: string, @UploadedFile() file?: Express.Multer.File) {
+    return this.students.setPhoto(id, file);
   }
 }

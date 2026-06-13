@@ -6,6 +6,7 @@ import { PrismaModule } from "../src/core/prisma/prisma.module";
 import { PrismaService } from "../src/core/prisma/prisma.service";
 import { TenantContext } from "../src/core/tenant/tenant.context";
 import { AuthModule } from "../src/core/auth/auth.module";
+import { StorageModule } from "../src/core/storage/storage.module";
 import { SisModule } from "../src/modules/sis/sis.module";
 import { StudentsService } from "../src/modules/sis/students.service";
 import { StaffService } from "../src/modules/sis/staff.service";
@@ -45,6 +46,7 @@ describe("SIS module (e2e)", () => {
         PassportModule,
         PrismaModule,
         AuthModule,
+        StorageModule,
         SisModule,
       ],
     }).compile();
