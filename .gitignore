@@ -37,3 +37,6 @@ Thumbs.db
 # Throwaway design exploration artifacts
 .design-explore/
 .gstack/
+
+# Storybook build output
+storybook-static/
