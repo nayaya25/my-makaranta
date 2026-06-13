@@ -19,9 +19,9 @@ Multi-tenant school-management platform for Nigerian secondary schools. Delivery
 - Tests need NODE_ENV=test (jest sets it) + Postgres running. e2e: `cd apps/api && NODE_ENV=test pnpm exec jest --config ./test/jest-e2e.json`. Unit: `pnpm --filter @mymakaranta/api exec jest`. UI: `pnpm --filter @mymakaranta/ui exec vitest run`. Builds: `pnpm build`.
 
 ## Current state
-- **main** = Sprints 0 + 1 complete (foundation, design system, web PWA, marketing, onboarding, SIS, bulk import, photo upload) + full major-dependency upgrade pass. 35+ commits.
-- **sprint-2-attendance** (current branch) = Sprint 2 Attendance built + committed, NOT yet merged to main, NOT yet browser-QA'd.
-- **198 tests green** (16 API unit + 66 API e2e + 116 UI), all 3 builds pass. Working tree clean.
+- **main** = Sprints 0 + 1 + 2 complete. Sprint 2 Attendance is merged (fast-forward) and browser-QA'd. HEAD `1bb3a83`.
+- Sprint 2 browser QA (2026-06-13) found + fixed 1 high-sev UI↔API seam bug: overview attendance rate rendered "1.0%" instead of "100%" (API sends `rate` as a 0–1 fraction; web treated it as a 0–100 percentage → wrong label, threshold colors, bar width). Fix `1bb3a83`, verified live + web build green. Report: `.gstack/qa-reports/qa-report-attendance-2026-06-13.md` (gitignored).
+- **198 tests green** (16 API unit + 66 API e2e + 116 UI), all 3 builds pass. Working tree clean. `sprint-2-attendance` branch can be deleted (merged).
 - Security audit: `pnpm audit --prod` → 0 critical, 6 high (all transitive `tar` via bcrypt build toolchain, runtime-unreachable, unfixable upstream). CI gates on critical.
 
 ## What's built (by area)
@@ -32,9 +32,15 @@ Multi-tenant school-management platform for Nigerian secondary schools. Delivery
 - Web: `(app)` shell + sidebar (Dashboard, Students, Staff, Classes, Attendance, Settings), login, onboarding wizard.
 
 ## Next steps (in order)
-1. **Browser QA of attendance.** Start servers (api on 4080, web on 3000). The attendance grid needs a class with students ENROLLED in the current term — there's no web enrollment screen, so seed via API: login (OTP code prints in /tmp/api.log mock SMS) → POST /v1/schools (use the returned fresh token thereafter) → POST /v1/academic-years (one term `isCurrent:true`) → POST /v1/class-levels → POST /v1/classes → POST /v1/students (×3) → POST /v1/enrollments (each student: {studentId, classId, termId}). Then browse `/attendance`, pick the class + today, verify the 3 students render, tap-to-cycle marks + persists (re-fetch roster shows statuses), and `/attendance/overview` shows rates. Fix any UI↔API seam bug found (this pass caught a country-enum bug in onboarding before). **Browse gotchas:** re-run `snapshot -i` AFTER every `goto` (refs invalidate on nav); wait ~3s after `wait --networkidle` for React hydration before filling; copy screenshots into the repo dir to Read them.
-2. **Merge sprint-2-attendance → main** once QA is clean (`git checkout main && git merge sprint-2-attendance --no-edit`). Then branch the next sprint.
-3. **Sprint 2.5 (offline PWA attendance)** OR **Sprint 3 (Assessment & Grading)** — founder to pick. 2.5 = service-worker + IndexedDB write-queue feeding the existing idempotent `POST /v1/attendance/mark` (idempotencyKey already in the model). Sprint 3 = configurable assessment structure, score entry, principal release flow, the WAEC-style report-card PDF showpiece (see sprint-charters.md §Sprint 3 + PRD §4.5).
+1. **Branch the next sprint off main** (`git checkout main && git checkout -b <branch>`). Optionally delete the merged `sprint-2-attendance` branch.
+2. **Sprint 2.5 (offline PWA attendance)** OR **Sprint 3 (Assessment & Grading)** — founder to pick. 2.5 = service-worker + IndexedDB write-queue feeding the existing idempotent `POST /v1/attendance/mark` (idempotencyKey already in the model). Sprint 3 = configurable assessment structure, score entry, principal release flow, the WAEC-style report-card PDF showpiece (see sprint-charters.md §Sprint 3 + PRD §4.5).
+3. **Tech-debt follow-up:** `apps/web` has no test framework (UI tests live in `packages/ui` vitest). Consider bootstrapping vitest + @testing-library/react in `apps/web` so display-layer seam bugs (like the rate bug above) get caught by tests, not just live QA.
+
+### Browser-QA playbook (reusable; learned this pass)
+- Seed via API (no web enrollment screen): `POST /auth/otp/request {phone}` → OTP prints in api.log mock SMS → `POST /auth/otp/verify {phone,code}` → `POST /v1/schools` (use the returned **fresh token** thereafter) → `/v1/academic-years` (term `isCurrent:true`; roster resolves term by the `isCurrent` flag, NOT by date, so calendar drift is fine) → `/v1/class-levels` → `/v1/classes` → `/v1/students` ×3 → `/v1/enrollments` {studentId,classId,termId}.
+- **gstack browse on this Windows box restarts the daemon between separate Bash calls, wiping localStorage** → do each interaction sequence in ONE bash call. Web stores auth in `localStorage` keys `mm.token` + `mm.user`; re-inject them at the start of each call (capture once after a real login), then `goto`.
+- React controlled inputs: set value via the native setter + dispatch `input`+`change` (plain `fill`/`.value=` doesn't trigger React state). Set dependent date inputs one at a time with a wait between (batching otherwise drops one).
+- `browse screenshot`/`snapshot -o` saves relative to the daemon's cwd (often `apps/web/.gstack/...`) — `find` it and copy into the repo, and `rm -rf apps/web/.gstack` after.
 
 ## How the work has been run
 Orchestrator builds the tenancy/security-critical core inline (TDD); parallel subagents build disjoint modules/screens; orchestrator owns integration (barrels, app.module wiring) + verification + commits. Every commit triggers a background security-review hook — address its findings. Three independent safety nets used: automated tests, the security-review hook, and live browser QA (each catches a different bug class).
