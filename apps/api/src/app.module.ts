@@ -6,6 +6,8 @@ import { PrismaModule } from "./core/prisma/prisma.module";
 import { TenantModule } from "./core/tenant/tenant.module";
 import { TenantMiddleware } from "./core/tenant/tenant.middleware";
 import { AuthModule } from "./core/auth/auth.module";
+import { StorageModule } from "./core/storage/storage.module";
+import { EmailModule } from "./core/email/email.module";
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { AuthModule } from "./core/auth/auth.module";
     PrismaModule,
     TenantModule,
     AuthModule,
+    StorageModule,
+    EmailModule,
   ],
   controllers: [AppController],
 })
