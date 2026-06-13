@@ -10,7 +10,8 @@ export const preset = {
         brand: colors.brand,
         saffron: colors.saffron,
         ink: colors.ink,
-        paper: { DEFAULT: colors.paper, dark: colors.paperDark },
+        paper: { DEFAULT: colors.paper, warm: colors.paperWarm, dark: colors.paperDark },
+        surface: { DEFAULT: colors.surface, dark: colors.surfaceDark },
         success: colors.success,
         warning: colors.warning,
         error: colors.error,
@@ -35,6 +36,7 @@ export const preset = {
         input: radius.input,
         button: radius.button,
         card: radius.card,
+        warm: radius.warm,
         sheet: radius.sheet,
       },
       boxShadow: {

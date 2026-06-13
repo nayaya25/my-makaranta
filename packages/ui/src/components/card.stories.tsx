@@ -28,6 +28,30 @@ export const FeeCard: Story = {
   ),
 };
 
+export const WarmParentCard: Story = {
+  render: () => (
+    <div className="bg-paper-warm p-8">
+      <Card tone="warm" elevation="lg" className="w-80">
+        <CardHeader>
+          <span className="w-fit rounded-pill bg-saffron-100 px-2.5 py-1 text-caption font-bold text-saffron-700">
+            Overdue
+          </span>
+          <p className="mt-1 text-caption uppercase tracking-wide text-ink-500">Outstanding fees</p>
+          <h3 className="font-display text-h2 tabular-nums text-ink-1000">₦175,000</h3>
+        </CardHeader>
+        <CardBody>
+          <p className="text-small text-ink-700">Tunde Okafor · JSS2A · Second Term 2025/2026</p>
+        </CardBody>
+        <CardFooter>
+          <Button className="w-full bg-saffron-500 text-ink-1000 hover:bg-saffron-700 hover:text-white">
+            Pay now
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  ),
+};
+
 export const ElevationScale: Story = {
   render: () => (
     <div className="flex flex-wrap gap-6 bg-paper p-8">

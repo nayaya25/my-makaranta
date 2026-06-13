@@ -87,6 +87,19 @@ Native Expo apps; Admissions; Curriculum/lesson notes; Timetable builder; Behavi
 - **Per-request identity/tenant resolution from DB** in the `PermissionGuard` (SDD §5.5) rather than trusting JWT claims, with a `User.tokenVersion` claim + column to enable revocation on role/tenant change (addresses the 30-day-JWT staleness flagged in Sprint 0 review).
 - **Invite-gated identity linking:** OTP verify currently auto-creates a `PENDING` user (no tenant access). Sprint 1 links verified phones to pre-provisioned `Parent`/`Staff`/`Student` records and refuses or quarantines unknown phones.
 
+## 8c. Design direction (locked 2026-06-13)
+
+**Base = "Bold Ink"** (Linear-leaning): electric indigo primary `#4338CA`, cool canvas `#F4F5F7`,
+crisp radii (button/input 8px, card 12px), bordered cards, confident layered elevation, rose
+destructive `#E11D48`, tabular Inter numerals. Dark mode flips cards to `#15171F` on `#0B0D12`.
+
+**Warmth layer = "Saffron Warmth"** for parent/student surfaces: warm cream canvas `#FBF7EF`,
+friendlier 16px radius (`rounded-warm`), saffron accents/CTA, status pills.
+
+Density-per-stakeholder (PRD §3.4.3): admin/proprietor uses the dense Bold Ink base; parent/student
+uses the warm tone. Components carry a `tone` ("base" | "warm") where the surface differs.
+Convention: content text uses dark-aware classes (`text-ink-1000 dark:text-ink-100`) so contrast holds in both modes.
+
 ## 9. Definition of done (per the founder's brief)
 
 Functional, no known bugs, tests capture features properly (behavioral coverage, not just smoke), simple/concise code with minimal comments, every monetary path correct to the kobo, cross-tenant isolation proven by integration tests on every PR.

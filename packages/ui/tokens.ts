@@ -1,37 +1,43 @@
 /**
- * Design tokens — the single source of truth for myMakaranta's visual language.
- * Encodes the PRD design system: indigo primary (culturally resonant, trustworthy),
- * saffron accent, warm neutrals, Inter/General Sans/Newsreader type, ease-out-expo motion,
- * and a considered elevation scale. Tailwind consumes this via tailwind-preset.ts —
- * components reference tokens through Tailwind classes, never raw hex.
+ * Design tokens — single source of truth for myMakaranta's visual language.
+ * Base direction: "Bold Ink" (Linear-leaning) — punchy electric indigo, crisp radii,
+ * cool canvas, confident elevation. A "Saffron Warmth" layer (warm cream surface +
+ * saffron accents + friendlier radius) is applied to the parent/student surfaces.
+ * Tailwind consumes this via tailwind-preset.ts; components reference tokens through
+ * Tailwind classes, never raw hex.
  */
 
 export const colors = {
   brand: {
-    50: "#EEF1FF",
-    100: "#D6DDFD",
-    300: "#7B8DF5",
-    500: "#3D52E0", // primary — buttons, links, brand surfaces
-    700: "#1F2D8A", // pressed / dark-mode primary
-    900: "#0E1547",
+    50: "#EEF0FE",
+    100: "#DADEFB",
+    300: "#8B92F0",
+    500: "#4338CA", // primary — electric indigo
+    700: "#2E2A9E", // pressed / dark-mode primary
+    900: "#181A4E",
   },
   saffron: {
     100: "#FEF3D9",
-    500: "#E8A33C", // achievement / celebration accent
+    500: "#E8A33C", // achievement / celebration / parent-surface accent
     700: "#A06A1A",
   },
   ink: {
-    1000: "#0A0B12", // primary text on light; base canvas (dark)
-    700: "#3A3D4A",
-    500: "#7A7E8E",
-    300: "#C7C9D1",
-    100: "#EFEFF3",
+    1000: "#0B0D12", // primary text on light; base canvas (dark)
+    700: "#3C4150",
+    500: "#6B7180",
+    300: "#D9DCE3", // borders
+    100: "#EEF0F4", // subtle fills
   },
-  paper: "#FAFAF7", // warm off-white canvas (light)
-  paperDark: "#0E0F14", // base canvas (dark) — not pure black, reduces OLED smear
+  // Surfaces
+  paper: "#F4F5F7", // cool app canvas (admin base)
+  paperWarm: "#FBF7EF", // warm cream canvas (parent/student)
+  paperDark: "#0B0D12", // base canvas (dark) — near-black, not pure
+  surface: "#FFFFFF", // card surface (light)
+  surfaceDark: "#15171F", // card surface (dark)
+  // Semantic
   success: "#1F9D55",
   warning: "#D97706",
-  error: "#D02B2B",
+  error: "#E11D48", // punchy rose — overdue / absent / destructive
   info: "#2D7CE0",
   white: "#FFFFFF",
 } as const;
@@ -70,25 +76,27 @@ export const spacing = {
   24: "6rem",
 } as const;
 
+/** Crisp radii (Bold Ink). `warm` is the friendlier radius for parent/student cards. */
 export const radius = {
   none: "0",
-  sm: "0.375rem",
-  input: "0.625rem",
-  button: "0.625rem",
-  card: "1rem",
-  sheet: "1.25rem",
+  sm: "0.375rem", // 6
+  input: "0.5rem", // 8
+  button: "0.5rem", // 8
+  card: "0.75rem", // 12
+  warm: "1rem", // 16 — parent/student cards
+  sheet: "1.25rem", // 20
   pill: "9999px",
 } as const;
 
-/** Elevation scale — soft, layered shadows for considered card depth (not harsh drop shadows). */
+/** Elevation — confident but layered (not harsh). Tuned on cool ink shadows. */
 export const shadow = {
   none: "none",
-  xs: "0 1px 2px 0 rgb(10 11 18 / 0.04)",
-  sm: "0 1px 3px 0 rgb(10 11 18 / 0.06), 0 1px 2px -1px rgb(10 11 18 / 0.06)",
-  md: "0 4px 12px -2px rgb(10 11 18 / 0.08), 0 2px 6px -2px rgb(10 11 18 / 0.05)",
-  lg: "0 12px 28px -6px rgb(10 11 18 / 0.12), 0 6px 12px -6px rgb(10 11 18 / 0.08)",
-  xl: "0 24px 48px -12px rgb(10 11 18 / 0.18), 0 12px 24px -12px rgb(10 11 18 / 0.1)",
-  focus: "0 0 0 2px #FAFAF7, 0 0 0 4px #3D52E0", // 2px ring + 2px offset
+  xs: "0 1px 2px 0 rgb(11 13 18 / 0.06)",
+  sm: "0 1px 3px 0 rgb(11 13 18 / 0.08), 0 1px 2px -1px rgb(11 13 18 / 0.06)",
+  md: "0 4px 14px -3px rgb(11 13 18 / 0.10), 0 2px 6px -3px rgb(11 13 18 / 0.06)",
+  lg: "0 8px 24px -8px rgb(11 13 18 / 0.12), 0 6px 12px -8px rgb(11 13 18 / 0.08)",
+  xl: "0 24px 48px -12px rgb(11 13 18 / 0.18), 0 12px 24px -12px rgb(11 13 18 / 0.10)",
+  focus: "0 0 0 2px #F4F5F7, 0 0 0 4px #4338CA", // 2px ring + 2px offset
 } as const;
 
 /** Motion — custom ease-out-expo; linear forbidden except indeterminate progress. */
@@ -96,9 +104,9 @@ export const motion = {
   ease: "cubic-bezier(0.16, 1, 0.3, 1)",
   easeInOut: "cubic-bezier(0.65, 0, 0.35, 1)",
   duration: {
-    micro: "120ms", // toggles, hover, focus
-    standard: "240ms", // page transitions, modal open/close
-    hero: "560ms", // signature moments (results reveal, payment success)
+    micro: "120ms",
+    standard: "240ms",
+    hero: "560ms",
   },
 } as const;
 

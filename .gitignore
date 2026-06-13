@@ -33,4 +33,7 @@ Thumbs.db
 # Deploy
 .vercel
 .expo
+
+# Throwaway design exploration artifacts
+.design-explore/
 .gstack/

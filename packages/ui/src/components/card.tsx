@@ -2,17 +2,23 @@ import { forwardRef } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/cn";
 
-const card = cva("rounded-card bg-white transition-shadow duration-standard ease-expo", {
+const card = cva("transition-shadow duration-standard ease-expo", {
   variants: {
+    tone: {
+      // Bold Ink base — bordered crisp card (admin/proprietor surfaces)
+      base: "rounded-card border border-ink-100 bg-surface dark:border-white/10 dark:bg-surface-dark",
+      // Saffron warmth — friendlier radius, borderless, softer (parent/student surfaces)
+      warm: "rounded-warm bg-surface dark:bg-surface-dark",
+    },
     elevation: {
-      flat: "border border-ink-100",
+      flat: "",
       sm: "shadow-sm",
       md: "shadow-md",
       lg: "shadow-lg",
     },
     interactive: { true: "hover:shadow-lg cursor-pointer", false: "" },
   },
-  defaultVariants: { elevation: "sm", interactive: false },
+  defaultVariants: { tone: "base", elevation: "sm", interactive: false },
 });
 
 export interface CardProps
@@ -20,8 +26,8 @@ export interface CardProps
     VariantProps<typeof card> {}
 
 export const Card = forwardRef<HTMLDivElement, CardProps>(
-  ({ className, elevation, interactive, ...props }, ref) => (
-    <div ref={ref} className={cn(card({ elevation, interactive }), className)} {...props} />
+  ({ className, tone, elevation, interactive, ...props }, ref) => (
+    <div ref={ref} className={cn(card({ tone, elevation, interactive }), className)} {...props} />
   ),
 );
 Card.displayName = "Card";
