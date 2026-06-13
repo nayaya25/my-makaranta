@@ -12,6 +12,7 @@ const TENANT_MODELS = new Set([
   "Staff",
   "Student",
   "Parent",
+  "AttendanceRecord",
 ]);
 
 @Injectable()

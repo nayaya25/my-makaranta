@@ -40,3 +40,6 @@ Thumbs.db
 
 # Storybook build output
 storybook-static/
+
+# build info
+*.tsbuildinfo

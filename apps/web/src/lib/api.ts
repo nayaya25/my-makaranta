@@ -166,6 +166,56 @@ export interface ImportJobStatus {
   };
 }
 
+export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
+
+export interface AttendanceRecord {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  photoUrl?: string | null;
+  status: AttendanceStatus | null;
+  reason?: string | null;
+}
+
+export interface AttendanceDay {
+  date: string;
+  students: AttendanceRecord[];
+}
+
+export interface MarkAttendanceRecord {
+  studentId: string;
+  status: AttendanceStatus;
+  reason?: string;
+}
+
+export interface MarkAttendancePayload {
+  classId: string;
+  date: string;
+  records: MarkAttendanceRecord[];
+}
+
+export interface AttendanceClassSummary {
+  classId: string;
+  className: string;
+  present: number;
+  absent: number;
+  late: number;
+  excused: number;
+  total: number;
+  rate: number;
+}
+
+export interface AttendanceAnomaly {
+  studentId: string;
+  name: string;
+  absences: number;
+}
+
+export interface AttendanceSummary {
+  classes: AttendanceClassSummary[];
+  anomalies: AttendanceAnomaly[];
+}
+
 export const api = {
   requestOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
@@ -277,4 +327,15 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+
+  // Attendance
+  getClassAttendance: (classId: string, date: string) =>
+    authedRequest<AttendanceDay>(`/v1/attendance/class/${classId}?date=${date}`),
+  markAttendance: (payload: MarkAttendancePayload) =>
+    authedRequest<{ saved: number }>("/v1/attendance/mark", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getAttendanceSummary: (from: string, to: string) =>
+    authedRequest<AttendanceSummary>(`/v1/attendance/summary?from=${from}&to=${to}`),
 };

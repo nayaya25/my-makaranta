@@ -78,6 +78,7 @@ model School {
   students      Student[]
   parents       Parent[]
   academicYears AcademicYear[]
+  attendance    AttendanceRecord[]
 }
 
 model AcademicYear {
@@ -169,6 +170,7 @@ model Student {
   enteredAt     DateTime     @default(now())
   guardians     Guardian[]
   enrollments   Enrollment[]
+  attendance    AttendanceRecord[]
 
   @@unique([schoolId, admissionNo])
 }
@@ -268,4 +270,25 @@ model OtpRequest {
   createdAt DateTime @default(now())
 
   @@index([phone, createdAt])
+}
+
+// === Attendance ===
+
+model AttendanceRecord {
+  id             String           @id @default(cuid())
+  schoolId       String
+  school         School           @relation(fields: [schoolId], references: [id])
+  studentId      String
+  student        Student          @relation(fields: [studentId], references: [id])
+  classId        String
+  date           DateTime // normalized to midnight UTC: one record per student per day
+  status         AttendanceStatus
+  reason         String?
+  recordedBy     String // user/staff id
+  idempotencyKey String?          @unique // client-generated; safe retries / offline sync (Sprint 2.5)
+  recordedAt     DateTime         @default(now())
+
+  @@unique([studentId, date])
+  @@index([schoolId, date])
+  @@index([classId, date])
 }

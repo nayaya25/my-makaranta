@@ -12,6 +12,7 @@ import { getJwtSecret } from "./core/config/secrets";
 import { StructureModule } from "./modules/structure/structure.module";
 import { SisModule } from "./modules/sis/sis.module";
 import { ImportsModule } from "./modules/imports/imports.module";
+import { AttendanceModule } from "./modules/attendance/attendance.module";
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ImportsModule } from "./modules/imports/imports.module";
     StructureModule,
     SisModule,
     ImportsModule,
+    AttendanceModule,
   ],
   controllers: [AppController],
 })
