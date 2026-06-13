@@ -169,3 +169,58 @@ Dropdown, Select, Switch, Checkbox, Radio, NavigationMenu, Breadcrumb, EmptyStat
 - Use green/white flag colours as brand signals.
 - Animate lists on initial render, or numbers unless the user triggered the change.
 - Put destructive actions in the mobile thumb zone.
+
+---
+
+## 9. Mobile-web guidelines (parent / teacher / student surfaces)
+
+**Scope:** myMakaranta ships **responsive mobile-web** now; native iOS/Android (Expo) is a later
+milestone. These rules apply to the parent, teacher, and student surfaces of `apps/web` — same tokens,
+the `warm` tone for parent/student, dense Bold Ink for teacher tools. iOS HIG / Material native specifics
+and native haptics are deferred with the Expo build.
+
+**Design decision lens** (apply to every mobile element): Purpose · Hierarchy · Context · Accessibility · Performance.
+
+### Touch
+- Targets ≥ **44×44px** (48 preferred); ≥ **8px** between interactive elements.
+- **Thumb zone:** primary actions (Pay, Mark attendance, Send) within the bottom ~60%; destructive
+  (Delete, Discard) top-right and confirmed — never in the thumb zone.
+- Visual touch feedback within **100ms** (active state / ripple-free press scale `active:scale-[0.98]`).
+- Haptics: web `navigator.vibrate` only, sparingly, for key confirmations (graceful no-op where unsupported).
+
+### Navigation patterns (as web components)
+- **Bottom tab bar** — parent 4 tabs (Home · Children · Pay · Messages); teacher 5 (Today · Classes ·
+  Messages · Tools · Me). Max 5; **no FAB** (PRD: teacher app is FAB-free, actions live in context).
+- **Bottom sheet** — the `Sheet` component, bottom-anchored, for modal content/actions.
+- **Pull-to-refresh** for content lists; **swipe actions** for row secondaries (later wave).
+- Avoid gesture conflicts (horizontal swipe vs vertical scroll).
+
+### Typography (mobile)
+- Body **≥ 16px** (prevents iOS auto-zoom on focus). Line-height 1.5 body, 1.1–1.3 headings.
+- Measure 45–75 chars. Max 3 weights on a screen.
+
+### Micro-interactions (Trigger → Rules → Feedback → Mode)
+- **Mark attendance:** tap tile → status cycles → tile shifts colour + 2px inset (`duration-micro`) →
+  optimistic local state, syncs in background.
+- **Pay fee:** tap Pay → Paystack flow → hero checkmark draw (`duration-hero`) + bottom-sheet receipt →
+  invoice state flips to paid.
+- **Result release:** open → choreographed reveal (cover → photo → subjects stagger → position) →
+  share-ready card.
+
+### Performance budget (defended in CI — PRD §3.6)
+- First-load JS ≤ **200KB gz**; TTI ≤ **3s** on mid-range 4G Android; tested on a real **Tecno Spark**.
+- Images AVIF/WebP, responsive `srcset`, lazy-loaded, ≤ 200KB per visible image.
+- Animate `transform`/`opacity` only; hardware-accelerated; no layout-thrashing properties.
+- Skeleton screens for content > 200ms; optimistic UI for high-frequency actions.
+
+### Forms (mobile)
+- Single column, smart defaults, inline validation (`Field` error with `role="alert"`), correct
+  `inputmode`/`type` (numeric keyboards for scores/amounts), explicit Next affordance.
+
+### iOS/Android web quirks
+- Use `100dvh` (not `100vh`) for full-height; respect safe areas via `env(safe-area-inset-*)`.
+- 16px inputs to avoid iOS zoom; `-webkit-tap-highlight-color: transparent` with our own focus/active states.
+
+### Accessibility & testing
+- WCAG AA (4.5:1) min, 7:1 for text over photos; visible focus everywhere; semantic markup + ARIA.
+- Test: real Tecno Spark, Lighthouse mobile in CI, VoiceOver (iOS Safari) + TalkBack (Android Chrome).
