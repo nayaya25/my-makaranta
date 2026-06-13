@@ -33,3 +33,4 @@ Thumbs.db
 # Deploy
 .vercel
 .expo
+.gstack/
