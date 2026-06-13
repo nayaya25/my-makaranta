@@ -1,0 +1,19 @@
+{
+  "name": "@mymakaranta/config",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.js",
+  "files": ["*.js", "*.json"],
+  "exports": {
+    "./eslint": "./eslint.config.js",
+    "./prettier": "./prettier.config.js",
+    "./tsconfig.app.json": "./tsconfig.app.json",
+    "./tsconfig.lib.json": "./tsconfig.lib.json"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "prettier": "^3.3.0",
+    "typescript-eslint": "^8.10.0"
+  }
+}
