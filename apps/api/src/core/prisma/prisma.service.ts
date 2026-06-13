@@ -54,6 +54,32 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       }
       return next(params);
     });
+
+    // Audit every mutation on tenant models (who/when/what). Logs the resulting row;
+    // a failed audit write must never break the mutation it describes.
+    this.$use(async (params, next) => {
+      const result = await next(params);
+      const MUTATIONS = new Set(["create", "update", "delete"]);
+      if (params.model && TENANT_MODELS.has(params.model) && MUTATIONS.has(params.action)) {
+        const ctx = TenantContext.current();
+        const row = result as { id?: string } | null;
+        try {
+          await this.auditLog.create({
+            data: {
+              schoolId: ctx?.schoolId ?? null,
+              actorId: ctx?.userId ?? null,
+              action: `${params.model}.${params.action}`,
+              resourceType: params.model,
+              resourceId: row?.id ?? "(unknown)",
+              after: result ? JSON.parse(JSON.stringify(result)) : undefined,
+            },
+          });
+        } catch {
+          // swallow — auditing is best-effort and must not fail the operation
+        }
+      }
+      return result;
+    });
   }
 
   async onModuleDestroy() {
