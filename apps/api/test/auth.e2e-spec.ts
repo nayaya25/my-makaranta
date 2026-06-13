@@ -90,4 +90,20 @@ describe("Auth (e2e)", () => {
   it("GET /me without a JWT returns 401", async () => {
     await request(app.getHttpServer()).get("/me").expect(401);
   });
+
+  it("requesting a new OTP invalidates the previous code", async () => {
+    const p = phone(5);
+    const server = app.getHttpServer();
+    const sms = app.get(SmsService);
+
+    await request(server).post("/auth/otp/request").send({ phone: p }).expect(204);
+    const firstCode = sms.lastCodeForTest(p)!;
+
+    await request(server).post("/auth/otp/request").send({ phone: p }).expect(204);
+    const secondCode = sms.lastCodeForTest(p)!;
+
+    // The superseded first code must no longer verify; the latest one must.
+    await request(server).post("/auth/otp/verify").send({ phone: p, code: firstCode }).expect(400);
+    await request(server).post("/auth/otp/verify").send({ phone: p, code: secondCode }).expect(200);
+  });
 });

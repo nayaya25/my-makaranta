@@ -8,13 +8,14 @@ import { TenantMiddleware } from "./core/tenant/tenant.middleware";
 import { AuthModule } from "./core/auth/auth.module";
 import { StorageModule } from "./core/storage/storage.module";
 import { EmailModule } from "./core/email/email.module";
+import { getJwtSecret } from "./core/config/secrets";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET ?? "dev-secret-change-me",
+      secret: getJwtSecret(),
       signOptions: { expiresIn: "30d" },
     }),
     PrismaModule,

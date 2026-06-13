@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
+import { randomInt } from "node:crypto";
 import * as bcrypt from "bcrypt";
 import { PrismaService } from "../prisma/prisma.service";
 import { SmsService } from "./sms.service";
@@ -8,8 +9,9 @@ const OTP_TTL_MINUTES = 10;
 const OTP_RATE_LIMIT_PER_HOUR = 5;
 const MAX_ATTEMPTS = 5;
 
+/** Cryptographically secure 6-digit code (no Math.random). */
 function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return randomInt(100000, 1000000).toString();
 }
 
 export interface AuthResult {
@@ -38,6 +40,12 @@ export class AuthService {
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
+    // Invalidate any prior live OTPs so only the newest can be verified (defeats per-row
+    // lockout bypass; the per-hour rate limit caps the number of fresh codes).
+    await this.prisma.otpRequest.updateMany({
+      where: { phone, consumed: false },
+      data: { consumed: true },
+    });
     await this.prisma.otpRequest.create({ data: { phone, codeHash, expiresAt } });
     await this.sms.send(
       phone,
@@ -60,10 +68,13 @@ export class AuthService {
     });
     if (!ok) throw new BadRequestException("Invalid or expired code.");
 
+    // Auto-provisioned accounts are PENDING (no school, no identity link) until Sprint 1's
+    // invite/identity-linking claims them. A PENDING user's null schoolId means tenant-scoped
+    // queries return nothing, so an unclaimed token cannot read any school's data.
     let user = await this.prisma.user.findFirst({ where: { phone } });
     if (!user) {
       user = await this.prisma.user.create({
-        data: { phone, identityType: "PARENT", identityId: "" },
+        data: { phone, identityType: "PENDING", identityId: "" },
       });
     }
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
