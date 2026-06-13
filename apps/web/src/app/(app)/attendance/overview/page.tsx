@@ -140,7 +140,10 @@ export default function AttendanceOverviewPage() {
             />
           ) : (
             <div className="flex flex-col gap-3 mb-8">
-              {summary.classes.map((cls) => (
+              {summary.classes.map((cls) => {
+                // API returns rate as a 0–1 fraction; the display + thresholds + bar all expect a percentage.
+                const pct = cls.rate * 100;
+                return (
                 <Card key={cls.classId}>
                   <CardHeader>
                     <div className="flex items-center justify-between gap-3">
@@ -150,10 +153,10 @@ export default function AttendanceOverviewPage() {
                       <span
                         className={cn(
                           "text-h3 font-bold tabular-nums",
-                          rateTextColor(cls.rate),
+                          rateTextColor(pct),
                         )}
                       >
-                        {cls.rate.toFixed(1)}%
+                        {pct.toFixed(1)}%
                       </span>
                     </div>
                   </CardHeader>
@@ -161,8 +164,8 @@ export default function AttendanceOverviewPage() {
                     {/* Rate bar */}
                     <div className="mb-3 h-2 w-full rounded-pill bg-ink-100 dark:bg-white/10 overflow-hidden">
                       <div
-                        className={cn("h-full rounded-pill transition-all duration-standard ease-expo", rateColor(cls.rate))}
-                        style={{ width: `${Math.min(cls.rate, 100)}%` }}
+                        className={cn("h-full rounded-pill transition-all duration-standard ease-expo", rateColor(pct))}
+                        style={{ width: `${Math.min(pct, 100)}%` }}
                       />
                     </div>
                     {/* Counts */}
@@ -186,7 +189,8 @@ export default function AttendanceOverviewPage() {
                     </div>
                   </CardBody>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
 
