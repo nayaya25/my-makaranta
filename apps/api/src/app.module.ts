@@ -11,6 +11,7 @@ import { EmailModule } from "./core/email/email.module";
 import { getJwtSecret } from "./core/config/secrets";
 import { StructureModule } from "./modules/structure/structure.module";
 import { SisModule } from "./modules/sis/sis.module";
+import { ImportsModule } from "./modules/imports/imports.module";
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { SisModule } from "./modules/sis/sis.module";
     EmailModule,
     StructureModule,
     SisModule,
+    ImportsModule,
   ],
   controllers: [AppController],
 })
