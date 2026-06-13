@@ -1,0 +1,1123 @@
+# myMakaranta — System Design Document (v1)
+
+**Companion to:** `PRD-v1.md` (product requirements) and `plans/2026-05-01-sprint-0-foundation.md` (Sprint 0 implementation plan).
+
+**Audience:** Engineering team (current and incoming), founding designer, technical investors, third-party security reviewers, future on-prem operators (Phase 3+ if any school demands it).
+
+**Purpose:** This document explains *how the system is structured* to deliver the product vision in the PRD. Where the PRD covers what we build and why, this document covers how the parts fit, who talks to what, and what it takes to operate the platform in production.
+
+**Length:** ~8,500 words. Optimized for: a new engineer who needs the system map; a reviewer auditing for security/compliance; the founder when an investor asks "but how does it actually work?"
+
+**Status:** v1, derived from the approved PRD. Updates to this document trail PRD changes.
+
+---
+
+## Document map
+
+- **§1** — Executive summary and design principles
+- **§2** — System context (the world around myMakaranta)
+- **§3** — Container view (the apps, services, and data stores that compose the system)
+- **§4** — Component view (the internal structure of the API and the web app)
+- **§5** — Stakeholder interaction flows (seven sequence diagrams)
+- **§6** — Data architecture (model, lineage, retention, residency)
+- **§7** — Cross-cutting concerns (security, multi-tenancy, offline/sync, observability, i18n, performance, compliance)
+- **§8** — Deployment view
+- **§9** — Architecture decision log (compact ADRs)
+- **§10** — Operational runbook outline
+
+---
+
+## §1 — Executive summary and design principles
+
+myMakaranta is a multi-tenant school management platform that delivers stakeholder-specific experiences across web and mobile, designed to perform under Nigerian infrastructure constraints (intermittent connectivity, low-end Android, expensive data) without compromising design quality. Architecturally, it is a **modular monolith** on the backend (NestJS + PostgreSQL + Prisma) with **stakeholder-specific clients** (Next.js web for proprietors/principals/bursars/registrars; Expo React Native for teachers, parents, students). Multi-tenancy is **row-level with PostgreSQL Row-Level Security (RLS) as defense-in-depth.** Offline-first writes are first-class on the teacher and parent mobile apps via WatermelonDB.
+
+The five architectural principles that override convenience:
+
+1. **Tenant isolation at every layer.** App middleware filters by tenant; database RLS enforces it again. A bug in one layer cannot leak data across tenants.
+2. **Money is sacred.** All currency stored in smallest unit (kobo) as integers; no floats, ever. Every monetary write is auditable.
+3. **Offline is a normal mode, not a degraded mode.** Teacher attendance and score-entry, parent receipts: all designed to function, save, and feel responsive without connectivity.
+4. **Permissions are the primitive, not roles.** A proprietor-VP-bursar at one school is a school-counsellor at another; we model atomic capabilities, not job titles.
+5. **Currency, identity, and locale are country-configurable from day one.** Hardcoding NGN, NIN, or "+234" is forbidden. The platform is built for Africa, validating in Nigeria.
+
+---
+
+## §2 — System context
+
+The myMakaranta system sits inside a wider ecosystem of stakeholders and external systems. The C4-Level-1 context diagram:
+
+```mermaid
+graph TB
+    subgraph PEOPLE["👥 People who interact with the system"]
+        PROP[Proprietor<br/>school owner]
+        PRIN[Principal/VP]
+        TCH[Teacher / Form Teacher]
+        BURS[Bursar]
+        REG[Registrar]
+        HOD[HOD]
+        PAR[Parent / Guardian]
+        STU[Student]
+        INSP[Ministry Inspector<br/>Phase 3]
+    end
+
+    subgraph PLATFORM["🏫 myMakaranta platform"]
+        SYS[(myMakaranta<br/>multi-tenant SaaS)]
+    end
+
+    subgraph EXTERNAL["🌐 External systems"]
+        PSTK[Paystack<br/>payment processing]
+        FLW[Flutterwave<br/>payment fallback - P2]
+        TERMII[Termii<br/>SMS gateway]
+        WA[WhatsApp Business API<br/>via 360dialog - P2]
+        POSTMARK[Postmark<br/>transactional email]
+        R2[Cloudflare R2<br/>file storage]
+        WAEC[WAEC Online Portal<br/>candidate registration - P3]
+        BANKS[Nigerian banks<br/>statement CSV ingest]
+    end
+
+    PROP -->|reviews dashboard, approves changes| SYS
+    PRIN -->|releases results, audits, broadcasts| SYS
+    TCH -->|marks attendance, scores, messages| SYS
+    BURS -->|reconciles, issues receipts| SYS
+    REG -->|admits, transfers, records| SYS
+    HOD -->|reviews curriculum, drift detection| SYS
+    PAR -->|pays fees, reads results, messages| SYS
+    STU -->|views timetable, results, ID card| SYS
+    INSP -->|read-only audit access| SYS
+
+    SYS -->|initialize tx, verify webhook| PSTK
+    SYS -->|fallback rails - P2| FLW
+    SYS -->|send SMS broadcasts + OTP| TERMII
+    SYS -->|send WhatsApp messages - P2| WA
+    SYS -->|send transactional email| POSTMARK
+    SYS -->|store photos, PDFs, report cards| R2
+    SYS -->|export candidate file - P3| WAEC
+    BANKS -->|CSV uploaded by bursar| SYS
+
+    classDef person fill:#3D52E0,stroke:#1F2D8A,color:#fff
+    classDef sys fill:#0E1547,stroke:#3D52E0,color:#fff,stroke-width:3px
+    classDef ext fill:#7A7E8E,stroke:#3A3D4A,color:#fff
+    class PROP,PRIN,TCH,BURS,REG,HOD,PAR,STU,INSP person
+    class SYS sys
+    class PSTK,FLW,TERMII,WA,POSTMARK,R2,WAEC,BANKS ext
+```
+
+**Key external dependencies and their failure modes:**
+
+| Dependency | Purpose | Failure mode if down |
+|---|---|---|
+| Paystack | Card + bank fee collection | Bursar falls back to bank-transfer-CSV reconciliation; parent app shows "payment temporarily unavailable" with offline receipt option |
+| Termii | SMS for OTP and broadcasts | Auth: no new logins; broadcasts: in-app only, queued for retry |
+| Cloudflare R2 | Photo/PDF storage | Photos: degraded UI showing initial-letter avatars; PDFs: queued for regeneration |
+| Postmark | Transactional email | Email-bound flows queued; in-app + SMS continue |
+| Postgres | System-of-record | Full outage; status page indicates unscheduled downtime; auto-failover to standby (Phase 2+) |
+
+---
+
+## §3 — Container view
+
+A C4-Level-2 container diagram. Each box is an independently deployable unit of compute or storage.
+
+```mermaid
+graph TB
+    subgraph CLIENT_TIER["📱 Client tier"]
+        WEB[Web App<br/>Next.js 14 App Router<br/>Vercel]
+        TCH_APP[Teacher App<br/>Expo React Native<br/>Expo EAS]
+        PAR_APP[Parent App<br/>Expo React Native<br/>Expo EAS]
+        STU_APP[Student App<br/>Phase 2 — Expo RN]
+        PUB_SITE[Public Marketing<br/>Site<br/>Next.js + Vercel Edge]
+        VERIFY[Public Verification<br/>verify.mymakaranta.com]
+    end
+
+    subgraph EDGE_TIER["☁️ Edge tier"]
+        CDN[Vercel CDN<br/>+ R2 image transforms]
+        EDGE[Edge Routes<br/>Next.js Route Handlers]
+    end
+
+    subgraph APP_TIER["🧠 Application tier — single Fly.io app, multi-process"]
+        BFF[BFF / API Gateway<br/>NestJS — 2-4 instances]
+        WS[WebSocket Gateway<br/>NestJS + Socket.IO<br/>1-2 instances]
+        WORKER[Job Workers<br/>BullMQ + Redis<br/>2-3 instances]
+        SCHED[Scheduler<br/>BullMQ Repeatable<br/>1 instance]
+    end
+
+    subgraph DATA_TIER["🗄 Data tier"]
+        PG[(PostgreSQL 16<br/>primary + read replica<br/>Fly Postgres)]
+        REDIS[(Redis<br/>cache + queue<br/>Upstash)]
+        R2[(Cloudflare R2<br/>files, photos, PDFs)]
+        SEARCH[(Meilisearch<br/>cmd-K + parent search<br/>self-hosted on Fly)]
+    end
+
+    subgraph EXTERNAL["🌐 External providers"]
+        PSTK[Paystack]
+        TERMII[Termii]
+        POSTMARK[Postmark]
+    end
+
+    WEB -->|HTTPS REST| EDGE
+    TCH_APP -->|HTTPS REST + WS| BFF
+    PAR_APP -->|HTTPS REST + WS| BFF
+    STU_APP -.->|Phase 2| BFF
+    PUB_SITE -->|static| CDN
+    VERIFY --> EDGE
+
+    EDGE --> BFF
+    BFF -->|read/write| PG
+    BFF -->|cache| REDIS
+    BFF -->|search| SEARCH
+    BFF -->|signed URL| R2
+    BFF --> WS
+    BFF -->|enqueue| REDIS
+
+    WORKER -->|dequeue| REDIS
+    WORKER -->|read/write| PG
+    WORKER -->|email| POSTMARK
+    WORKER -->|SMS| TERMII
+    WORKER -->|store PDFs| R2
+
+    SCHED -->|cron jobs| REDIS
+
+    BFF -->|init tx| PSTK
+    PSTK -.->|webhook| BFF
+
+    classDef client fill:#3D52E0,stroke:#1F2D8A,color:#fff
+    classDef edge fill:#1F2D8A,stroke:#0E1547,color:#fff
+    classDef app fill:#0E1547,stroke:#1F2D8A,color:#fff
+    classDef data fill:#7B8DF5,stroke:#3D52E0,color:#0A0B12
+    classDef ext fill:#7A7E8E,color:#fff
+    class WEB,TCH_APP,PAR_APP,STU_APP,PUB_SITE,VERIFY client
+    class CDN,EDGE edge
+    class BFF,WS,WORKER,SCHED app
+    class PG,REDIS,R2,SEARCH data
+    class PSTK,TERMII,POSTMARK ext
+```
+
+**Container responsibilities, summarized:**
+
+| Container | Tech | Role |
+|---|---|---|
+| Web App | Next.js 14 App Router | Proprietor, principal, bursar, registrar interfaces |
+| Teacher App | Expo + RN + WatermelonDB | Daily teacher operations; offline-first |
+| Parent App | Expo + RN | Multi-child home, fee payment, results, messaging |
+| Student App (P2) | Expo + RN | Lean MVP, full app Phase 2 |
+| Public site | Next.js + Vercel Edge | marketing, conversion, public school profiles |
+| Public verification | Next.js | tokenized result verification for third parties |
+| BFF / API | NestJS modular monolith | All business logic; REST + WebSocket |
+| WebSocket gateway | NestJS + Socket.IO | Real-time push (notifications, dashboard updates) |
+| Job workers | NestJS + BullMQ | Async work: imports, PDFs, emails, SMS dispatch |
+| Scheduler | NestJS + BullMQ Repeatable | Cron: term-start invoicing, dashboard refresh, daily digests |
+| PostgreSQL | Fly Postgres (primary + replica) | System of record; one shared schema, RLS-enforced |
+| Redis | Upstash | Cache + BullMQ queue + rate-limit counters |
+| Cloudflare R2 | S3-compatible | Photos, report-card PDFs, bulk-import staging |
+| Meilisearch | Self-hosted | Command-palette search + parent finder |
+
+---
+
+## §4 — Component view
+
+The two most architecturally significant containers — the API (`apps/api`) and the Web App (`apps/web`) — broken down to component level.
+
+### 4.1 API container — modular monolith
+
+```mermaid
+graph LR
+    subgraph CORE["core/"]
+        AUTH[auth<br/>OTP, JWT, permissions]
+        TENANT[tenant<br/>context middleware]
+        PRISMA[prisma<br/>service + extensions]
+        AUDIT[audit<br/>change log]
+        NOTIF[notifications<br/>dispatcher + channels]
+        FILES[files<br/>R2 signed URLs]
+    end
+
+    subgraph MODULES["modules/"]
+        SCHOOLS[schools<br/>tenant CRUD]
+        SIS[sis<br/>students/parents/staff]
+        ACADEMICS[academics<br/>classes/subjects]
+        ATTEND[attendance<br/>records + sync]
+        ASSESS[assessment<br/>scores/results]
+        FEES[fees<br/>invoices/payments]
+        COMMS[comms<br/>announcements/messages]
+        REPORTS[reports<br/>materialized views]
+    end
+
+    subgraph BFF["bff/"]
+        REST[REST controllers]
+        WS_GW[WebSocket gateway]
+        WEBHOOKS[webhook receivers]
+    end
+
+    REST --> SCHOOLS
+    REST --> SIS
+    REST --> ACADEMICS
+    REST --> ATTEND
+    REST --> ASSESS
+    REST --> FEES
+    REST --> COMMS
+    REST --> REPORTS
+
+    WS_GW --> NOTIF
+    WEBHOOKS --> FEES
+
+    SCHOOLS --> PRISMA
+    SIS --> PRISMA
+    ATTEND --> PRISMA
+    ASSESS --> PRISMA
+    FEES --> PRISMA
+    COMMS --> NOTIF
+    NOTIF --> PRISMA
+
+    AUTH --> PRISMA
+    TENANT -.intercepts.-> REST
+
+    PRISMA --> AUDIT
+
+    classDef core fill:#1F2D8A,color:#fff
+    classDef mod fill:#3D52E0,color:#fff
+    classDef bff fill:#7B8DF5,color:#0A0B12
+    class AUTH,TENANT,PRISMA,AUDIT,NOTIF,FILES core
+    class SCHOOLS,SIS,ACADEMICS,ATTEND,ASSESS,FEES,COMMS,REPORTS mod
+    class REST,WS_GW,WEBHOOKS bff
+```
+
+**Why modular monolith over microservices:**
+
+A single deployable unit removes the operational surface of inter-service networking, distributed transactions, and per-service observability — none of which we need at MVP scale (5 pilot schools, ~5,000 students, ~250 staff). The module boundaries are *enforced in code* (a `@nestjs/common` `Module` with explicit imports/exports), so when the platform reaches a scale where a module needs to extract — typically `assessment` or `fees` due to compute spikes — the boundary is already drawn.
+
+**The `core` modules are dependency-imported by every feature module.** The `modules` modules are independent of each other except through `core/notifications` (which fan-outs domain events to channel workers).
+
+### 4.2 Web app container — feature-folder architecture
+
+```mermaid
+graph TB
+    subgraph APP["app/"]
+        ROOT[layout.tsx<br/>html shell]
+        AUTH_GROUP["(auth)/<br/>login, otp"]
+        APP_GROUP["(app)/<br/>authenticated shell"]
+        SETTINGS[settings/]
+        DASH[dashboard/<br/>proprietor + principal]
+        STUDENTS[students/]
+        STAFF[staff/]
+        ATTEND[attendance/]
+        RESULTS[results/]
+        FEES_DIR[fees/]
+        COMMS_DIR[comms/]
+        REPORTS_DIR[reports/]
+    end
+
+    subgraph SHARED["lib/"]
+        API_CLIENT[api-client.ts<br/>typed fetch + JWT]
+        AUTH_HOOK[useAuth, useUser]
+        QUERY[react-query setup]
+        CMD_K[cmd-k palette]
+        I18N[i18n / locale switcher]
+    end
+
+    subgraph UI["@mymakaranta/ui"]
+        UI_COMP[Buttons, Inputs,<br/>Dialog, Toast,<br/>Tabs, etc.]
+    end
+
+    ROOT --> APP_GROUP
+    APP_GROUP --> DASH
+    APP_GROUP --> STUDENTS
+    APP_GROUP --> STAFF
+    APP_GROUP --> ATTEND
+    APP_GROUP --> RESULTS
+    APP_GROUP --> FEES_DIR
+    APP_GROUP --> COMMS_DIR
+    APP_GROUP --> REPORTS_DIR
+
+    DASH --> API_CLIENT
+    DASH --> UI_COMP
+    STUDENTS --> API_CLIENT
+    STUDENTS --> UI_COMP
+
+    APP_GROUP --> CMD_K
+
+    classDef app fill:#3D52E0,color:#fff
+    classDef shared fill:#1F2D8A,color:#fff
+    classDef ui fill:#7B8DF5,color:#0A0B12
+    class ROOT,AUTH_GROUP,APP_GROUP,SETTINGS,DASH,STUDENTS,STAFF,ATTEND,RESULTS,FEES_DIR,COMMS_DIR,REPORTS_DIR app
+    class API_CLIENT,AUTH_HOOK,QUERY,CMD_K,I18N shared
+    class UI_COMP ui
+```
+
+The web app uses Next.js 14 App Router with route groups: `(auth)` for unauthenticated screens, `(app)` for the authenticated shell. Every feature directory contains its own pages, components, server actions (where applicable), and API hooks. Shared logic lives in `lib/`. UI primitives are imported from the shared `@mymakaranta/ui` package.
+
+---
+
+## §5 — Stakeholder interaction flows
+
+Seven sequence diagrams covering the highest-leverage stakeholder flows. These are the interactions that, if they break, the product fails. They are the contract between the system and its users.
+
+### 5.1 School onboarding (Proprietor + Registrar)
+
+```mermaid
+sequenceDiagram
+    actor PROP as Proprietor
+    actor REG as Registrar
+    participant WEB as Web App
+    participant API as API
+    participant DB as Postgres
+    participant R2 as Cloudflare R2
+    participant SMS as Termii
+
+    PROP->>WEB: Sign up (phone)
+    WEB->>API: POST /auth/otp/request
+    API->>SMS: Send 6-digit OTP
+    SMS-->>PROP: SMS received
+    PROP->>WEB: Enter OTP
+    WEB->>API: POST /auth/otp/verify
+    API->>DB: Create User (PROPRIETOR)
+    API-->>WEB: JWT
+    WEB-->>PROP: Show "Create your school" wizard
+
+    PROP->>WEB: Step 1 — school name, currency, country
+    WEB->>API: POST /v1/schools
+    API->>DB: Create School + grant proprietor permissions
+    API-->>WEB: schoolId
+
+    PROP->>WEB: Step 2 — academic year, terms (3)
+    WEB->>API: POST /v1/schools/:id/academic-years
+    API->>DB: Create AcademicYear + Terms
+
+    PROP->>WEB: Step 3 — class levels (JSS1..SS3)
+    WEB->>API: POST /v1/schools/:id/class-levels
+    API->>DB: Create 6 ClassLevels with order
+
+    PROP->>WEB: Step 4 — invite registrar by phone
+    WEB->>API: POST /v1/schools/:id/staff/invite
+    API->>DB: Create Staff record + User shell
+    API->>SMS: Send invitation SMS with magic link
+    SMS-->>REG: SMS received
+
+    REG->>WEB: Open magic link
+    WEB->>API: POST /auth/magic/verify
+    API-->>REG: JWT (with REGISTRAR identity)
+
+    REG->>WEB: Bulk import students.xlsx
+    WEB->>WEB: Parse with SheetJS, batch into 100-row chunks
+    WEB->>API: POST /v1/imports/students {batch}
+    API->>API: Enqueue ImportJob
+    WEB-->>REG: "Importing 487 students..."
+    API->>DB: Validate + insert (per chunk)
+    API->>R2: Upload student photos (if URLs)
+    API-->>WEB: Job status (polling)
+    WEB-->>REG: "Imported 482 of 487. 5 errors — review."
+    REG->>WEB: Fix 5 errors, retry
+    WEB->>API: POST /v1/imports/students {fixed batch}
+    API->>DB: Insert remaining
+    WEB-->>REG: "All 487 students imported."
+
+    Note over PROP,DB: Pilot school is live. Sprint 1 exit criterion met.
+```
+
+**Latency expectations:**
+- OTP delivery: < 10s (Termii Nigerian carriers)
+- Wizard step (each): < 1s on 4G
+- Bulk import 500 students: < 60s end-to-end including async photo uploads
+
+### 5.2 Teacher daily attendance (offline → sync)
+
+The single highest-frequency teacher flow. Designed to be flawless on a Tecno Spark with no internet.
+
+```mermaid
+sequenceDiagram
+    actor TCH as Teacher
+    participant APP as Teacher App
+    participant LOCAL as Local SQLite (WatermelonDB)
+    participant API as API
+    participant DB as Postgres
+    participant WS as WebSocket
+
+    Note over TCH,APP: Morning: school WiFi down, mobile data off
+
+    TCH->>APP: Open Today view
+    APP->>LOCAL: SELECT today's classes
+    LOCAL-->>APP: 4 classes (cached)
+    APP-->>TCH: Render schedule
+
+    TCH->>APP: Open JSS2A roster
+    APP->>LOCAL: SELECT students WHERE classId=jss2a
+    LOCAL-->>APP: 40 students with photos
+    APP-->>TCH: Render tap-grid
+
+    loop For each student
+        TCH->>APP: Tap student tile
+        APP->>LOCAL: INSERT AttendanceRecord (status=PRESENT)<br/>with idempotencyKey
+        LOCAL-->>APP: Optimistic save (~10ms)
+        APP-->>TCH: Tile animates to green
+    end
+
+    Note over TCH,APP: 60 seconds elapsed. All 40 students marked.
+
+    Note over TCH,APP: Later: teacher walks outside, gets 4G
+
+    APP->>APP: Detect network change (NetInfo)
+    APP->>LOCAL: Find unsynced records (n=40)
+    APP->>API: POST /v1/sync/attendance<br/>{records: [...], lastPulledAt}
+    API->>DB: Upsert via idempotencyKey<br/>(reject duplicates silently)
+    DB-->>API: Confirm + new lastPulledAt
+    API->>API: Emit AttendanceUpdated event
+    API->>WS: Broadcast to /school/{id}/principal channel
+    API-->>APP: Sync ack
+    APP->>LOCAL: Mark records as synced
+    APP-->>TCH: Subtle "✓ Synced" banner (3s, no interruption)
+
+    Note over WS: Principal's web dashboard updates live
+```
+
+**Why this works under stress:**
+- WatermelonDB writes complete in < 20ms even on 2GB-RAM Android.
+- Idempotency keys allow safe retries on flaky networks; duplicate sync attempts produce zero side effects.
+- Sync is silent — no spinners, no modal blocks. The user only sees a confirmation banner once, briefly.
+
+### 5.3 Score entry → release → parent notification
+
+The end-of-term linchpin. Touches teacher, form teacher, principal, parent, and student.
+
+```mermaid
+sequenceDiagram
+    actor TCH as Subject Teacher
+    actor FT as Form Teacher
+    actor PRIN as Principal
+    actor PAR as Parent
+    actor STU as Student
+
+    participant APP as Teacher App
+    participant WEB as Web App
+    participant API as API
+    participant DB as Postgres
+    participant WORKER as Job Worker
+    participant R2 as R2
+    participant SMS as Termii
+
+    Note over TCH,DB: Throughout the term
+
+    TCH->>APP: Enter CA1 scores for SS2A Math
+    APP->>API: POST /v1/scores (batch of 40)
+    API->>DB: Upsert AssessmentScore
+    API-->>APP: 200
+
+    Note over TCH,DB: ... CA2, CA3, exam ...
+
+    Note over FT,DB: Last week of term
+
+    FT->>WEB: Review SS2A class master sheet
+    WEB->>API: GET /v1/results/preview?classId=ss2a&termId=t3
+    API->>DB: Compute totals + positions per student
+    API-->>WEB: 40 result rows
+    WEB-->>FT: Render with anomalies highlighted
+
+    FT->>WEB: Mark "ready for review"
+    WEB->>API: POST /v1/results/submit-for-review
+
+    Note over PRIN,DB: Release day
+
+    PRIN->>WEB: Open release dashboard
+    WEB->>API: GET /v1/results/release-queue?termId=t3
+    API->>DB: Aggregate per-class submission status
+    API-->>WEB: 23 classes ready, 2 with flags
+    WEB-->>PRIN: Render dashboard
+
+    PRIN->>WEB: Click "Release all" (after spot review)
+    WEB->>API: POST /v1/results/release {termId, classIds}
+    API->>DB: Freeze positions, create ResultSheets
+    API->>WORKER: Enqueue PDF generation (per student)
+    API->>WORKER: Enqueue parent notification batch
+    API-->>WEB: Release confirmed
+
+    par PDF generation (async)
+        WORKER->>WORKER: Render WAEC-format PDF (per student)
+        WORKER->>R2: Upload PDF
+        WORKER->>DB: Update ResultSheet.pdfUrl
+    and Parent notification (async)
+        WORKER->>SMS: SMS to all parents
+        WORKER->>API: Push to in-app notification
+        SMS-->>PAR: SMS received
+    end
+
+    PAR->>APP: Open parent app (notification tap)
+    APP->>API: GET /v1/results/student/:id/term/:t
+    API->>DB: Read frozen ResultSheet
+    API-->>APP: Result data
+    APP-->>PAR: Animated reveal (560ms hero)
+
+    PAR->>APP: Tap "Save PDF"
+    APP->>API: GET /v1/results/:id/pdf (signed URL)
+    API->>R2: Generate signed URL (15min)
+    API-->>APP: URL
+    APP-->>PAR: Download
+
+    STU->>APP: Open student app
+    APP-->>STU: Same animated reveal (student-themed)
+
+    Note over PRIN,STU: Total wall time: < 30 minutes for a 500-student school
+```
+
+**Critical guarantees:**
+- Once released, `ResultSheet.releasedAt` is set; any score correction afterwards requires explicit "Result Correction" workflow with proprietor sign-off.
+- PDF generation is asynchronous; the release is committed to DB before the workers run, so a worker failure doesn't break the release.
+- Parent and student receive *consistent* views (same ResultSheet row, same numbers, same timestamp).
+
+### 5.4 Parent fee payment via Paystack
+
+Cash-App-class moment. The single highest signal of product polish to a parent.
+
+```mermaid
+sequenceDiagram
+    actor PAR as Parent
+    participant APP as Parent App
+    participant API as API
+    participant DB as Postgres
+    participant PSTK as Paystack
+    participant WORKER as Worker
+    participant R2 as R2
+
+    PAR->>APP: Open parent app
+    APP->>API: GET /v1/parent/dashboard
+    API->>DB: Query children + invoices
+    API-->>APP: 2 children, ₦175k outstanding for Tunde
+    APP-->>PAR: Render multi-child home
+
+    PAR->>APP: Tap "Pay" on Tunde card
+    APP->>API: POST /v1/payments/initialize<br/>{invoiceId, amountKobo}
+    API->>DB: Create Payment record (status=PENDING)
+    API->>PSTK: Initialize transaction<br/>(amount, email, reference)
+    PSTK-->>API: authorization_url
+    API-->>APP: { reference, authorization_url }
+    APP-->>PAR: Open Paystack WebView/SDK
+
+    PAR->>PSTK: Enter card / bank details
+    PSTK-->>PAR: Auth + 2FA via bank
+    PSTK->>PSTK: Process payment
+    PSTK-->>APP: Redirect to callback URL
+    APP->>API: GET /v1/payments/verify?reference=xxx
+    API->>PSTK: Verify transaction
+    PSTK-->>API: {status: success, amount}
+    API->>DB: Update Payment + Invoice<br/>(within transaction)
+    API->>WORKER: Enqueue receipt generation
+    API-->>APP: { status: success }
+
+    APP-->>PAR: Animated success<br/>(checkmark draws + amount fades in)
+
+    par Receipt generation (async)
+        WORKER->>WORKER: Render receipt PDF
+        WORKER->>R2: Upload
+        WORKER->>DB: Update Payment.receiptUrl
+    and Webhook (parallel verification)
+        PSTK-->>API: POST webhook<br/>signature: HMAC-SHA512
+        API->>API: Verify signature
+        API->>DB: Idempotent reconciliation<br/>(no-op if already verified)
+    end
+
+    PAR->>APP: Tap "Save receipt"
+    APP->>API: GET /v1/payments/:id/receipt (signed URL)
+    API->>R2: Generate signed URL
+    API-->>APP: URL
+    APP-->>PAR: Download / share to WhatsApp
+
+    Note over PAR,R2: Total wall time: <90 seconds parent-initiation to receipt
+```
+
+**Defense-in-depth on payments:**
+- Two verification paths: client-initiated `verify` and webhook. Both are idempotent — running both produces one Payment record.
+- HMAC-SHA512 signature verification on webhooks rejects forged events.
+- A Payment is never marked SUCCESS until the API confirms with Paystack; the client cannot fake completion.
+
+### 5.5 Bursar bank-transfer reconciliation
+
+```mermaid
+sequenceDiagram
+    actor BURS as Bursar
+    participant WEB as Web App
+    participant API as API
+    participant DB as Postgres
+
+    Note over BURS: Friday afternoon — reconcile the week
+
+    BURS->>WEB: Open reconciliation panel
+    WEB->>API: GET /v1/finance/unmatched
+    API->>DB: SELECT bank deposits NOT linked to invoices
+    API-->>WEB: 12 unmatched + 30 expected outstanding
+    WEB-->>BURS: 3 columns: Unmatched, Suggested, Confirmed
+
+    BURS->>WEB: Upload BankStatement.csv (GTBank export)
+    WEB->>WEB: Parse CSV client-side
+    WEB->>API: POST /v1/finance/imports/bank-statement<br/>{rows}
+    API->>API: For each row, fuzzy-match against<br/>expected fees (name + amount + ref)
+    API->>DB: Insert proposed Payment records<br/>(status=SUGGESTED)
+    API-->>WEB: 8 high-confidence matches, 4 manual
+
+    WEB-->>BURS: Suggested column populated
+
+    loop Per high-confidence match
+        BURS->>WEB: Click "Confirm"
+        WEB->>API: POST /v1/finance/payments/:id/confirm
+        API->>DB: Update Payment.status=SUCCESS<br/>+ Invoice.paidKobo
+        API->>DB: Append AuditLog
+        API-->>WEB: 200
+    end
+
+    loop Per manual (search)
+        BURS->>WEB: Type student name
+        WEB->>API: GET /v1/finance/student-suggestions?q=Tunde
+        API-->>WEB: 3 candidates
+        BURS->>WEB: Select correct, click "Match"
+        WEB->>API: POST /v1/finance/payments/:id/match<br/>{studentId, invoiceId}
+        API->>DB: Confirm + audit
+    end
+
+    BURS->>WEB: Close panel — "All transactions reconciled"
+    WEB->>API: GET /v1/finance/summary
+    API-->>WEB: ₦4,328,500 collected, 0 unmatched
+    WEB-->>BURS: Friday-afternoon moment
+```
+
+### 5.6 Principal broadcasts an announcement
+
+```mermaid
+sequenceDiagram
+    actor PRIN as Principal
+    actor PAR as Parent (one of many)
+    participant WEB as Web App
+    participant API as API
+    participant DB as Postgres
+    participant WORKER as Worker
+    participant TERMII as Termii
+    participant WS as WebSocket
+
+    PRIN->>WEB: Open announcement composer
+    WEB-->>PRIN: Block-based editor (Notion-like)
+
+    PRIN->>WEB: Compose "School resumes Tuesday"
+    PRIN->>WEB: Add audience: All parents + SS3 students
+    PRIN->>WEB: Channels: in-app + SMS
+    PRIN->>WEB: Schedule: 6:00 PM today
+    PRIN->>WEB: Click "Schedule"
+
+    WEB->>API: POST /v1/announcements<br/>{title, body, audience, channels, scheduledAt}
+    API->>DB: Create Announcement (status=SCHEDULED)
+    API->>WORKER: Enqueue at scheduledAt (delayed job)
+    API-->>WEB: 201
+
+    WEB-->>PRIN: "Scheduled for 6:00 PM. 510 recipients estimated."
+
+    Note over PRIN,WORKER: 6:00 PM arrives
+
+    WORKER->>API: Trigger announcement
+    API->>DB: Resolve audience<br/>(all parents + SS3 students)
+    API->>DB: 510 recipients identified
+    API->>WORKER: Enqueue per-channel batches<br/>(in-app: 510, SMS: 487 valid numbers)
+
+    par In-app push
+        WORKER->>WS: Push to /user/{id} channels
+        WS-->>PAR: In-app notification appears
+    and SMS dispatch
+        WORKER->>TERMII: Batch SMS (50 per batch)
+        TERMII-->>PAR: SMS received (within 60s of trigger)
+        TERMII->>WORKER: Delivery receipts
+        WORKER->>DB: Update DeliveryLog per recipient
+    end
+
+    PRIN->>WEB: Open delivery report (next morning)
+    WEB->>API: GET /v1/announcements/:id/delivery
+    API->>DB: Aggregate DeliveryLog
+    API-->>WEB: SMS: 482 delivered, 5 invalid; In-app: 510 sent, 423 read
+    WEB-->>PRIN: Delivery report
+```
+
+### 5.7 External party verifies a result
+
+The result-verification flow is the brand wedge with universities and employers.
+
+```mermaid
+sequenceDiagram
+    actor EXT as Verifying Party<br/>(University admissions officer)
+    actor STU as Student
+    participant APP as Student App
+    participant API as API
+    participant VERIFY as verify.mymakaranta.com
+    participant DB as Postgres
+
+    Note over STU,APP: Student wants to share their WAEC-style result
+
+    STU->>APP: Open Result PDF
+    STU->>APP: Tap "Share verification link"
+    APP->>API: POST /v1/results/:id/verification-link<br/>{ttl: 30days}
+    API->>DB: Create VerificationToken
+    API-->>APP: verify.mymakaranta.com/r/abc123
+
+    STU->>EXT: Email/share the link
+
+    EXT->>VERIFY: GET /r/abc123
+    VERIFY->>API: GET /v1/public/verify?token=abc123
+    API->>DB: Lookup VerificationToken (not expired, not revoked)
+    DB-->>API: ResultSheet + Student + School
+    API-->>VERIFY: { student, school, term, scores, signature }
+
+    VERIFY-->>EXT: Beautifully designed verification page<br/>school crest, principal signature, scores
+
+    EXT->>VERIFY: Click "Download official PDF"
+    VERIFY->>API: GET /v1/public/verify/:token/pdf
+    API->>DB: Audit log: external verification accessed
+    API-->>VERIFY: Signed R2 URL for PDF (60s TTL)
+    VERIFY-->>EXT: Download
+
+    Note over STU,DB: Student can revoke at any time
+    STU->>APP: Revoke link
+    APP->>API: DELETE /v1/results/:id/verification-link
+    API->>DB: Mark VerificationToken revoked
+
+    Note over EXT,DB: Future requests with abc123 → 410 Gone
+```
+
+---
+
+## §6 — Data architecture
+
+### 6.1 Entity-relationship overview (MVP-scoped)
+
+```mermaid
+erDiagram
+    School ||--o{ AcademicYear : has
+    School ||--o{ ClassLevel : has
+    School ||--o{ Class : has
+    School ||--o{ Subject : has
+    School ||--o{ Staff : has
+    School ||--o{ Student : has
+    School ||--o{ Parent : has
+
+    AcademicYear ||--o{ Term : contains
+    ClassLevel ||--o{ Class : has
+    Class ||--o{ Enrollment : has
+    Term ||--o{ Enrollment : has
+    Student ||--o{ Enrollment : has
+
+    Student ||--o{ Guardian : "has guardians via"
+    Parent ||--o{ Guardian : "guardian to"
+
+    Class ||--o{ SubjectAssignment : has
+    Subject ||--o{ SubjectAssignment : has
+    Staff ||--o{ SubjectAssignment : teaches
+
+    Student ||--o{ AttendanceRecord : has
+    Student ||--o{ AssessmentScore : earns
+    Student ||--o{ ResultSheet : has
+    Student ||--o{ Invoice : owes
+
+    Term ||--o{ AssessmentScore : "scoped by"
+    Term ||--o{ ResultSheet : "scoped by"
+    Term ||--o{ Invoice : "scoped by"
+
+    Subject ||--o{ AssessmentScore : "scored on"
+    AssessmentType ||--o{ AssessmentScore : "of type"
+
+    Invoice ||--o{ Payment : "paid by"
+    Parent ||--o{ Payment : pays
+
+    School ||--o{ FeeStructure : defines
+    FeeStructure ||--o{ FeeItem : contains
+
+    User ||--o{ UserPermission : has
+    Permission ||--o{ UserPermission : "granted via"
+```
+
+### 6.2 Data lineage (key flows)
+
+| Source data | Transformation | Destination |
+|---|---|---|
+| Excel import | SheetJS → JSON → BullMQ → Prisma upsert | `Student`, `Parent`, `Guardian` rows |
+| Mobile attendance | WatermelonDB → batched POST → Prisma upsert with idempotency | `AttendanceRecord` |
+| Score entry | Mobile/web → POST → Prisma upsert | `AssessmentScore` |
+| Result release | Aggregate `AssessmentScore` → compute totals + positions → freeze into `ResultSheet` | `ResultSheet` (immutable) |
+| PDF generation | `ResultSheet` → React-PDF → R2 | `R2://reports/<schoolId>/<termId>/<studentId>.pdf` |
+| Paystack webhook | Verify HMAC → match `reference` to `Payment` → update `Invoice.paidKobo` | `Payment.status=SUCCESS`, `Invoice.status=PAID` |
+| Bank-statement CSV | Parse → fuzzy-match → propose Payment → bursar confirm | `Payment.status` transitions |
+| Materialized views | Postgres `pg_cron` refresh (every 5min) | `mv_school_daily_metrics` consumed by dashboards |
+
+### 6.3 Data residency and retention
+
+**Residency:** All data is stored in **Cloudflare R2 (Lagos POP for cache; Frankfurt origin)** and **Fly Postgres in Johannesburg (jnb)** for MVP. `ASSUMPTION:` Pilot schools' compliance officers will be informed in writing that no PII is processed in regions outside Africa for routine operations. Backups encrypt and replicate to `lhr` (London) for disaster recovery; this cross-border replication is documented and consented to in the school agreement.
+
+**Retention policy (MVP):**
+
+| Data type | Retention | Delete trigger |
+|---|---|---|
+| Student records | Indefinite while school is a customer + 7 years post-termination (Nigerian academic records legal requirement) | Manual proprietor request after retention window |
+| Attendance records | Same as student records | — |
+| Financial records (Payment, Invoice) | 7 years post-transaction (FIRS/tax) | Automated delete after 7 years |
+| Audit log | Indefinite | Never auto-deleted |
+| Authentication logs (OTP, login) | 90 days rolling | Cron daily |
+| Notification delivery logs | 12 months | Cron daily |
+| Photos (R2) | Same as student records | Cascading from student deletion |
+| Backups | 30 days (Postgres point-in-time), 1 year (R2 weekly snapshots) | Auto-rotate |
+
+`ASSUMPTION:` Retention windows must be reviewed by Nigerian privacy counsel before MVP ships.
+
+---
+
+## §7 — Cross-cutting concerns
+
+### 7.1 Security
+
+**Authentication:**
+- Phone-first OTP (6-digit, 10-minute TTL, max 5 attempts, max 5 OTPs per phone per hour).
+- JWT with 30-day expiry, signed with rotating secret stored in Fly Secrets.
+- Magic links for staff invitations (1-time use, 24-hour TTL).
+- Future: passkeys for proprietor accounts (Phase 2+).
+
+**Authorization:**
+- Permissions are atomic capability strings (`students.view`, `fees.manage`).
+- Permissions can be scoped — e.g., `attendance.mark` for `classId=jss2a` only.
+- Resolved per-request via the `PermissionGuard`; never trusted from client.
+- Tenant isolation enforced at three layers: app middleware, Prisma extension, PostgreSQL RLS.
+
+**Transport security:**
+- TLS 1.3 only. HSTS preload-listed.
+- Mobile apps pin the API certificate (Phase 2; deferred to avoid cert-rotation risk in MVP).
+
+**Storage security:**
+- Postgres encrypted at rest (Fly Postgres default).
+- R2 encrypted at rest; access via signed URLs only (TTL ≤ 60 minutes).
+- Secrets in Fly Secrets, never committed.
+- `passwordHash` always bcrypt cost ≥ 10. (Most users use OTP, but staff with passwords must be hashed.)
+
+**Application security:**
+- Input validation via `class-validator` + `zod` on every API endpoint.
+- SQL injection: not applicable — all queries via Prisma's parameterized API.
+- XSS: React's auto-escape; CSP headers; no raw HTML injection paths outside vetted PDF/email rendering pipelines.
+- CSRF: Stateless JWT API (no cookie-based session), so CSRF surface is minimal.
+- Rate limiting: per-IP + per-user via Redis counters (10 OTP requests/hr/IP, 5/hr/phone).
+- Webhook verification: HMAC-SHA512 signature check on Paystack webhooks; reject unsigned or mismatched.
+
+**Audit:**
+- Every database mutation produces an `AuditLog` row with `actor`, `action`, `resourceType`, `resourceId`, `before`, `after`, `at`. Indexed on `(schoolId, at)`.
+
+### 7.2 Multi-tenancy enforcement
+
+```mermaid
+graph TB
+    REQ[HTTP request<br/>JWT in Authorization header] --> AUTH[JwtAuthGuard<br/>extracts user, schoolId]
+    AUTH --> CTX[TenantMiddleware<br/>AsyncLocalStorage.run]
+    CTX --> CTRL[Controller / Service]
+    CTRL --> PRISMA[PrismaService.$use<br/>injects schoolId filter]
+    PRISMA --> SET[SET LOCAL<br/>app.current_school_id]
+    SET --> QUERY[Query executes]
+    QUERY --> RLS[Postgres RLS policy<br/>filters by schoolId again]
+    RLS --> RESULT[Results returned]
+
+    style AUTH fill:#3D52E0,color:#fff
+    style CTX fill:#3D52E0,color:#fff
+    style PRISMA fill:#1F2D8A,color:#fff
+    style RLS fill:#0E1547,color:#fff
+```
+
+Three layers, any one of which would catch a bug. Cross-tenant integration tests run on every PR to verify the chain holds.
+
+### 7.3 Offline & sync (mobile)
+
+```mermaid
+graph LR
+    subgraph DEVICE["📱 Device"]
+        UI[UI]
+        WM[WatermelonDB<br/>local SQLite]
+        QUEUE[Pending Sync<br/>Queue]
+    end
+
+    subgraph CLOUD["☁️ Backend"]
+        API[/v1/sync/<resource>/]
+        DB[(Postgres)]
+    end
+
+    UI -->|optimistic write| WM
+    WM -->|track changes| QUEUE
+    QUEUE -.->|on connectivity| API
+    API -->|upsert with idempotencyKey| DB
+    DB -->|server-authoritative changes| API
+    API -.->|delta since lastPulledAt| WM
+    WM -->|reactive update| UI
+```
+
+Conflict policies (per resource):
+
+| Resource | Policy | Notes |
+|---|---|---|
+| AttendanceRecord | Last-write-wins by `recordedAt`; loser preserved in audit log | Two teachers marking same student is rare |
+| AssessmentScore (pre-release) | Last-write-wins by teacher | Teacher correcting their own entry |
+| AssessmentScore (post-release) | Server rejects local edits | Released scores are immutable |
+| Message | Append-only | No conflicts possible |
+| Payment | Server-authoritative (Paystack source of truth) | Client writes ignored |
+
+### 7.4 Observability
+
+| Concern | Tool | Approach |
+|---|---|---|
+| Application metrics | OpenTelemetry → Grafana Cloud | Request rate, latency p50/p95/p99, error rate per endpoint |
+| Logs | Pino → Fly logs → Grafana Loki | Structured JSON, schoolId tag on every log line |
+| Errors | Sentry | Frontend (web + mobile) + backend; release tracking |
+| Uptime | Better Stack / Cronitor | Synthetic checks every 60s on `/health`, `/ping/payment`, `/ping/sms` |
+| Product analytics | PostHog | Event-driven, with explicit opt-out for proprietor accounts |
+| Performance budgets in CI | Lighthouse CI on `apps/web` | Block PR on Performance < 90 |
+
+### 7.5 Internationalization
+
+- **English at MVP launch.** Hausa, Yoruba, Igbo, Pidgin queued in i18n config from MVP — strings extracted, translation files prepared, switching mechanism wired but feature-gated.
+- **Date and currency:** Country-aware formatting via `Intl.DateTimeFormat` and `Intl.NumberFormat`. Country comes from `School.country`.
+- **Phone numbers:** E.164 stored; display formatted by country.
+- **Address forms:** State + LGA dropdowns for Nigeria; pluggable for Ghana (Region + District), Kenya (County), etc.
+
+### 7.6 Performance
+
+| Surface | Metric | Target |
+|---|---|---|
+| Web first-load JS | Gzipped bundle | ≤ 200KB |
+| Web TTI | 4G mid-range Android | ≤ 3.0s |
+| Web Lighthouse Performance | Production build | ≥ 90 |
+| API p95 latency | Common reads | ≤ 200ms |
+| API p95 latency | Writes | ≤ 500ms |
+| Mobile bundle | Initial download | ≤ 8MB |
+| Mobile TTI | Tecno Spark | ≤ 2.5s |
+| Mobile attendance grid | 40 students render | ≤ 300ms |
+| Result PDF generation | Per student | ≤ 1s |
+| Bulk import | 500 students | ≤ 60s |
+
+### 7.7 Compliance (NDPR)
+
+- Data subject rights: access, rectification, erasure (with retention exceptions), portability.
+- Lawful basis: contract (with school) + legitimate interest (operational records) + consent (optional comms channels).
+- DPO designated (founder during MVP; dedicated hire by Phase 2).
+- DPIA conducted before MVP launch covering: child data, biometrics (none in MVP — explicit), cross-border transfer (Postgres in `jnb`, R2 cached at Lagos POP, backup to `lhr`).
+- Records of Processing Activities (RoPA) maintained.
+- Breach notification: 72-hour requirement to NDPR + affected schools (via in-app banner + email to proprietor).
+
+---
+
+## §8 — Deployment view
+
+```mermaid
+graph TB
+    subgraph PROD["Production environment"]
+        subgraph VERCEL["Vercel"]
+            WEB_DEPL[Web App<br/>app.mymakaranta.com]
+            PUB_DEPL[Marketing site<br/>mymakaranta.com]
+            VERIFY_DEPL[Verification<br/>verify.mymakaranta.com]
+            STORYBOOK[Storybook<br/>storybook.mymakaranta.com]
+        end
+
+        subgraph FLY["Fly.io — Johannesburg (jnb)"]
+            API_DEPL[API instances<br/>2-4 machines, autoscale]
+            WS_DEPL[WebSocket gateway<br/>1-2 machines]
+            WORKER_DEPL[Workers<br/>2-3 machines]
+            PG_DEPL[(Postgres primary<br/>+ read replica)]
+            MEILI_DEPL[(Meilisearch)]
+        end
+
+        subgraph EXTERNAL_PROD["External"]
+            UPSTASH[(Upstash Redis<br/>jnb region)]
+            R2_DEPL[(Cloudflare R2)]
+        end
+
+        subgraph EAS["Expo EAS"]
+            TCH_DEPL[Teacher app<br/>internal track + Play Store]
+            PAR_DEPL[Parent app<br/>internal track + Play Store]
+        end
+    end
+
+    WEB_DEPL -->|HTTPS| API_DEPL
+    PUB_DEPL -.-> WEB_DEPL
+    VERIFY_DEPL -->|HTTPS| API_DEPL
+    TCH_DEPL -->|HTTPS + WS| API_DEPL
+    PAR_DEPL -->|HTTPS + WS| API_DEPL
+
+    API_DEPL --> PG_DEPL
+    API_DEPL --> UPSTASH
+    API_DEPL --> R2_DEPL
+    API_DEPL --> MEILI_DEPL
+    WS_DEPL --> UPSTASH
+    WORKER_DEPL --> UPSTASH
+    WORKER_DEPL --> PG_DEPL
+    WORKER_DEPL --> R2_DEPL
+
+    classDef vercel fill:#000,color:#fff
+    classDef fly fill:#7B68EE,color:#fff
+    classDef ext fill:#F38020,color:#fff
+    classDef eas fill:#000,color:#fff
+    class WEB_DEPL,PUB_DEPL,VERIFY_DEPL,STORYBOOK vercel
+    class API_DEPL,WS_DEPL,WORKER_DEPL,PG_DEPL,MEILI_DEPL fly
+    class UPSTASH,R2_DEPL ext
+    class TCH_DEPL,PAR_DEPL eas
+```
+
+**Why Fly.io over AWS / GCP:**
+- Africa region (Johannesburg) closer to Lagos than any AWS region (Cape Town is decent; jnb is comparable).
+- Significantly simpler operational surface than ECS/EKS for a < 10-engineer team.
+- Postgres-as-a-service with point-in-time recovery and automated standby.
+- Phase 3 migration to AWS Cape Town is feasible if Postgres data residency requires it.
+
+**CI/CD:**
+- GitHub → GitHub Actions → on `main` → Fly deploy (API), Vercel deploy (web), Expo EAS build (mobile).
+- Web previews on every PR via Vercel.
+- Database migrations: `prisma migrate deploy` runs as a Fly release command before new instances boot.
+
+---
+
+## §9 — Architecture decision log
+
+Compact ADRs covering the load-bearing decisions. Each can be expanded into a full document when the choice is challenged.
+
+| # | Decision | Date | Rationale | Alternatives considered |
+|---|---|---|---|---|
+| 1 | Modular monolith (NestJS) | 2026-05-01 | Operational simplicity; module boundaries enforced in code; can extract later | Microservices (rejected — premature complexity); serverless (rejected — cold starts) |
+| 2 | Postgres + Prisma | 2026-05-01 | Mature; strong relational model fits domain; Prisma DX is excellent | DynamoDB (rejected — relational queries dominate); MongoDB (rejected — schema discipline matters here) |
+| 3 | Row-level multi-tenancy | 2026-05-01 | One schema, easy migrations; RLS as defense-in-depth | Schema-per-tenant (rejected — ops burden); DB-per-tenant (rejected — infeasible at scale) |
+| 4 | Pure Tailwind, no shadcn/ui | 2026-05-01 | Design freedom over time; we own every component | shadcn/ui (rejected — inherited aesthetic); MUI / Chakra (rejected — heavier opinion) |
+| 5 | Radix UI for a11y primitives | 2026-05-01 | Unstyled, accessible; saves us 6 months of a11y work | Headless UI (acceptable; Radix has wider primitive coverage); rolling our own (rejected — a11y regression risk) |
+| 6 | WatermelonDB for offline | 2026-05-01 | Performance on low-end Android; reactive observables | RxDB (acceptable; spike during sprint 2 confirms); custom SQLite layer (rejected — duplication of work) |
+| 7 | Money in kobo (integer) | 2026-05-01 | Eliminates float precision bugs | Decimal (acceptable; integer is simpler) |
+| 8 | Phone-first identity | 2026-05-01 | Universal in Nigeria; email is unreliable | Email-first (rejected — exclusion); username (rejected — UX friction) |
+| 9 | Permissions as primitive | 2026-05-01 | Schools have idiosyncratic role structures | Roles (rejected — too rigid) |
+| 10 | Fly.io (jnb) for compute | 2026-05-01 | Africa region; ops simplicity | AWS Cape Town (acceptable; Fly is faster to start); Render (insufficient region coverage) |
+| 11 | Cloudflare R2 for storage | 2026-05-01 | Egress economics; Africa POP | AWS S3 (rejected — egress cost); Backblaze B2 (rejected — region) |
+| 12 | Termii for SMS | 2026-05-01 | Nigerian carrier delivery rates; Naira pricing | Twilio (fallback only); KudiSMS (acceptable secondary) |
+| 13 | Paystack primary, Flutterwave deferred | 2026-05-01 | Paystack DX is better; Flutterwave better for pan-African expansion later | Stripe (rejected — not Africa-native) |
+| 14 | Expo over bare RN | 2026-05-01 | Faster mobile shipping; EAS Build managed | Bare RN (rejected — ops overhead); Flutter (rejected — team familiarity) |
+| 15 | Next.js 14 App Router | 2026-05-01 | Server Components + RSC + edge routes | Pages Router (rejected — older paradigm); Remix (acceptable; Next ecosystem larger) |
+
+---
+
+## §10 — Operational runbook outline
+
+This is the skeleton; full runbook documents live in `docs/runbooks/` (created Sprint 5+).
+
+**On-call signals:**
+- API p95 latency > 1s for > 5 minutes
+- Payment webhook failure rate > 5% in 1 hour
+- SMS delivery rate < 80% in 1 hour
+- Postgres connection errors
+- R2 5xx rate > 1%
+- Failed nightly backup
+
+**Standard runbook sections (each):**
+- Symptom
+- Likely causes
+- Diagnostic steps
+- Remediation steps
+- Escalation path
+- Post-incident review template
+
+**Pre-MVP runbooks to write:**
+- `incident-payment-failure.md`
+- `incident-sms-degraded.md`
+- `incident-database-connection-lost.md`
+- `incident-cross-tenant-leak-suspected.md` (drill quarterly)
+- `routine-database-restore.md`
+- `routine-secret-rotation.md`
+- `routine-deploy-rollback.md`
+
+---
+
+## Closing
+
+This document is a living artifact. As Sprint 0 builds the foundation, several decisions here will be challenged by reality (Tecno Spark performance numbers, Termii delivery rates, Paystack quirks, Postgres RLS overhead). Each challenge produces an ADR update or a clarifying note here. Architecture is what we believe today; running the system in production is what teaches us what to believe tomorrow.
+
+— *End of v1*

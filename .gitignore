@@ -1,0 +1,35 @@
+# Multi-agent worktrees (gitignored per project convention)
+.claude/worktrees/
+
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build output
+.next
+dist
+.turbo
+out
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Local storage adapter (dev file uploads)
+.storage
+
+# Logs / coverage / OS
+coverage
+*.log
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Deploy
+.vercel
+.expo
