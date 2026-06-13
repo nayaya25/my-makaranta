@@ -82,6 +82,11 @@ Native Expo apps; Admissions; Curriculum/lesson notes; Timetable builder; Behavi
 - Every task is TDD: failing test → implementation → green → commit (Conventional Commits).
 - Founder checkpoint at each sprint boundary before the next begins.
 
+## 8b. Tracked security follow-ups for Sprint 1
+
+- **Per-request identity/tenant resolution from DB** in the `PermissionGuard` (SDD §5.5) rather than trusting JWT claims, with a `User.tokenVersion` claim + column to enable revocation on role/tenant change (addresses the 30-day-JWT staleness flagged in Sprint 0 review).
+- **Invite-gated identity linking:** OTP verify currently auto-creates a `PENDING` user (no tenant access). Sprint 1 links verified phones to pre-provisioned `Parent`/`Staff`/`Student` records and refuses or quarantines unknown phones.
+
 ## 9. Definition of done (per the founder's brief)
 
 Functional, no known bugs, tests capture features properly (behavioral coverage, not just smoke), simple/concise code with minimal comments, every monetary path correct to the kobo, cross-tenant isolation proven by integration tests on every PR.

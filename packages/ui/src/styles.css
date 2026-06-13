@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-paper text-ink-1000 font-sans antialiased;
+  }
+  html.dark body {
+    @apply bg-paper-dark text-ink-100;
+  }
+}
