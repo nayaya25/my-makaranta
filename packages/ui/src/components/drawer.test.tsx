@@ -13,6 +13,28 @@ describe("Drawer", () => {
     expect(screen.getByText("Navigation Menu")).toBeInTheDocument();
   });
 
+  it("renders a sr-only title for screen readers (default)", () => {
+    render(
+      <Drawer.Root defaultOpen>
+        <Drawer.Content>
+          <p>Content</p>
+        </Drawer.Content>
+      </Drawer.Root>,
+    );
+    expect(screen.getByText("Drawer")).toBeInTheDocument();
+  });
+
+  it("renders a custom sr-only title when title prop is provided", () => {
+    render(
+      <Drawer.Root defaultOpen>
+        <Drawer.Content title="Navigation">
+          <p>Content</p>
+        </Drawer.Content>
+      </Drawer.Root>,
+    );
+    expect(screen.getByText("Navigation")).toBeInTheDocument();
+  });
+
   it("renders trigger", () => {
     render(
       <Drawer.Root>

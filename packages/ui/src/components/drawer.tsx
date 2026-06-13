@@ -15,7 +15,11 @@ const Overlay = ({ className, ...props }: RadixDialog.DialogOverlayProps) => (
   />
 );
 
-const Content = ({ className, children, ...props }: RadixDialog.DialogContentProps) => (
+interface DrawerContentProps extends RadixDialog.DialogContentProps {
+  title?: string;
+}
+
+const Content = ({ className, children, title = "Drawer", ...props }: DrawerContentProps) => (
   <RadixDialog.Portal>
     <Overlay />
     <RadixDialog.Content
@@ -32,6 +36,7 @@ const Content = ({ className, children, ...props }: RadixDialog.DialogContentPro
       )}
       {...props}
     >
+      <RadixDialog.Title className="sr-only">{title}</RadixDialog.Title>
       {children}
       <RadixDialog.Close
         aria-label="Close"

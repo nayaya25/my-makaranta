@@ -234,6 +234,29 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
+  uploadStudentPhoto: async (id: string, file: File): Promise<{ photoUrl: string }> => {
+    const token = session.token();
+    if (!token) {
+      if (typeof window !== "undefined") {
+        session.clear();
+        window.location.replace("/login");
+      }
+      throw new ApiError(401, "Not authenticated");
+    }
+    const body = new FormData();
+    body.append("file", file);
+    const res = await fetch(`${API_BASE}/v1/students/${id}/photo`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, data.message ?? `Upload failed (${res.status})`);
+    }
+    return res.json() as Promise<{ photoUrl: string }>;
+  },
+
   listStaff: () => authedRequest<Staff[]>("/v1/staff"),
   createStaff: (data: {
     staffNo: string;

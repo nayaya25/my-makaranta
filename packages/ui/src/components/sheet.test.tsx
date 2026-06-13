@@ -49,4 +49,26 @@ describe("Sheet", () => {
     );
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
+
+  it("renders a sr-only title for screen readers when no Sheet.Title is composed", () => {
+    render(
+      <Sheet.Root defaultOpen>
+        <Sheet.Content>
+          <p>Content without explicit title</p>
+        </Sheet.Content>
+      </Sheet.Root>,
+    );
+    expect(screen.getByText("Panel")).toBeInTheDocument();
+  });
+
+  it("renders a custom sr-only title when title prop is provided", () => {
+    render(
+      <Sheet.Root defaultOpen>
+        <Sheet.Content title="Student Info">
+          <p>Content</p>
+        </Sheet.Content>
+      </Sheet.Root>,
+    );
+    expect(screen.getByText("Student Info")).toBeInTheDocument();
+  });
 });

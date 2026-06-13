@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,7 +15,7 @@ import {
   Tabs,
 } from "@mymakaranta/ui";
 import { api, ApiError, type Student, type Guardian } from "@/lib/api";
-import { ArrowLeft, UserPlus } from "lucide-react";
+import { ArrowLeft, Camera, UserPlus } from "lucide-react";
 
 function AddGuardianDialog({
   studentId,
@@ -169,6 +169,26 @@ export default function StudentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [guardianDialogOpen, setGuardianDialogOpen] = useState(false);
+  const [photoSrc, setPhotoSrc] = useState<string | undefined>(undefined);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  async function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoError(null);
+    setPhotoUploading(true);
+    try {
+      const { photoUrl } = await api.uploadStudentPhoto(id, file);
+      setPhotoSrc(photoUrl);
+    } catch (err) {
+      setPhotoError(err instanceof ApiError ? err.message : "Photo upload failed.");
+    } finally {
+      setPhotoUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  }
 
   async function load() {
     setLoading(true);
@@ -225,7 +245,31 @@ export default function StudentProfilePage() {
 
       {/* Header */}
       <div className="flex items-center gap-4 mb-8">
-        <Avatar name={fullName} size="lg" />
+        <div className="relative shrink-0">
+          <Avatar name={fullName} size="lg" src={photoSrc} />
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            aria-label="Change photo"
+            onChange={handlePhotoChange}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={photoUploading}
+            onClick={() => photoInputRef.current?.click()}
+            className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full p-0 bg-surface dark:bg-surface-dark border border-ink-200 dark:border-white/10 shadow-sm"
+            aria-label="Change photo"
+          >
+            {photoUploading ? (
+              <span className="h-3 w-3 rounded-full border-2 border-ink-400 border-t-transparent animate-spin" />
+            ) : (
+              <Camera size={12} aria-hidden />
+            )}
+          </Button>
+        </div>
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
             {fullName}
@@ -238,6 +282,11 @@ export default function StudentProfilePage() {
               {student.gender === "M" ? "Male" : "Female"}
             </Badge>
           </div>
+          {photoError && (
+            <p className="text-caption text-error mt-0.5" role="alert">
+              {photoError}
+            </p>
+          )}
         </div>
       </div>
 

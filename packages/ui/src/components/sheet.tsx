@@ -12,6 +12,7 @@ type Side = keyof typeof sideStyles;
 
 interface SheetContentProps extends RadixDialog.DialogContentProps {
   side?: Side;
+  title?: string;
 }
 
 const Overlay = ({ className, ...props }: RadixDialog.DialogOverlayProps) => (
@@ -27,7 +28,7 @@ const Overlay = ({ className, ...props }: RadixDialog.DialogOverlayProps) => (
   />
 );
 
-const Content = ({ side = "right", className, children, ...props }: SheetContentProps) => (
+const Content = ({ side = "right", className, children, title = "Panel", ...props }: SheetContentProps) => (
   <RadixDialog.Portal>
     <Overlay />
     <RadixDialog.Content
@@ -43,6 +44,7 @@ const Content = ({ side = "right", className, children, ...props }: SheetContent
       )}
       {...props}
     >
+      <RadixDialog.Title className="sr-only">{title}</RadixDialog.Title>
       {children}
       <RadixDialog.Close
         aria-label="Close"
