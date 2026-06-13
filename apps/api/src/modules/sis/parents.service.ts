@@ -19,8 +19,14 @@ export class ParentsService {
   }
 
   async createGuardian(studentId: string, dto: CreateGuardianDto) {
-    const student = await this.prisma.student.findUnique({ where: { id: studentId } });
+    // Both student and parent are tenant-scoped models; findUnique returns null for another
+    // tenant's rows, so this rejects cross-tenant guardian links (Guardian has no schoolId).
+    const [student, parent] = await Promise.all([
+      this.prisma.student.findUnique({ where: { id: studentId } }),
+      this.prisma.parent.findUnique({ where: { id: dto.parentId } }),
+    ]);
     if (!student) throw new NotFoundException("Student not found");
+    if (!parent) throw new NotFoundException("Parent not found");
 
     return this.prisma.guardian.create({
       data: {

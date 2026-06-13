@@ -31,7 +31,8 @@ export class ParentsController {
   }
 
   @Get("v1/students/:id/guardians")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("students.view")
   findGuardians(@Param("id") id: string) {
     return this.parents.findGuardians(id);
   }

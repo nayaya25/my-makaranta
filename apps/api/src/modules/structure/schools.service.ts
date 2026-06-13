@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { CreateSchoolDto } from "./dto/schools.dto";
@@ -11,6 +16,14 @@ export class SchoolsService {
   ) {}
 
   async createSchool(dto: CreateSchoolDto, userId: string) {
+    // Onboarding only: a user may bootstrap a school exactly once, while still PENDING.
+    // Prevents an existing member from minting a new school and self-granting proprietor rights.
+    const actor = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!actor) throw new NotFoundException("User not found.");
+    if (actor.schoolId || actor.identityType !== "PENDING") {
+      throw new ForbiddenException("This account already belongs to a school.");
+    }
+
     const slug = dto.slug ?? dto.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
     const existing = await this.prisma.school.findUnique({ where: { slug } });
