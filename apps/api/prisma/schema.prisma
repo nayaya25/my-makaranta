@@ -1,0 +1,256 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum CountryCode {
+  NG
+  GH
+  KE
+}
+
+enum LangCode {
+  EN
+  HA
+  YO
+  IG
+}
+
+enum GuardianRelation {
+  MOTHER
+  FATHER
+  GUARDIAN
+  GRANDPARENT
+  AUNT
+  UNCLE
+  OTHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REVERSED
+}
+
+enum PaymentChannel {
+  PAYSTACK
+  FLUTTERWAVE
+  BANK_TRANSFER
+  CASH
+}
+
+model School {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  logoUrl       String?
+  country       CountryCode    @default(NG)
+  currency      String         @default("NGN")
+  createdAt     DateTime       @default(now())
+  classes       Class[]
+  classLevels   ClassLevel[]
+  subjects      Subject[]
+  staff         Staff[]
+  students      Student[]
+  parents       Parent[]
+  academicYears AcademicYear[]
+}
+
+model AcademicYear {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  name      String
+  startDate DateTime
+  endDate   DateTime
+  terms     Term[]
+
+  @@unique([schoolId, name])
+}
+
+model Term {
+  id             String       @id @default(cuid())
+  schoolId       String
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  number         Int
+  startDate      DateTime
+  endDate        DateTime
+  isCurrent      Boolean      @default(false)
+  enrollments    Enrollment[]
+}
+
+model ClassLevel {
+  id       String  @id @default(cuid())
+  schoolId String
+  school   School  @relation(fields: [schoolId], references: [id])
+  name     String
+  order    Int
+  classes  Class[]
+
+  @@unique([schoolId, name])
+}
+
+model Class {
+  id            String       @id @default(cuid())
+  schoolId      String
+  school        School       @relation(fields: [schoolId], references: [id])
+  classLevelId  String
+  classLevel    ClassLevel   @relation(fields: [classLevelId], references: [id])
+  name          String
+  formTeacherId String?
+  enrollments   Enrollment[]
+
+  @@unique([schoolId, name])
+}
+
+model Subject {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+  name     String
+  code     String
+
+  @@unique([schoolId, code])
+}
+
+model Staff {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  staffNo   String
+  firstName String
+  lastName  String
+  photoUrl  String?
+  email     String
+  phone     String
+  hiredAt   DateTime @default(now())
+
+  @@unique([schoolId, staffNo])
+  @@unique([schoolId, email])
+}
+
+model Student {
+  id            String       @id @default(cuid())
+  schoolId      String
+  school        School       @relation(fields: [schoolId], references: [id])
+  admissionNo   String
+  firstName     String
+  middleName    String?
+  lastName      String
+  photoUrl      String?
+  gender        Gender
+  dateOfBirth   DateTime
+  stateOfOrigin String?
+  enteredAt     DateTime     @default(now())
+  guardians     Guardian[]
+  enrollments   Enrollment[]
+
+  @@unique([schoolId, admissionNo])
+}
+
+model Parent {
+  id            String     @id @default(cuid())
+  schoolId      String
+  school        School     @relation(fields: [schoolId], references: [id])
+  phone         String
+  email         String?
+  firstName     String
+  lastName      String
+  preferredLang LangCode   @default(EN)
+  guardians     Guardian[]
+
+  @@unique([schoolId, phone])
+}
+
+model Guardian {
+  id           String           @id @default(cuid())
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id])
+  parentId     String
+  parent       Parent           @relation(fields: [parentId], references: [id])
+  relationship GuardianRelation
+  isPrimary    Boolean          @default(false)
+
+  @@unique([studentId, parentId])
+}
+
+model Enrollment {
+  id        String  @id @default(cuid())
+  studentId String
+  classId   String
+  termId    String
+  student   Student @relation(fields: [studentId], references: [id])
+  class     Class   @relation(fields: [classId], references: [id])
+  term      Term    @relation(fields: [termId], references: [id])
+
+  @@unique([studentId, termId])
+}
+
+// === Auth & RBAC ===
+
+model User {
+  id           String           @id @default(cuid())
+  schoolId     String?
+  identityType String
+  identityId   String
+  phone        String?          @unique
+  email        String?          @unique
+  passwordHash String?
+  lastLoginAt  DateTime?
+  createdAt    DateTime         @default(now())
+  permissions  UserPermission[]
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique
+  description String
+  users       UserPermission[]
+}
+
+model UserPermission {
+  userId       String
+  permissionId String
+  scope        Json       @default("{}")
+  user         User       @relation(fields: [userId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([userId, permissionId])
+}
+
+model OtpRequest {
+  id        String   @id @default(cuid())
+  phone     String
+  codeHash  String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([phone, createdAt])
+}
