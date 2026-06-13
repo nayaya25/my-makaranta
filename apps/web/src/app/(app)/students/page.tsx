@@ -205,7 +205,15 @@ export default function StudentsPage() {
             {loading ? "" : `${students.length} total`}
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>Add student</Button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/students/import"
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-button font-medium h-11 px-4 text-body border border-ink-300 bg-transparent text-ink-1000 hover:bg-ink-100 transition-[transform,background-color,box-shadow,color] duration-micro ease-expo active:scale-[0.98] focus-visible:outline-none focus-visible:shadow-focus dark:text-ink-100 dark:border-white/20 dark:hover:bg-white/8"
+          >
+            Bulk import
+          </Link>
+          <Button onClick={() => setDialogOpen(true)}>Add student</Button>
+        </div>
       </div>
 
       {loading && (

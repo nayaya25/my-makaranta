@@ -139,6 +139,33 @@ export interface Parent {
   email?: string | null;
 }
 
+export interface ImportRow {
+  admissionNo: string;
+  firstName: string;
+  middleName?: string;
+  lastName: string;
+  gender: string;
+  dateOfBirth: string;
+  stateOfOrigin?: string;
+  parentPhone?: string;
+  parentFirstName?: string;
+  parentLastName?: string;
+  guardianRelationship?: string;
+}
+
+export interface ImportJobStatus {
+  id: string;
+  state: "waiting" | "active" | "completed" | "failed" | "delayed" | "paused";
+  progress?: number;
+  failedReason?: string;
+  result?: {
+    total: number;
+    imported: number;
+    failed: number;
+    errors: { row: number; admissionNo?: string; message: string }[];
+  };
+}
+
 export const api = {
   requestOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
@@ -180,6 +207,14 @@ export const api = {
   listSubjects: () => authedRequest<Subject[]>("/v1/subjects"),
   createSubject: (data: { name: string; code: string }) =>
     authedRequest<Subject>("/v1/subjects", { method: "POST", body: JSON.stringify(data) }),
+
+  importStudents: (rows: ImportRow[]) =>
+    authedRequest<{ jobId: string }>("/v1/imports/students", {
+      method: "POST",
+      body: JSON.stringify({ rows }),
+    }),
+  getImportStatus: (jobId: string) =>
+    authedRequest<ImportJobStatus>(`/v1/imports/${jobId}`),
 
   listStudents: () => authedRequest<Student[]>("/v1/students"),
   getStudent: (id: string) => authedRequest<Student>(`/v1/students/${id}`),
