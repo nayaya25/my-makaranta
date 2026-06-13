@@ -63,5 +63,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Security audit per the dependency policy. Report-only for now: clearing the
+      # remaining high-severity advisories needs major upgrades (Next 15, NestJS 11,
+      # Vitest 3, Storybook 9). Flip to a hard gate (drop continue-on-error) after that pass.
+      - name: Security audit (production deps)
+        continue-on-error: true
+        run: pnpm audit --prod --audit-level high
+
       # NOTE: per-package ESLint flat-config consolidation is a tracked follow-up;
       # typecheck + tests + build are the enforced gates here.
