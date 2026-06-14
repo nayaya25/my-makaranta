@@ -16,7 +16,7 @@ describe("queue", () => {
     expect(saved.queuedAt).toBeGreaterThan(0);
     const all = await getQueuedMarks();
     expect(all).toHaveLength(1);
-    expect(all[0].status).toBe("PRESENT");
+    expect(all[0]?.status).toBe("PRESENT");
   });
 
   it("coalesces re-taps of the same student/date/class into one entry (final status wins)", async () => {
@@ -25,7 +25,7 @@ describe("queue", () => {
     await enqueueMark({ ...base, status: "LATE" });
     const all = await getQueuedMarks();
     expect(all).toHaveLength(1);
-    expect(all[0].status).toBe("LATE");
+    expect(all[0]?.status).toBe("LATE");
   });
 
   it("keeps separate entries per student and per date", async () => {
