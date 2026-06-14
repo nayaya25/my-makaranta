@@ -10,13 +10,16 @@ import {
   type Class,
   type SubjectAssignment,
 } from "@/lib/api";
+import { type AcademicYear } from "@/lib/api";
 import { computeRow } from "@/lib/gradebook";
 import { ClipboardList } from "lucide-react";
+import Link from "next/link";
 
 interface TermOpt { id: string; label: string; isCurrent: boolean; }
 
 export default function GradebookPage() {
   const [classes, setClasses] = useState<Class[]>([]);
+  const [years, setYears] = useState<AcademicYear[]>([]);
   const [terms, setTerms] = useState<TermOpt[]>([]);
   const [classId, setClassId] = useState("");
   const [termId, setTermId] = useState("");
@@ -32,10 +35,11 @@ export default function GradebookPage() {
 
   useEffect(() => {
     void (async () => {
-      const [cs, years] = await Promise.all([api.listClasses(), api.listAcademicYears()]);
+      const [cs, yrs] = await Promise.all([api.listClasses(), api.listAcademicYears()]);
       setClasses(cs);
+      setYears(yrs);
       if (cs[0]) setClassId(cs[0].id);
-      const ts: TermOpt[] = years.flatMap((y) =>
+      const ts: TermOpt[] = yrs.flatMap((y) =>
         (y.terms ?? [])
           .filter((t) => t.id)
           .map((t) => ({ id: t.id!, label: `${y.name} · Term ${t.number}`, isCurrent: !!t.isCurrent })),
@@ -48,10 +52,12 @@ export default function GradebookPage() {
 
   useEffect(() => {
     if (!classId || !termId) return;
+    // Reset subject immediately so loadGradebook skips a stale fetch with the old
+    // subject before the cascade below resolves the new class's offered subjects.
+    setSubjectId("");
+    const year = years.find((y) => (y.terms ?? []).some((t) => t.id === termId));
+    if (!year) { setSubjectOpts([]); return; }
     void (async () => {
-      const years = await api.listAcademicYears();
-      const year = years.find((y) => (y.terms ?? []).some((t) => t.id === termId));
-      if (!year) { setSubjectOpts([]); return; }
       const assignments: SubjectAssignment[] = await api.listSubjectAssignments(classId, year.id);
       const seen = new Map<string, string>();
       for (const a of assignments) if (a.subject) seen.set(a.subject.id, a.subject.name);
@@ -59,7 +65,7 @@ export default function GradebookPage() {
       setSubjectOpts(opts);
       setSubjectId(opts[0]?.id ?? "");
     })();
-  }, [classId, termId]);
+  }, [classId, termId, years]);
 
   const loadGradebook = useCallback(async () => {
     if (!classId || !subjectId || !termId) return;
@@ -140,7 +146,7 @@ export default function GradebookPage() {
           </select>
         </label>
         <div className="flex items-center gap-3 ml-auto">
-          <Button onClick={save} disabled={saveState === "saving" || hasError || rows.length === 0}>Save scores</Button>
+          <Button onClick={() => void save()} disabled={saveState === "saving" || hasError || rows.length === 0}>Save scores</Button>
           <span aria-live="polite" className={cn("text-caption tabular-nums",
             saveState === "saved" ? "text-success" : saveState === "error" ? "text-error" : "text-ink-500")}>
             {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : ""}
@@ -153,8 +159,13 @@ export default function GradebookPage() {
       {loading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : types.length === 0 ? (
-        <EmptyState icon={<ClipboardList size={28} />} title="No assessment structure"
-          description="Configure assessment components in Settings → Assessment before recording scores." />
+        <div className="flex flex-col items-center gap-3">
+          <EmptyState icon={<ClipboardList size={28} />} title="No assessment structure"
+            description="Configure assessment components before recording scores." />
+          <Link href="/settings/assessment">
+            <Button variant="outline" size="sm">Go to Settings → Assessment</Button>
+          </Link>
+        </div>
       ) : rows.length === 0 ? (
         <EmptyState icon={<ClipboardList size={28} />} title="No students"
           description="This class has no enrolled students for the selected term." />
