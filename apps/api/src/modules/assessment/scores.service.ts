@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { computeSubjectResult } from "./score.util";
@@ -63,6 +63,10 @@ export class ScoresService {
   async saveScores(dto: SaveScoresDto, recordedBy: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
     await this.assertContext(schoolId, dto.classId, dto.subjectId, dto.termId);
+    const released = await this.prisma.release.findFirst({ where: { classId: dto.classId, termId: dto.termId, schoolId } });
+    if (released) {
+      throw new ConflictException("Results released for this class/term; correction required.");
+    }
 
     const types = await this.prisma.assessmentType.findMany({ where: { schoolId } });
     const maxById = new Map(types.map((t) => [t.id, t.maxScore]));

@@ -424,5 +424,13 @@ describe("Assessment config (e2e)", () => {
       await expect(asB(() => release2.release(cls, rTerm, "x"))).rejects.toThrow(NotFoundException);
       await expect(asB(() => release2.getSheet(cls, rTerm))).rejects.toThrow(NotFoundException);
     });
+
+    it("blocks score edits after release (immutability)", async () => {
+      const t = await asA(() => types.list());
+      const caId = t.find((x) => x.name === "CA1")!.id;
+      await expect(
+        asA(() => scores.saveScores({ classId: cls, subjectId: subj, termId: rTerm, scores: [{ studentId: s1, assessmentTypeId: caId, value: 5 }] }, "rel")),
+      ).rejects.toThrow(/released/i);
+    });
   });
 });
