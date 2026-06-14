@@ -41,6 +41,7 @@ export class GradeBoundaryItemDto {
 
   @IsInt()
   @Min(0)
+  @Max(100)
   minScore!: number;
 
   @IsString()

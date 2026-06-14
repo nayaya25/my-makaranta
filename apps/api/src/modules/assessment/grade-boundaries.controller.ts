@@ -24,6 +24,7 @@ export class GradeBoundariesController {
   }
 
   @Post("apply-template")
+  @HttpCode(200)
   @UseGuards(JwtAuthGuard, PermissionGuard)
   @RequirePermissions("assessment.configure")
   applyTemplate(@Body() dto: ApplyTemplateDto) {

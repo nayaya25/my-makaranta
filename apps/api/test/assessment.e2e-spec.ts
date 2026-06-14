@@ -116,6 +116,8 @@ describe("Assessment config (e2e)", () => {
       expect(list[0]?.minScore).toBe(75);
       expect(list[list.length - 1]?.grade).toBe("F9");
       expect(list[list.length - 1]?.minScore).toBe(0);
+      // school B never applied a template; A's replace must not touch B's bands
+      expect(await asB(() => boundaries.list())).toHaveLength(0);
     });
 
     it("rejects a band set with no zero (catch-all) band", async () => {
