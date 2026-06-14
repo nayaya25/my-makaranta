@@ -166,6 +166,32 @@ export interface ImportJobStatus {
   };
 }
 
+export interface AssessmentType {
+  id: string;
+  name: string;
+  maxScore: number;
+  order: number;
+}
+
+export interface GradeBoundary {
+  id: string;
+  grade: string;
+  minScore: number;
+  remark: string;
+  order: number;
+}
+
+export interface SubjectAssignment {
+  id: string;
+  subjectId: string;
+  classId: string;
+  staffId: string;
+  academicYearId: string;
+  subject?: { id: string; name: string; code: string };
+  class?: { id: string; name: string };
+  staff?: { id: string; firstName: string; lastName: string };
+}
+
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
 
 export interface AttendanceRecord {
@@ -327,6 +353,52 @@ export const api = {
     authedRequest<Guardian>(`/v1/students/${studentId}/guardians`, {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+
+  listAcademicYears: () => authedRequest<AcademicYear[]>("/v1/academic-years"),
+
+  // Assessment config
+  getAssessmentTypes: () => authedRequest<AssessmentType[]>("/v1/assessment/types"),
+  putAssessmentTypes: (types: Array<{ name: string; maxScore: number; order: number }>) =>
+    authedRequest<AssessmentType[]>("/v1/assessment/types", {
+      method: "PUT",
+      body: JSON.stringify({ types }),
+    }),
+  getGradeBoundaries: () => authedRequest<GradeBoundary[]>("/v1/assessment/grade-boundaries"),
+  putGradeBoundaries: (
+    boundaries: Array<{ grade: string; minScore: number; remark: string; order: number }>,
+  ) =>
+    authedRequest<GradeBoundary[]>("/v1/assessment/grade-boundaries", {
+      method: "PUT",
+      body: JSON.stringify({ boundaries }),
+    }),
+  applyGradeTemplate: (template: "WAEC" | "NECO") =>
+    authedRequest<GradeBoundary[]>("/v1/assessment/grade-boundaries/apply-template", {
+      method: "POST",
+      body: JSON.stringify({ template }),
+    }),
+  listSubjectAssignments: (classId: string, academicYearId: string) =>
+    authedRequest<SubjectAssignment[]>(
+      `/v1/assessment/subject-assignments?classId=${classId}&academicYearId=${academicYearId}`,
+    ),
+  createSubjectAssignment: (body: {
+    subjectId: string;
+    classId: string;
+    staffId: string;
+    academicYearId: string;
+  }) =>
+    authedRequest<SubjectAssignment>("/v1/assessment/subject-assignments", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateSubjectAssignment: (id: string, staffId: string) =>
+    authedRequest<SubjectAssignment>(`/v1/assessment/subject-assignments/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ staffId }),
+    }),
+  deleteSubjectAssignment: (id: string) =>
+    authedRequest<{ deleted: boolean }>(`/v1/assessment/subject-assignments/${id}`, {
+      method: "DELETE",
     }),
 
   // Attendance
