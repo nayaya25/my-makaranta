@@ -6,6 +6,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsString,
+  Max,
   Min,
   ValidateNested,
 } from "class-validator";
@@ -17,6 +18,7 @@ export class AssessmentTypeItemDto {
 
   @IsInt()
   @Min(1)
+  @Max(100)
   maxScore!: number;
 
   @IsInt()

@@ -8,7 +8,8 @@ export class AssessmentTypesService {
   constructor(private prisma: PrismaService) {}
 
   list() {
-    return this.prisma.assessmentType.findMany({ orderBy: { order: "asc" } });
+    const schoolId = TenantContext.schoolIdOrThrow();
+    return this.prisma.assessmentType.findMany({ where: { schoolId }, orderBy: { order: "asc" } });
   }
 
   async replace(types: AssessmentTypeItemDto[]) {
@@ -20,11 +21,11 @@ export class AssessmentTypesService {
     if (sum !== 100) {
       throw new BadRequestException(`Assessment type max scores must sum to 100 (got ${sum}).`);
     }
-    // createMany is NOT auto-scoped by the tenant middleware (only single create is),
-    // so set schoolId explicitly. deleteMany IS scoped by the middleware.
+    // Scope BOTH ops explicitly: the tenant middleware does not reliably scope
+    // operations executed inside an array $transaction, so never rely on it here.
     const schoolId = TenantContext.schoolIdOrThrow();
     await this.prisma.$transaction([
-      this.prisma.assessmentType.deleteMany({}),
+      this.prisma.assessmentType.deleteMany({ where: { schoolId } }),
       this.prisma.assessmentType.createMany({
         data: types.map((t) => ({ schoolId, name: t.name, maxScore: t.maxScore, order: t.order })),
       }),

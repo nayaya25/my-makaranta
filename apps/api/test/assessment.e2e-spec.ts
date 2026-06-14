@@ -93,6 +93,8 @@ describe("Assessment config (e2e)", () => {
       expect(saved.map((t) => t.name)).toEqual(["CA1", "CA2", "CA3", "Exam"]);
       const list = await asA(() => types.list());
       expect(list).toHaveLength(4);
+      // school B never set any types; A's replace must not touch B's rows
+      expect(await asB(() => types.list())).toHaveLength(0);
     });
 
     it("rejects duplicate type names", async () => {
