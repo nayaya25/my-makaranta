@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardBody, CardHeader } from "@mymakaranta/ui";
 
 export default function SettingsPage() {
@@ -8,16 +9,32 @@ export default function SettingsPage() {
       <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100 mb-6">
         Settings
       </h1>
-      <Card elevation="sm">
-        <CardHeader>
-          <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">School settings</h2>
-        </CardHeader>
-        <CardBody>
-          <p className="text-small text-ink-500">
-            School configuration and advanced settings coming in a later sprint.
-          </p>
-        </CardBody>
-      </Card>
+      <div className="flex flex-col gap-4">
+        <Card elevation="sm">
+          <CardHeader>
+            <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">School settings</h2>
+          </CardHeader>
+          <CardBody>
+            <p className="text-small text-ink-500">
+              School configuration and advanced settings coming in a later sprint.
+            </p>
+          </CardBody>
+        </Card>
+        <Link href="/settings/assessment" className="block">
+          <Card elevation="sm" interactive>
+            <CardHeader>
+              <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">
+                Assessment &amp; Grading
+              </h2>
+            </CardHeader>
+            <CardBody>
+              <p className="text-small text-ink-500">
+                Score components, grade boundaries, and teacher–subject assignments.
+              </p>
+            </CardBody>
+          </Card>
+        </Link>
+      </div>
     </div>
   );
 }
