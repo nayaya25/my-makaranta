@@ -209,6 +209,28 @@ export interface Gradebook {
   students: GradebookStudent[];
 }
 
+export interface ClassMasterSheet {
+  subjects: Array<{ id: string; name: string }>;
+  students: Array<{
+    studentId: string;
+    name: string;
+    perSubject: Record<string, { total: number; grade: string | null; complete: boolean; anomaly: boolean }>;
+    average: number;
+  }>;
+}
+
+export interface SubjectMasterSheet {
+  subjectMean: number;
+  subjectStdDev: number;
+  classes: Array<{
+    classId: string;
+    name: string;
+    mean: number;
+    drift: number;
+    students: Array<{ studentId: string; name: string; total: number; grade: string | null; z: number; anomaly: boolean }>;
+  }>;
+}
+
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
 
 export interface AttendanceRecord {
@@ -431,6 +453,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  getClassMaster: (classId: string, termId: string) =>
+    authedRequest<ClassMasterSheet>(`/v1/assessment/review/class-master?classId=${classId}&termId=${termId}`),
+  getSubjectMaster: (subjectId: string, termId: string) =>
+    authedRequest<SubjectMasterSheet>(`/v1/assessment/review/subject-master?subjectId=${subjectId}&termId=${termId}`),
 
   // Attendance
   getClassAttendance: (classId: string, date: string) =>
