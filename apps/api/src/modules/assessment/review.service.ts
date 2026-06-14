@@ -125,17 +125,22 @@ export class ReviewService {
         include: { student: { select: { id: true, firstName: true, lastName: true } } },
       });
       if (enrollments.length === 0) continue;
-      const students = enrollments.map((e) => {
-        const total = totalByStudent.get(e.studentId) ?? 0;
-        const grade = computeSubjectResult(
-          [{ assessmentTypeId: "_", value: total }], // total is already summed; map via boundaries directly
-          ["_"], boundaries,
-        ).grade;
-        const info = anomalies.get(e.studentId);
-        return { studentId: e.studentId, name: `${e.student.firstName} ${e.student.lastName}`, total, grade, z: info?.z ?? 0, anomaly: info?.anomaly ?? false };
-      });
-      const enrolledTotals = students.map((s) => s.total);
-      const mean = enrolledTotals.length ? enrolledTotals.reduce((x, y) => x + y, 0) / enrolledTotals.length : 0;
+      // Only students with a score in this subject/term — keeps class mean on the same
+      // (scored-only) population as subjectMean, so drift compares like with like and
+      // un-scored enrollees don't appear as phantom 0s during partial entry.
+      const students = enrollments
+        .filter((e) => totalByStudent.has(e.studentId))
+        .map((e) => {
+          const total = totalByStudent.get(e.studentId)!;
+          const grade = computeSubjectResult(
+            [{ assessmentTypeId: "_", value: total }], // total already summed; map via boundaries directly
+            ["_"], boundaries,
+          ).grade;
+          const info = anomalies.get(e.studentId);
+          return { studentId: e.studentId, name: `${e.student.firstName} ${e.student.lastName}`, total, grade, z: info?.z ?? 0, anomaly: info?.anomaly ?? false };
+        });
+      if (students.length === 0) continue;
+      const mean = students.reduce((x, s) => x + s.total, 0) / students.length;
       classes.push({ classId: a.classId, name: a.class.name, mean, drift: mean - subjectMean, students });
     }
 
