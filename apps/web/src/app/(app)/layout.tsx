@@ -11,6 +11,7 @@ import {
   UserSquare2,
   BookOpen,
   CalendarCheck,
+  ClipboardList,
   Settings,
   LogOut,
   Menu,
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/staff", label: "Staff", icon: UserSquare2 },
   { href: "/classes", label: "Classes", icon: BookOpen },
   { href: "/attendance", label: "Attendance", icon: CalendarCheck },
+  { href: "/gradebook", label: "Gradebook", icon: ClipboardList },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

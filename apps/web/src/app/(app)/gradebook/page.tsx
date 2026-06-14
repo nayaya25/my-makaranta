@@ -1,0 +1,203 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Badge, Button, Spinner, EmptyState, cn } from "@mymakaranta/ui";
+import {
+  api,
+  ApiError,
+  type AssessmentType,
+  type GradeBoundary,
+  type Class,
+  type SubjectAssignment,
+} from "@/lib/api";
+import { computeRow } from "@/lib/gradebook";
+import { ClipboardList } from "lucide-react";
+
+interface TermOpt { id: string; label: string; isCurrent: boolean; }
+
+export default function GradebookPage() {
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [terms, setTerms] = useState<TermOpt[]>([]);
+  const [classId, setClassId] = useState("");
+  const [termId, setTermId] = useState("");
+  const [subjectOpts, setSubjectOpts] = useState<Array<{ id: string; name: string }>>([]);
+  const [subjectId, setSubjectId] = useState("");
+
+  const [types, setTypes] = useState<AssessmentType[]>([]);
+  const [boundaries, setBoundaries] = useState<GradeBoundary[]>([]);
+  const [rows, setRows] = useState<Array<{ studentId: string; name: string; values: Record<string, number> }>>([]);
+  const [loading, setLoading] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const [cs, years] = await Promise.all([api.listClasses(), api.listAcademicYears()]);
+      setClasses(cs);
+      if (cs[0]) setClassId(cs[0].id);
+      const ts: TermOpt[] = years.flatMap((y) =>
+        (y.terms ?? [])
+          .filter((t) => t.id)
+          .map((t) => ({ id: t.id!, label: `${y.name} · Term ${t.number}`, isCurrent: !!t.isCurrent })),
+      );
+      setTerms(ts);
+      const current = ts.find((t) => t.isCurrent) ?? ts[0];
+      if (current) setTermId(current.id);
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!classId || !termId) return;
+    void (async () => {
+      const years = await api.listAcademicYears();
+      const year = years.find((y) => (y.terms ?? []).some((t) => t.id === termId));
+      if (!year) { setSubjectOpts([]); return; }
+      const assignments: SubjectAssignment[] = await api.listSubjectAssignments(classId, year.id);
+      const seen = new Map<string, string>();
+      for (const a of assignments) if (a.subject) seen.set(a.subject.id, a.subject.name);
+      const opts = [...seen].map(([id, name]) => ({ id, name }));
+      setSubjectOpts(opts);
+      setSubjectId(opts[0]?.id ?? "");
+    })();
+  }, [classId, termId]);
+
+  const loadGradebook = useCallback(async () => {
+    if (!classId || !subjectId || !termId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const gb = await api.getScores(classId, subjectId, termId);
+      setTypes(gb.assessmentTypes);
+      setBoundaries(gb.gradeBoundaries);
+      setRows(gb.students.map((s) => ({
+        studentId: s.studentId,
+        name: `${s.firstName} ${s.lastName}`,
+        values: { ...s.scores },
+      })));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not load the gradebook.");
+    } finally {
+      setLoading(false);
+    }
+  }, [classId, subjectId, termId]);
+  useEffect(() => { void loadGradebook(); }, [loadGradebook]);
+
+  const maxById = useMemo(() => new Map(types.map((t) => [t.id, t.maxScore])), [types]);
+  const overMax = (typeId: string, v: number) => {
+    const m = maxById.get(typeId);
+    return m !== undefined && (v < 0 || v > m);
+  };
+  const hasError = rows.some((r) => Object.entries(r.values).some(([tid, v]) => Number.isFinite(v) && overMax(tid, v)));
+
+  const setCell = (studentId: string, typeId: string, raw: string) => {
+    const v = raw === "" ? NaN : Number(raw);
+    setRows((prev) => prev.map((r) =>
+      r.studentId === studentId ? { ...r, values: { ...r.values, [typeId]: v } } : r));
+  };
+
+  const save = async () => {
+    setSaveState("saving");
+    setError(null);
+    const payload = {
+      classId, subjectId, termId,
+      scores: rows.flatMap((r) =>
+        types
+          .filter((t) => Number.isFinite(r.values[t.id]))
+          .map((t) => ({ studentId: r.studentId, assessmentTypeId: t.id, value: r.values[t.id]! }))),
+    };
+    try {
+      await api.saveScores(payload);
+      setSaveState("saved");
+      setTimeout(() => setSaveState("idle"), 2000);
+    } catch (e) {
+      setSaveState("error");
+      setError(e instanceof ApiError ? e.message : "Could not save scores.");
+    }
+  };
+
+  return (
+    <div className="px-4 py-8 mx-auto max-w-5xl">
+      <div className="mb-6">
+        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Gradebook</h1>
+        <p className="text-small text-ink-500">Record assessment scores for a class and subject.</p>
+      </div>
+
+      <div className="mb-6 flex flex-wrap items-end gap-3">
+        <label className="text-small text-ink-500 flex flex-col gap-1">Class
+          <select value={classId} onChange={(e) => setClassId(e.target.value)} className="h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small">
+            {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        <label className="text-small text-ink-500 flex flex-col gap-1">Term
+          <select value={termId} onChange={(e) => setTermId(e.target.value)} className="h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small">
+            {terms.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </label>
+        <label className="text-small text-ink-500 flex flex-col gap-1">Subject
+          <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small">
+            {subjectOpts.length === 0 && <option value="">No subjects assigned</option>}
+            {subjectOpts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+        </label>
+        <div className="flex items-center gap-3 ml-auto">
+          <Button onClick={save} disabled={saveState === "saving" || hasError || rows.length === 0}>Save scores</Button>
+          <span aria-live="polite" className={cn("text-caption tabular-nums",
+            saveState === "saved" ? "text-success" : saveState === "error" ? "text-error" : "text-ink-500")}>
+            {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : ""}
+          </span>
+        </div>
+      </div>
+
+      {error && <p className="mb-4 text-small text-error">{error}</p>}
+
+      {loading ? (
+        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+      ) : types.length === 0 ? (
+        <EmptyState icon={<ClipboardList size={28} />} title="No assessment structure"
+          description="Configure assessment components in Settings → Assessment before recording scores." />
+      ) : rows.length === 0 ? (
+        <EmptyState icon={<ClipboardList size={28} />} title="No students"
+          description="This class has no enrolled students for the selected term." />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-small border-collapse">
+            <thead>
+              <tr className="text-left text-ink-500">
+                <th className="py-2 pr-3 font-medium">Student</th>
+                {types.map((t) => <th key={t.id} className="py-2 px-2 font-medium text-center">{t.name}<span className="text-caption text-ink-400">/{t.maxScore}</span></th>)}
+                <th className="py-2 px-2 font-medium text-center">Total</th>
+                <th className="py-2 px-2 font-medium text-center">Grade</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const res = computeRow(r.values, boundaries);
+                return (
+                  <tr key={r.studentId} className="border-t border-ink-100 dark:border-white/10">
+                    <td className="py-1.5 pr-3 text-ink-1000 dark:text-ink-100 whitespace-nowrap">{r.name}</td>
+                    {types.map((t) => {
+                      const v = r.values[t.id];
+                      const bad = Number.isFinite(v) && overMax(t.id, v as number);
+                      return (
+                        <td key={t.id} className="py-1.5 px-2 text-center">
+                          <input type="number" min={0} max={t.maxScore}
+                            aria-label={`${r.name} ${t.name}`}
+                            value={Number.isFinite(v) ? String(v) : ""}
+                            onChange={(e) => setCell(r.studentId, t.id, e.target.value)}
+                            className={cn("h-9 w-16 rounded-input border bg-surface dark:bg-surface-dark px-2 text-center",
+                              bad ? "border-error" : "border-ink-300 dark:border-white/15")} />
+                        </td>
+                      );
+                    })}
+                    <td className="py-1.5 px-2 text-center tabular-nums font-medium">{res.total}</td>
+                    <td className="py-1.5 px-2 text-center">{res.grade ? <Badge tone="info">{res.grade}</Badge> : <span className="text-ink-400">—</span>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
