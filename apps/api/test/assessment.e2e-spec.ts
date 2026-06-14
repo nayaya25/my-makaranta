@@ -139,4 +139,38 @@ describe("Assessment config (e2e)", () => {
       ).rejects.toThrow();
     });
   });
+
+  describe("subject assignments", () => {
+    let createdId: string;
+
+    it("creates an assignment with valid tenant ids", async () => {
+      const a = await asA(() => assignments.create({ subjectId, classId, staffId, academicYearId }));
+      expect(a.id).toBeDefined();
+      createdId = a.id;
+    });
+
+    it("rejects a duplicate (subject, class, year) with Conflict", async () => {
+      await expect(
+        asA(() => assignments.create({ subjectId, classId, staffId, academicYearId })),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it("rejects a foreign/unknown subjectId with NotFound", async () => {
+      await expect(
+        asA(() => assignments.create({ subjectId: "nonexistent", classId, staffId, academicYearId })),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("lists assignments filtered by class + year, enriched with names", async () => {
+      const list = await asA(() => assignments.list({ classId, academicYearId }));
+      expect(list.length).toBeGreaterThanOrEqual(1);
+      expect(list[0]?.subject?.name).toBe("Mathematics");
+    });
+
+    it("removes an assignment", async () => {
+      await asA(() => assignments.remove(createdId));
+      const list = await asA(() => assignments.list({ classId, academicYearId }));
+      expect(list.find((x) => x.id === createdId)).toBeUndefined();
+    });
+  });
 });
