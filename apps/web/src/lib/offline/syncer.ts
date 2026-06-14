@@ -22,6 +22,7 @@ function createSyncer() {
   let snapshot: SyncSnapshot = { online: isOnline(), pendingCount: 0, state: "idle" };
   const listeners = new Set<Listener>();
   let flushing = false;
+  let initialized = false;
   let retry = 0;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -48,48 +49,47 @@ function createSyncer() {
 
   async function flush(): Promise<void> {
     if (flushing) return;
-    const pending = await getQueuedMarks();
-    if (pending.length === 0) {
-      emit({ pendingCount: 0, state: "idle", online: isOnline() });
-      return;
-    }
-    if (!isOnline()) {
-      emit({ pendingCount: pending.length, state: "offline", online: false });
-      return;
-    }
-
     flushing = true;
-    emit({ state: "syncing", online: true, pendingCount: pending.length });
-    let hadError = false;
-
-    for (const [, group] of groupByClassDate(pending)) {
-      const first = group[0];
-      if (!first) continue;
-      try {
-        await api.markAttendance({
-          classId: first.classId,
-          date: first.date,
-          records: group.map((m) => ({
-            studentId: m.studentId,
-            status: m.status,
-            idempotencyKey: m.idempotencyKey,
-          })),
-        });
-        await removeMarks(group.map(markKey));
-      } catch {
-        hadError = true;
+    try {
+      const pending = await getQueuedMarks();
+      if (pending.length === 0) {
+        emit({ pendingCount: 0, state: "idle", online: isOnline() });
+        return;
       }
-    }
-
-    flushing = false;
-    const remaining = await getQueuedMarks();
-
-    if (hadError) {
-      emit({ pendingCount: remaining.length, state: "error", online: isOnline() });
-      scheduleRetry();
-    } else {
-      retry = 0;
-      emit({ pendingCount: remaining.length, state: "idle", online: isOnline() });
+      if (!isOnline()) {
+        emit({ pendingCount: pending.length, state: "offline", online: false });
+        return;
+      }
+      emit({ state: "syncing", online: true, pendingCount: pending.length });
+      let hadError = false;
+      for (const [, group] of groupByClassDate(pending)) {
+        const first = group[0];
+        if (!first) continue;
+        try {
+          await api.markAttendance({
+            classId: first.classId,
+            date: first.date,
+            records: group.map((m) => ({
+              studentId: m.studentId,
+              status: m.status,
+              idempotencyKey: m.idempotencyKey,
+            })),
+          });
+          await removeMarks(group.map(markKey));
+        } catch {
+          hadError = true;
+        }
+      }
+      const remaining = await getQueuedMarks();
+      if (hadError) {
+        emit({ pendingCount: remaining.length, state: "error", online: isOnline() });
+        scheduleRetry();
+      } else {
+        retry = 0;
+        emit({ pendingCount: remaining.length, state: "idle", online: isOnline() });
+      }
+    } finally {
+      flushing = false;
     }
   }
 
@@ -110,6 +110,8 @@ function createSyncer() {
 
   function init(): void {
     if (typeof window === "undefined") return;
+    if (initialized) return;
+    initialized = true;
     window.addEventListener("online", () => {
       emit({ online: true });
       void flush();

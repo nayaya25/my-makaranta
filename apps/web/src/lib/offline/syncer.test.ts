@@ -70,6 +70,25 @@ describe("syncer.flush", () => {
     expect(payload.classId).toBe("c1");
     expect(payload.records[0]?.idempotencyKey).toMatch(/[0-9a-f-]{36}/);
   });
+
+  it("removes succeeded groups but keeps failed ones, and reports error", async () => {
+    // The 06-14 group succeeds; the 06-13 group fails.
+    markAttendance.mockImplementation((payload: { date: string }) =>
+      payload.date === "2026-06-14"
+        ? Promise.resolve({ saved: 1 })
+        : Promise.reject(new Error("network")),
+    );
+    await enqueueMark({ classId: "c1", date: "2026-06-14", studentId: "s1", status: "PRESENT" });
+    await enqueueMark({ classId: "c1", date: "2026-06-13", studentId: "s2", status: "ABSENT" });
+
+    const { syncer } = await freshSyncer();
+    await syncer.flush();
+
+    const remaining = await getQueuedMarks();
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0]?.date).toBe("2026-06-13");
+    expect(syncer.getSnapshot().state).toBe("error");
+  });
 });
 
 describe("syncer.getSnapshot", () => {
