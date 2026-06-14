@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Avatar,
   Badge,
@@ -14,10 +14,20 @@ import {
 import {
   api,
   ApiError,
-  type AttendanceRecord,
+  type AttendanceDay,
   type AttendanceStatus,
   type Class,
 } from "@/lib/api";
+import { syncer } from "@/lib/offline/syncer";
+import { useOfflineSync } from "@/lib/offline/useOfflineSync";
+import {
+  cacheRoster,
+  getCachedRoster,
+  cacheClasses,
+  getCachedClasses,
+} from "@/lib/offline/roster-cache";
+import { overlayQueuedMarks } from "@/lib/offline/overlay";
+import { getQueuedMarks } from "@/lib/offline/queue";
 import { CalendarCheck, CheckCheck } from "lucide-react";
 
 type StatusOrNull = AttendanceStatus | null;
@@ -80,35 +90,56 @@ export default function AttendancePage() {
   const [gridLoading, setGridLoading] = useState(false);
   const [gridError, setGridError] = useState<string | null>(null);
 
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingRecords = useRef<LocalRecord[]>([]);
+  const sync = useOfflineSync();
 
   useEffect(() => {
-    api.listClasses().then((cs) => {
-      setClasses(cs);
-      const first = cs[0];
-      if (first) setSelectedClassId(first.id);
-    }).catch(() => {
-      // silently ignore — main fetch will surface errors
-    }).finally(() => setClassesLoading(false));
+    api.listClasses()
+      .then((cs) => {
+        void cacheClasses(cs);
+        setClasses(cs);
+        if (cs[0]) setSelectedClassId(cs[0].id);
+      })
+      .catch(async () => {
+        const cached = await getCachedClasses();
+        if (cached) {
+          setClasses(cached);
+          if (cached[0]) setSelectedClassId(cached[0].id);
+        }
+      })
+      .finally(() => setClassesLoading(false));
   }, []);
 
   const loadAttendance = useCallback(async (classId: string, date: string) => {
     if (!classId) return;
     setGridLoading(true);
     setGridError(null);
+
+    const render = async (students: AttendanceDay["students"]) => {
+      const queued = await getQueuedMarks();
+      const forDay = queued.filter((q) => q.classId === classId && q.date === date);
+      const overlaid = overlayQueuedMarks(students, forDay);
+      setRecords(
+        overlaid.map((s) => ({
+          studentId: s.studentId,
+          firstName: s.firstName,
+          lastName: s.lastName,
+          photoUrl: s.photoUrl,
+          status: s.status,
+        })),
+      );
+    };
+
     try {
       const data = await api.getClassAttendance(classId, date);
-      setRecords(data.students.map((s) => ({
-        studentId: s.studentId,
-        firstName: s.firstName,
-        lastName: s.lastName,
-        photoUrl: s.photoUrl,
-        status: s.status,
-      })));
+      void cacheRoster(classId, data);
+      await render(data.students);
     } catch (err) {
-      setGridError(err instanceof ApiError ? err.message : "Could not load attendance.");
+      const cached = await getCachedRoster(classId, date);
+      if (cached) {
+        await render(cached.students);
+      } else {
+        setGridError(err instanceof ApiError ? err.message : "Could not load attendance.");
+      }
     } finally {
       setGridLoading(false);
     }
@@ -118,30 +149,17 @@ export default function AttendancePage() {
     if (selectedClassId) loadAttendance(selectedClassId, selectedDate);
   }, [selectedClassId, selectedDate, loadAttendance]);
 
-  const flushSave = useCallback(async (classId: string, date: string, latest: LocalRecord[]) => {
-    const changed = latest.filter((r) => r.status !== null);
-    if (changed.length === 0) return;
-    setSaveState("saving");
-    try {
-      await api.markAttendance({
-        classId,
-        date,
-        records: changed.map((r) => ({ studentId: r.studentId, status: r.status! })),
-      });
-      setSaveState("saved");
-      setTimeout(() => setSaveState("idle"), 2000);
-    } catch {
-      setSaveState("error");
-      setTimeout(() => setSaveState("idle"), 3000);
+  function persist(changed: LocalRecord[]) {
+    for (const r of changed) {
+      if (r.status !== null) {
+        void syncer.enqueueAndSync({
+          classId: selectedClassId,
+          date: selectedDate,
+          studentId: r.studentId,
+          status: r.status,
+        });
+      }
     }
-  }, []);
-
-  function scheduleSave(next: LocalRecord[]) {
-    pendingRecords.current = next;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      flushSave(selectedClassId, selectedDate, pendingRecords.current);
-    }, 600);
   }
 
   function tapTile(studentId: string) {
@@ -149,7 +167,7 @@ export default function AttendancePage() {
       const next = prev.map((r) =>
         r.studentId === studentId ? { ...r, status: cycleStatus(r.status) } : r,
       );
-      scheduleSave(next);
+      persist(next.filter((r) => r.studentId === studentId));
       return next;
     });
   }
@@ -157,7 +175,7 @@ export default function AttendancePage() {
   function markAllPresent() {
     setRecords((prev) => {
       const next = prev.map((r) => ({ ...r, status: "PRESENT" as AttendanceStatus }));
-      scheduleSave(next);
+      persist(next);
       return next;
     });
   }
@@ -172,6 +190,11 @@ export default function AttendancePage() {
           Attendance
         </h1>
         <p className="text-small text-ink-500">Mark daily attendance for your class.</p>
+        {!sync.online && (
+          <div className="mt-2">
+            <Badge tone="warning">Offline — marks saved on this device</Badge>
+          </div>
+        )}
       </div>
 
       {/* Controls */}
@@ -231,15 +254,17 @@ export default function AttendancePage() {
             aria-live="polite"
             className={cn(
               "text-caption font-medium transition-opacity duration-micro tabular-nums whitespace-nowrap",
-              saveState === "idle" ? "opacity-0" : "opacity-100",
-              saveState === "saving" && "text-ink-500",
-              saveState === "saved" && "text-success",
-              saveState === "error" && "text-error",
+              sync.state === "idle" && sync.pendingCount === 0 ? "opacity-60" : "opacity-100",
+              sync.state === "error" ? "text-error" : !sync.online ? "text-warning" : "text-ink-500",
             )}
           >
-            {saveState === "saving" && "Saving…"}
-            {saveState === "saved" && "Saved"}
-            {saveState === "error" && "Save failed — tap retry"}
+            {!sync.online
+              ? `${sync.pendingCount} saved on this device`
+              : sync.state === "syncing"
+                ? `Syncing ${sync.pendingCount}…`
+                : sync.state === "error"
+                  ? "Sync failed — retrying"
+                  : "All saved"}
           </span>
         </div>
       </div>
