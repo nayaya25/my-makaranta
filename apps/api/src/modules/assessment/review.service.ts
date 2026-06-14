@@ -51,20 +51,25 @@ export class ReviewService {
     const studentIds = enrollments.map((e) => e.studentId);
 
     // Per-subject cohort maps + this class's score rows for each subject.
+    // Resolve all subjects in parallel (avoids a serial N+1 over the class's subjects).
     const cohortBySubject = new Map<string, Map<string, AnomalyInfo>>();
     const cellsBySubjectStudent = new Map<string, Map<string, { assessmentTypeId: string; value: number }[]>>();
-    for (const s of subjects) {
-      const { anomalies } = await this.cohort(schoolId, s.id, termId, typeIds);
-      cohortBySubject.set(s.id, anomalies);
-      const rows = await this.prisma.score.findMany({ where: { schoolId, subjectId: s.id, termId, studentId: { in: studentIds } } });
-      const byStudent = new Map<string, { assessmentTypeId: string; value: number }[]>();
-      for (const r of rows) {
-        const a = byStudent.get(r.studentId) ?? [];
-        a.push({ assessmentTypeId: r.assessmentTypeId, value: r.value });
-        byStudent.set(r.studentId, a);
-      }
-      cellsBySubjectStudent.set(s.id, byStudent);
-    }
+    await Promise.all(
+      subjects.map(async (s) => {
+        const [{ anomalies }, rows] = await Promise.all([
+          this.cohort(schoolId, s.id, termId, typeIds),
+          this.prisma.score.findMany({ where: { schoolId, subjectId: s.id, termId, studentId: { in: studentIds } } }),
+        ]);
+        cohortBySubject.set(s.id, anomalies);
+        const byStudent = new Map<string, { assessmentTypeId: string; value: number }[]>();
+        for (const r of rows) {
+          const a = byStudent.get(r.studentId) ?? [];
+          a.push({ assessmentTypeId: r.assessmentTypeId, value: r.value });
+          byStudent.set(r.studentId, a);
+        }
+        cellsBySubjectStudent.set(s.id, byStudent);
+      }),
+    );
 
     const students = enrollments.map((e) => {
       const perSubject: Record<string, { total: number; grade: string | null; complete: boolean; anomaly: boolean }> = {};
