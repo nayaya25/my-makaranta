@@ -192,6 +192,23 @@ export interface SubjectAssignment {
   staff?: { id: string; firstName: string; lastName: string };
 }
 
+export interface GradebookStudent {
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  scores: Record<string, number>;
+  total: number;
+  grade: string | null;
+  remark: string | null;
+  complete: boolean;
+}
+
+export interface Gradebook {
+  assessmentTypes: AssessmentType[];
+  gradeBoundaries: GradeBoundary[];
+  students: GradebookStudent[];
+}
+
 export type AttendanceStatus = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
 
 export interface AttendanceRecord {
@@ -399,6 +416,20 @@ export const api = {
   deleteSubjectAssignment: (id: string) =>
     authedRequest<{ deleted: boolean }>(`/v1/assessment/subject-assignments/${id}`, {
       method: "DELETE",
+    }),
+  getScores: (classId: string, subjectId: string, termId: string) =>
+    authedRequest<Gradebook>(
+      `/v1/assessment/scores?classId=${classId}&subjectId=${subjectId}&termId=${termId}`,
+    ),
+  saveScores: (body: {
+    classId: string;
+    subjectId: string;
+    termId: string;
+    scores: Array<{ studentId: string; assessmentTypeId: string; value: number }>;
+  }) =>
+    authedRequest<{ saved: number }>("/v1/assessment/scores", {
+      method: "POST",
+      body: JSON.stringify(body),
     }),
 
   // Attendance
