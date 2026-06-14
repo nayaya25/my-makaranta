@@ -282,6 +282,24 @@ export interface AttendanceSummary {
   anomalies: AttendanceAnomaly[];
 }
 
+export interface ReleaseStatusRow {
+  classId: string;
+  name: string;
+  released: boolean;
+  releasedAt: string | null;
+}
+
+export interface ReleasedSheet {
+  releasedAt: string;
+  students: Array<{
+    studentId: string;
+    name: string;
+    average: number;
+    position: number;
+    entries: Array<{ subjectId: string; subjectName: string; total: number; grade: string }>;
+  }>;
+}
+
 export const api = {
   requestOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
@@ -468,4 +486,15 @@ export const api = {
     }),
   getAttendanceSummary: (from: string, to: string) =>
     authedRequest<AttendanceSummary>(`/v1/attendance/summary?from=${from}&to=${to}`),
+
+  // Release
+  getReleaseStatus: (termId: string) =>
+    authedRequest<ReleaseStatusRow[]>(`/v1/assessment/release/status?termId=${termId}`),
+  getReleasedSheet: (classId: string, termId: string) =>
+    authedRequest<ReleasedSheet>(`/v1/assessment/release/sheet?classId=${classId}&termId=${termId}`),
+  releaseClass: (classId: string, termId: string) =>
+    authedRequest<{ released: number }>("/v1/assessment/release", {
+      method: "POST",
+      body: JSON.stringify({ classId, termId }),
+    }),
 };
