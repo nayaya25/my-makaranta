@@ -13,6 +13,7 @@ import { AssessmentTypesService } from "../src/modules/assessment/assessment-typ
 import { GradeBoundariesService } from "../src/modules/assessment/grade-boundaries.service";
 import { SubjectAssignmentsService } from "../src/modules/assessment/subject-assignments.service";
 import { ScoresService } from "../src/modules/assessment/scores.service";
+import { ReviewService } from "../src/modules/assessment/review.service";
 import { getJwtSecret } from "../src/core/config/secrets";
 
 describe("Assessment config (e2e)", () => {
@@ -21,6 +22,7 @@ describe("Assessment config (e2e)", () => {
   let boundaries: GradeBoundariesService;
   let assignments: SubjectAssignmentsService;
   let scores: ScoresService;
+  let review: ReviewService;
 
   const suffix = Date.now();
   let schoolId: string;
@@ -48,6 +50,7 @@ describe("Assessment config (e2e)", () => {
     boundaries = moduleRef.get(GradeBoundariesService);
     assignments = moduleRef.get(SubjectAssignmentsService);
     scores = moduleRef.get(ScoresService);
+    review = moduleRef.get(ReviewService);
 
     const a = await prisma.school.create({ data: { name: `Asmt A ${suffix}`, slug: `asmt-a-${suffix}` } });
     schoolId = a.id;
@@ -275,6 +278,85 @@ describe("Assessment config (e2e)", () => {
       await expect(
         asA(() => types.replace([{ name: "CA1", maxScore: 100, order: 0 }])),
       ).rejects.toThrow(/scores have been entered/i);
+    });
+  });
+
+  describe("review", () => {
+    let rTerm: string;
+    let phys: string;
+    let caId: string;
+    let examId: string;
+    let classA: string;
+    let classB: string;
+
+    beforeAll(async () => {
+      const term = await prisma.term.create({ data: { schoolId, academicYearId, number: 2, startDate: new Date("2025-01-01"), endDate: new Date("2025-04-01"), isCurrent: false } });
+      rTerm = term.id;
+      const subject = await prisma.subject.create({ data: { schoolId, name: "Physics", code: `PHY-${suffix}` } });
+      phys = subject.id;
+      const lvl = await prisma.classLevel.create({ data: { schoolId, name: `JSS2-${suffix}`, order: 2 } });
+      const ca = await prisma.class.create({ data: { schoolId, classLevelId: lvl.id, name: `JSS2A-${suffix}` } });
+      const cb = await prisma.class.create({ data: { schoolId, classLevelId: lvl.id, name: `JSS2B-${suffix}` } });
+      classA = ca.id; classB = cb.id;
+      const staff = await prisma.staff.create({ data: { schoolId, staffNo: `R-${suffix}`, firstName: "Rev", lastName: "Teacher", email: `r${suffix}@s.test`, phone: "+2348000000111" } });
+      await prisma.subjectAssignment.createMany({ data: [
+        { schoolId, subjectId: phys, classId: classA, staffId: staff.id, academicYearId },
+        { schoolId, subjectId: phys, classId: classB, staffId: staff.id, academicYearId },
+      ] });
+      const t = await asA(() => types.list());
+      caId = t.find((x) => x.name === "CA1")!.id;
+      examId = t.find((x) => x.name === "Exam")!.id;
+
+      // Deterministic cohort: classA clusters ~90 + one low outlier (20); classB ~60.
+      // Cohort totals 90,92,91,89,88,20,60,62,61,59 → mean 71.2 σ≈22; z(20)≈-2.3 (flagged).
+      // classA mean ≈78.3 > classB 60.5; classA drift +, classB drift −. (CA1≤30, Exam≤70.)
+      const mk = async (cls: string, label: string, caV: number, examV: number) => {
+        const st = await prisma.student.create({ data: { schoolId, admissionNo: `R${label}-${suffix}`, firstName: label, lastName: "Test", gender: "MALE", dateOfBirth: new Date("2011-01-01") } });
+        await prisma.enrollment.create({ data: { studentId: st.id, classId: cls, termId: rTerm } });
+        await asA(() => scores.saveScores({ classId: cls, subjectId: phys, termId: rTerm, scores: [
+          { studentId: st.id, assessmentTypeId: caId, value: caV },
+          { studentId: st.id, assessmentTypeId: examId, value: examV },
+        ] }, "rev"));
+        return st.id;
+      };
+      await mk(classA, "A1", 28, 62);
+      await mk(classA, "A2", 30, 62);
+      await mk(classA, "A3", 29, 62);
+      await mk(classA, "A4", 27, 62);
+      await mk(classA, "A5", 26, 62);
+      await mk(classA, "OUT", 10, 10);
+      await mk(classB, "B1", 20, 40);
+      await mk(classB, "B2", 22, 40);
+      await mk(classB, "B3", 21, 40);
+      await mk(classB, "B4", 19, 40);
+    });
+
+    it("class-master returns a student×subject matrix with totals, grades, average, anomaly", async () => {
+      const sheet = await asA(() => review.classMaster(classA, rTerm));
+      expect(sheet.subjects.some((s) => s.id === phys)).toBe(true);
+      const out = sheet.students.find((s) => s.name.startsWith("OUT"))!;
+      expect(out.perSubject[phys]!.total).toBe(20);
+      expect(out.perSubject[phys]!.anomaly).toBe(true);
+      expect(typeof out.average).toBe("number");
+      const a1 = sheet.students.find((s) => s.name.startsWith("A1"))!;
+      expect(a1.perSubject[phys]!.anomaly).toBe(false);
+    });
+
+    it("subject-master returns per-class means, subject stats, drift, and flags the outlier", async () => {
+      const sheet = await asA(() => review.subjectMaster(phys, rTerm));
+      expect(sheet.classes.length).toBe(2);
+      const a = sheet.classes.find((c) => c.classId === classA)!;
+      const b = sheet.classes.find((c) => c.classId === classB)!;
+      expect(a.mean).toBeGreaterThan(b.mean);
+      expect(a.drift).toBeGreaterThan(0);
+      expect(b.drift).toBeLessThan(0);
+      expect(a.students.find((s) => s.name.startsWith("OUT"))!.anomaly).toBe(true);
+      expect(sheet.subjectStdDev).toBeGreaterThan(0);
+    });
+
+    it("rejects a foreign classId/subjectId (cross-tenant)", async () => {
+      await expect(asB(() => review.classMaster(classA, rTerm))).rejects.toThrow(NotFoundException);
+      await expect(asB(() => review.subjectMaster(phys, rTerm))).rejects.toThrow(NotFoundException);
     });
   });
 });

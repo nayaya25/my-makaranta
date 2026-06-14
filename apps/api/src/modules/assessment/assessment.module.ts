@@ -8,15 +8,18 @@ import { SubjectAssignmentsService } from "./subject-assignments.service";
 import { SubjectAssignmentsController } from "./subject-assignments.controller";
 import { ScoresService } from "./scores.service";
 import { ScoresController } from "./scores.controller";
+import { ReviewService } from "./review.service";
+import { ReviewController } from "./review.controller";
 
 @Module({
   imports: [AuthModule],
-  controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController],
+  controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController, ReviewController],
   providers: [
     AssessmentTypesService,
     GradeBoundariesService,
     SubjectAssignmentsService,
     ScoresService,
+    ReviewService,
   ],
 })
 export class AssessmentModule {}
