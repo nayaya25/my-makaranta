@@ -82,6 +82,7 @@ model School {
   assessmentTypes    AssessmentType[]
   gradeBoundaries    GradeBoundary[]
   subjectAssignments SubjectAssignment[]
+  scores             Score[]
 }
 
 model AcademicYear {
@@ -107,6 +108,7 @@ model Term {
   endDate        DateTime
   isCurrent      Boolean      @default(false)
   enrollments    Enrollment[]
+  scores         Score[]
 }
 
 model ClassLevel {
@@ -130,6 +132,7 @@ model Class {
   formTeacherId      String?
   enrollments        Enrollment[]
   subjectAssignments SubjectAssignment[]
+  scores             Score[]
 
   @@unique([schoolId, name])
 }
@@ -141,6 +144,7 @@ model Subject {
   name               String
   code               String
   subjectAssignments SubjectAssignment[]
+  scores             Score[]
 
   @@unique([schoolId, code])
 }
@@ -178,6 +182,7 @@ model Student {
   guardians     Guardian[]
   enrollments   Enrollment[]
   attendance    AttendanceRecord[]
+  scores        Score[]
 
   @@unique([schoolId, admissionNo])
 }
@@ -303,12 +308,13 @@ model AttendanceRecord {
 // === Assessment Config ===
 
 model AssessmentType {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   schoolId String
-  school   School @relation(fields: [schoolId], references: [id])
+  school   School  @relation(fields: [schoolId], references: [id])
   name     String
   maxScore Int
-  order    Int    @default(0)
+  order    Int     @default(0)
+  scores   Score[]
 
   @@unique([schoolId, name])
 }
@@ -341,4 +347,26 @@ model SubjectAssignment {
   @@unique([subjectId, classId, academicYearId])
   @@index([schoolId, academicYearId])
   @@index([classId, academicYearId])
+}
+
+model Score {
+  id               String         @id @default(cuid())
+  schoolId         String
+  school           School         @relation(fields: [schoolId], references: [id])
+  studentId        String
+  student          Student        @relation(fields: [studentId], references: [id])
+  subjectId        String
+  subject          Subject        @relation(fields: [subjectId], references: [id])
+  classId          String
+  class            Class          @relation(fields: [classId], references: [id])
+  assessmentTypeId String
+  assessmentType   AssessmentType @relation(fields: [assessmentTypeId], references: [id])
+  termId           String
+  term             Term           @relation(fields: [termId], references: [id])
+  value            Int
+  recordedBy       String
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([studentId, subjectId, assessmentTypeId, termId])
+  @@index([schoolId, classId, subjectId, termId])
 }

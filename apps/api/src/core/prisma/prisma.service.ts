@@ -16,6 +16,7 @@ const TENANT_MODELS = new Set([
   "AssessmentType",
   "GradeBoundary",
   "SubjectAssignment",
+  "Score",
 ]);
 
 @Injectable()
