@@ -19,6 +19,7 @@ const PERMISSIONS: Array<[string, string]> = [
   ["results.review", "Review results before release"],
   ["results.release", "Release results to parents/students"],
   ["results.view.own", "View one's own (or one's children's) results"],
+  ["assessment.configure", "Configure assessment types, grade boundaries, and subject assignments"],
   ["fees.view", "View fee positions and invoices"],
   ["fees.manage", "Configure fees, discounts, reconcile"],
   ["fees.pay.own", "Pay one's own (or one's children's) fees"],
