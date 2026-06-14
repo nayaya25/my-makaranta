@@ -5,7 +5,6 @@ import { Button, Card, CardBody, CardHeader, Spinner, cn } from "@mymakaranta/ui
 import {
   api,
   ApiError,
-  type GradeBoundary,
   type SubjectAssignment,
   type Class,
 } from "@/lib/api";
@@ -49,8 +48,12 @@ function GradeBoundariesPanel() {
 
   const applyTemplate = async (template: "WAEC" | "NECO") => {
     setMsg(null);
-    const data = await api.applyGradeTemplate(template);
-    setRows(data.map((b) => ({ grade: b.grade, minScore: b.minScore, remark: b.remark })));
+    try {
+      const data = await api.applyGradeTemplate(template);
+      setRows(data.map((b) => ({ grade: b.grade, minScore: b.minScore, remark: b.remark })));
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not apply template.");
+    }
   };
 
   const save = async () => {
@@ -252,7 +255,15 @@ function SubjectAssignmentsPanel() {
       setMsg(e instanceof ApiError ? e.message : "Could not assign.");
     }
   };
-  const remove = async (id: string) => { await api.deleteSubjectAssignment(id); await loadAssignments(); };
+  const remove = async (id: string) => {
+    setMsg(null);
+    try {
+      await api.deleteSubjectAssignment(id);
+      await loadAssignments();
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not remove assignment.");
+    }
+  };
 
   return (
     <Card>
