@@ -264,6 +264,15 @@ function SubjectAssignmentsPanel() {
       setMsg(e instanceof ApiError ? e.message : "Could not remove assignment.");
     }
   };
+  const reassign = async (id: string, newStaffId: string) => {
+    setMsg(null);
+    try {
+      await api.updateSubjectAssignment(id, newStaffId);
+      await loadAssignments();
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not reassign teacher.");
+    }
+  };
 
   return (
     <Card>
@@ -296,9 +305,16 @@ function SubjectAssignmentsPanel() {
             <div key={a.id} className="flex items-center justify-between gap-2 border-b border-ink-100 dark:border-white/10 pb-2">
               <span className="text-small text-ink-1000 dark:text-ink-100">{a.subject?.name}</span>
               <div className="flex items-center gap-3">
-                <span className="text-small text-ink-500">
-                  {a.staff ? `${a.staff.firstName} ${a.staff.lastName}` : "—"}
-                </span>
+                <select
+                  aria-label={`teacher for ${a.subject?.name ?? "subject"}`}
+                  value={a.staffId}
+                  onChange={(e) => reassign(a.id, e.target.value)}
+                  className="h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small text-ink-1000 dark:text-ink-100"
+                >
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>
+                  ))}
+                </select>
                 <Button variant="ghost" size="sm" onClick={() => remove(a.id)} aria-label="remove">✕</Button>
               </div>
             </div>
