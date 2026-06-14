@@ -126,8 +126,18 @@ Note: lockfile lives at repo root (`pnpm-lock.yaml`); `apps/web/pnpm-lock.yaml` 
 
 **Files:**
 - Create: `apps/web/src/lib/offline/types.ts`
+- Modify: `apps/web/package.json` (add `idb` runtime dep)
 - Create: `apps/web/src/lib/offline/db.ts`
 - Test: `apps/web/src/lib/offline/db.test.ts`
+
+- [ ] **Step 0: Install the `idb` runtime dependency**
+
+Run from repo root:
+```bash
+pnpm --filter @mymakaranta/web add idb
+pnpm audit
+```
+Expected: install succeeds; no new critical advisories.
 
 - [ ] **Step 1: Define shared types**
 
@@ -367,7 +377,7 @@ describe("roster-cache", () => {
   it("caches and returns a roster by classId + date", async () => {
     await cacheRoster("c1", day);
     const got = await getCachedRoster("c1", "2026-06-14");
-    expect(got?.students[0].firstName).toBe("Amina");
+    expect(got?.students[0]?.firstName).toBe("Amina");
   });
 
   it("returns undefined for an uncached roster", async () => {
@@ -376,7 +386,7 @@ describe("roster-cache", () => {
 
   it("caches and returns the class list", async () => {
     await cacheClasses(classes);
-    expect((await getCachedClasses())?.[0].name).toBe("JSS1A");
+    expect((await getCachedClasses())?.[0]?.name).toBe("JSS1A");
   });
 });
 ```
@@ -628,9 +638,9 @@ describe("syncer.flush", () => {
     const { syncer } = await freshSyncer();
     await syncer.flush();
 
-    const payload = markAttendance.mock.calls[0][0];
+    const payload = markAttendance.mock.calls[0]![0];
     expect(payload.classId).toBe("c1");
-    expect(payload.records[0].idempotencyKey).toMatch(/[0-9a-f-]{36}/);
+    expect(payload.records[0]?.idempotencyKey).toMatch(/[0-9a-f-]{36}/);
   });
 });
 
@@ -1109,3 +1119,4 @@ Use the `superpowers:finishing-a-development-branch` skill to choose merge/PR/cl
 - **Keep `idempotencyKey` flowing** end to end (queue → syncer payload) so server-side traceability works even though dedup relies on the upsert key.
 - **Retry timer in tests:** the syncer error test schedules a real backoff `setTimeout`. It's harmless (it re-reads an emptied queue on the next tick and no-ops), but if you see cross-test flakiness, wrap that test in `vi.useFakeTimers()` / `vi.useRealTimers()` — fake-indexeddb resolves via microtasks, so `await` still works under fake timers.
 - **`Date.now()` / `crypto.randomUUID()`** are used in `queue.enqueueMark`; both are available in jsdom + Node 24, no polyfill needed.
+- **`noUncheckedIndexedAccess` is ON** (repo `tsconfig.base.json`). Any array index access (`arr[0].foo`) is a typecheck error — use optional chaining (`arr[0]?.foo`) or a non-null assertion (`arr[0]!`) in both source and tests. `pnpm --filter @mymakaranta/web typecheck` MUST pass for each task, not just the tests.
