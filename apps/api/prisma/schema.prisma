@@ -83,6 +83,9 @@ model School {
   gradeBoundaries    GradeBoundary[]
   subjectAssignments SubjectAssignment[]
   scores             Score[]
+  releases           Release[]
+  resultSheets       ResultSheet[]
+  resultSheetEntries ResultSheetEntry[]
 }
 
 model AcademicYear {
@@ -109,6 +112,8 @@ model Term {
   isCurrent      Boolean      @default(false)
   enrollments    Enrollment[]
   scores         Score[]
+  releases       Release[]
+  resultSheets   ResultSheet[]
 }
 
 model ClassLevel {
@@ -133,6 +138,8 @@ model Class {
   enrollments        Enrollment[]
   subjectAssignments SubjectAssignment[]
   scores             Score[]
+  releases           Release[]
+  resultSheets       ResultSheet[]
 
   @@unique([schoolId, name])
 }
@@ -145,6 +152,7 @@ model Subject {
   code               String
   subjectAssignments SubjectAssignment[]
   scores             Score[]
+  resultSheetEntries ResultSheetEntry[]
 
   @@unique([schoolId, code])
 }
@@ -183,6 +191,7 @@ model Student {
   enrollments   Enrollment[]
   attendance    AttendanceRecord[]
   scores        Score[]
+  resultSheets  ResultSheet[]
 
   @@unique([schoolId, admissionNo])
 }
@@ -369,4 +378,53 @@ model Score {
 
   @@unique([studentId, subjectId, assessmentTypeId, termId])
   @@index([schoolId, classId, subjectId, termId])
+}
+
+model Release {
+  id           String        @id @default(cuid())
+  schoolId     String
+  school       School        @relation(fields: [schoolId], references: [id])
+  classId      String
+  class        Class         @relation(fields: [classId], references: [id])
+  termId       String
+  term         Term          @relation(fields: [termId], references: [id])
+  releasedBy   String
+  releasedAt   DateTime      @default(now())
+  resultSheets ResultSheet[]
+
+  @@unique([classId, termId])
+}
+
+model ResultSheet {
+  id        String             @id @default(cuid())
+  schoolId  String
+  school    School             @relation(fields: [schoolId], references: [id])
+  releaseId String
+  release   Release            @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+  studentId String
+  student   Student            @relation(fields: [studentId], references: [id])
+  classId   String
+  class     Class              @relation(fields: [classId], references: [id])
+  termId    String
+  term      Term               @relation(fields: [termId], references: [id])
+  average   Int
+  position  Int
+  entries   ResultSheetEntry[]
+
+  @@unique([studentId, termId])
+  @@index([schoolId, classId, termId])
+}
+
+model ResultSheetEntry {
+  id            String      @id @default(cuid())
+  schoolId      String
+  school        School      @relation(fields: [schoolId], references: [id])
+  resultSheetId String
+  resultSheet   ResultSheet @relation(fields: [resultSheetId], references: [id], onDelete: Cascade)
+  subjectId     String
+  subject       Subject     @relation(fields: [subjectId], references: [id])
+  total         Int
+  grade         String
+
+  @@unique([resultSheetId, subjectId])
 }
