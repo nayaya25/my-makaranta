@@ -89,3 +89,36 @@ export class UpdateSubjectAssignmentDto {
   @IsNotEmpty()
   staffId!: string;
 }
+
+export class ScoreItemDto {
+  @IsString()
+  @IsNotEmpty()
+  studentId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  assessmentTypeId!: string;
+
+  @IsInt()
+  @Min(0)
+  value!: number;
+}
+
+export class SaveScoresDto {
+  @IsString()
+  @IsNotEmpty()
+  classId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  subjectId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  termId!: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScoreItemDto)
+  scores!: ScoreItemDto[];
+}

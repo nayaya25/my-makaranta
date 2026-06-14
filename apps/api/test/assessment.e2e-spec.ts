@@ -12,6 +12,7 @@ import { AssessmentModule } from "../src/modules/assessment/assessment.module";
 import { AssessmentTypesService } from "../src/modules/assessment/assessment-types.service";
 import { GradeBoundariesService } from "../src/modules/assessment/grade-boundaries.service";
 import { SubjectAssignmentsService } from "../src/modules/assessment/subject-assignments.service";
+import { ScoresService } from "../src/modules/assessment/scores.service";
 import { getJwtSecret } from "../src/core/config/secrets";
 
 describe("Assessment config (e2e)", () => {
@@ -19,6 +20,7 @@ describe("Assessment config (e2e)", () => {
   let types: AssessmentTypesService;
   let boundaries: GradeBoundariesService;
   let assignments: SubjectAssignmentsService;
+  let scores: ScoresService;
 
   const suffix = Date.now();
   let schoolId: string;
@@ -45,6 +47,7 @@ describe("Assessment config (e2e)", () => {
     types = moduleRef.get(AssessmentTypesService);
     boundaries = moduleRef.get(GradeBoundariesService);
     assignments = moduleRef.get(SubjectAssignmentsService);
+    scores = moduleRef.get(ScoresService);
 
     const a = await prisma.school.create({ data: { name: `Asmt A ${suffix}`, slug: `asmt-a-${suffix}` } });
     schoolId = a.id;
@@ -193,6 +196,78 @@ describe("Assessment config (e2e)", () => {
       const list = await asA(() => assignments.list({ classId, academicYearId }));
       expect(list.find((x) => x.id === a.id)).toBeDefined();
       await asA(() => assignments.remove(a.id)); // cleanup
+    });
+  });
+
+  describe("scores", () => {
+    let termId: string;
+    let s1: string;
+    let s2: string;
+    const recorder = "rec-user";
+
+    beforeAll(async () => {
+      const term = await prisma.term.create({
+        data: { schoolId, academicYearId, number: 1, startDate: new Date("2024-09-01"), endDate: new Date("2024-12-20"), isCurrent: true },
+      });
+      termId = term.id;
+      const st1 = await prisma.student.create({ data: { schoolId, admissionNo: `A1-${suffix}`, firstName: "Ada", lastName: "Eze", gender: "FEMALE", dateOfBirth: new Date("2012-01-01") } });
+      const st2 = await prisma.student.create({ data: { schoolId, admissionNo: `A2-${suffix}`, firstName: "Bola", lastName: "Ade", gender: "MALE", dateOfBirth: new Date("2012-02-02") } });
+      s1 = st1.id; s2 = st2.id;
+      await prisma.enrollment.createMany({ data: [
+        { studentId: s1, classId, termId },
+        { studentId: s2, classId, termId },
+      ] });
+      await asA(() => types.replace([
+        { name: "CA1", maxScore: 30, order: 0 },
+        { name: "Exam", maxScore: 70, order: 1 },
+      ]));
+      await asA(() => boundaries.applyTemplate("WAEC"));
+    });
+
+    it("saves a batch of scores and reads them back with computed totals/grades", async () => {
+      const t = await asA(() => types.list());
+      const ca1 = t.find((x) => x.name === "CA1")!.id;
+      const exam = t.find((x) => x.name === "Exam")!.id;
+      const res = await asA(() => scores.saveScores({
+        classId, subjectId, termId,
+        scores: [
+          { studentId: s1, assessmentTypeId: ca1, value: 25 },
+          { studentId: s1, assessmentTypeId: exam, value: 60 },
+          { studentId: s2, assessmentTypeId: ca1, value: 10 },
+        ],
+      }, recorder));
+      expect(res.saved).toBe(3);
+
+      const gb = await asA(() => scores.getGradebook(classId, subjectId, termId));
+      expect(gb.assessmentTypes.length).toBe(2);
+      const ada = gb.students.find((x) => x.studentId === s1)!;
+      expect(ada.total).toBe(85);
+      expect(ada.grade).toBe("A1");
+      expect(ada.complete).toBe(true);
+      const bola = gb.students.find((x) => x.studentId === s2)!;
+      expect(bola.total).toBe(10);
+      expect(bola.complete).toBe(false);
+    });
+
+    it("rejects a value greater than the assessment type's maxScore", async () => {
+      const ca1 = (await asA(() => types.list())).find((x) => x.name === "CA1")!.id;
+      await expect(
+        asA(() => scores.saveScores({ classId, subjectId, termId, scores: [{ studentId: s1, assessmentTypeId: ca1, value: 31 }] }, recorder)),
+      ).rejects.toThrow(/max|exceed|30/i);
+    });
+
+    it("rejects a non-enrolled student", async () => {
+      const ca1 = (await asA(() => types.list())).find((x) => x.name === "CA1")!.id;
+      await expect(
+        asA(() => scores.saveScores({ classId, subjectId, termId, scores: [{ studentId: "nope", assessmentTypeId: ca1, value: 5 }] }, recorder)),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("rejects a foreign classId (cross-tenant)", async () => {
+      const ca1 = (await asA(() => types.list())).find((x) => x.name === "CA1")!.id;
+      await expect(
+        asB(() => scores.saveScores({ classId, subjectId, termId, scores: [{ studentId: s1, assessmentTypeId: ca1, value: 5 }] }, recorder)),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
