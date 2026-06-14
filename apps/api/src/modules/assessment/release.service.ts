@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { computeSubjectResult } from "./score.util";
@@ -23,7 +23,7 @@ export class ReleaseService {
     const types = await this.prisma.assessmentType.findMany({ where: { schoolId }, orderBy: { order: "asc" } });
     const typeIds = types.map((t) => t.id);
     const boundaries = await this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } });
-    const assignments = await this.prisma.subjectAssignment.findMany({ where: { classId, academicYearId: term.academicYearId } });
+    const assignments = await this.prisma.subjectAssignment.findMany({ where: { classId, academicYearId: term.academicYearId, schoolId } });
     const subjectIds = assignments.map((a) => a.subjectId);
     const enrollments = await this.prisma.enrollment.findMany({ where: { classId, termId }, select: { studentId: true } });
     const studentIds = enrollments.map((e) => e.studentId);
@@ -74,13 +74,12 @@ export class ReleaseService {
   }
 
   async getStatus(termId: string) {
+    if (!termId) throw new BadRequestException("termId is required.");
     const schoolId = TenantContext.schoolIdOrThrow();
     const term = await this.prisma.term.findFirst({ where: { id: termId, schoolId } });
     if (!term) throw new NotFoundException("Term not found in this school.");
-    const enr = await this.prisma.enrollment.findMany({ where: { termId }, select: { classId: true } });
-    const classIds = [...new Set(enr.map((e) => e.classId))];
     const [classes, releases] = await Promise.all([
-      this.prisma.class.findMany({ where: { id: { in: classIds }, schoolId } }),
+      this.prisma.class.findMany({ where: { schoolId, enrollments: { some: { termId } } } }),
       this.prisma.release.findMany({ where: { termId, schoolId } }),
     ]);
     const relBy = new Map(releases.map((r) => [r.classId, r.releasedAt]));
@@ -93,6 +92,7 @@ export class ReleaseService {
   }
 
   async getSheet(classId: string, termId: string) {
+    if (!classId || !termId) throw new BadRequestException("classId and termId are required.");
     const schoolId = TenantContext.schoolIdOrThrow();
     const rel = await this.prisma.release.findFirst({ where: { classId, termId, schoolId } });
     if (!rel) throw new NotFoundException("This class has not been released for this term.");
