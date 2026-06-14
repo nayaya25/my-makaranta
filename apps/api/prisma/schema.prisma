@@ -339,4 +339,6 @@ model SubjectAssignment {
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
 
   @@unique([subjectId, classId, academicYearId])
+  @@index([schoolId, academicYearId])
+  @@index([classId, academicYearId])
 }
