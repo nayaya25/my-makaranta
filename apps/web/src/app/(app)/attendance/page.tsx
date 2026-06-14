@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Avatar,
   Badge,
@@ -87,6 +87,11 @@ export default function AttendancePage() {
   const [selectedDate, setSelectedDate] = useState<string>(todayIso());
 
   const [records, setRecords] = useState<LocalRecord[]>([]);
+  const recordsRef = useRef<LocalRecord[]>([]);
+  const applyRecords = useCallback((next: LocalRecord[]) => {
+    recordsRef.current = next;
+    setRecords(next);
+  }, []);
   const [gridLoading, setGridLoading] = useState(false);
   const [gridError, setGridError] = useState<string | null>(null);
 
@@ -118,7 +123,7 @@ export default function AttendancePage() {
       const queued = await getQueuedMarks();
       const forDay = queued.filter((q) => q.classId === classId && q.date === date);
       const overlaid = overlayQueuedMarks(students, forDay);
-      setRecords(
+      applyRecords(
         overlaid.map((s) => ({
           studentId: s.studentId,
           firstName: s.firstName,
@@ -143,7 +148,7 @@ export default function AttendancePage() {
     } finally {
       setGridLoading(false);
     }
-  }, []);
+  }, [applyRecords]);
 
   useEffect(() => {
     if (selectedClassId) loadAttendance(selectedClassId, selectedDate);
@@ -152,32 +157,34 @@ export default function AttendancePage() {
   function persist(changed: LocalRecord[]) {
     for (const r of changed) {
       if (r.status !== null) {
-        void syncer.enqueueAndSync({
-          classId: selectedClassId,
-          date: selectedDate,
-          studentId: r.studentId,
-          status: r.status,
-        });
+        void syncer
+          .enqueueAndSync({
+            classId: selectedClassId,
+            date: selectedDate,
+            studentId: r.studentId,
+            status: r.status,
+          })
+          .catch((err) => console.error("[offline] failed to queue attendance mark", err));
       }
     }
   }
 
   function tapTile(studentId: string) {
-    setRecords((prev) => {
-      const next = prev.map((r) =>
-        r.studentId === studentId ? { ...r, status: cycleStatus(r.status) } : r,
-      );
-      persist(next.filter((r) => r.studentId === studentId));
-      return next;
-    });
+    const current = recordsRef.current;
+    const record = current.find((r) => r.studentId === studentId);
+    if (!record) return;
+    const updated = { ...record, status: cycleStatus(record.status) };
+    const next = current.map((r) => (r.studentId === studentId ? updated : r));
+    applyRecords(next);
+    if (updated.status !== null) persist([updated]);
   }
 
   function markAllPresent() {
-    setRecords((prev) => {
-      const next = prev.map((r) => ({ ...r, status: "PRESENT" as AttendanceStatus }));
-      persist(next);
-      return next;
-    });
+    const current = recordsRef.current;
+    const next = current.map((r) => ({ ...r, status: "PRESENT" as AttendanceStatus }));
+    const changed = next.filter((r, i) => current[i]?.status !== "PRESENT");
+    applyRecords(next);
+    persist(changed);
   }
 
   const selectedClass = classes.find((c) => c.id === selectedClassId);
@@ -264,7 +271,9 @@ export default function AttendancePage() {
                 ? `Syncing ${sync.pendingCount}…`
                 : sync.state === "error"
                   ? "Sync failed — retrying"
-                  : "All saved"}
+                  : sync.pendingCount === 0
+                    ? ""
+                    : "All saved"}
           </span>
         </div>
       </div>
