@@ -106,4 +106,35 @@ describe("Assessment config (e2e)", () => {
       ).rejects.toThrow();
     });
   });
+
+  describe("grade boundaries", () => {
+    it("applies the WAEC template and lists 9 bands ordered desc by minScore", async () => {
+      await asA(() => boundaries.applyTemplate("WAEC"));
+      const list = await asA(() => boundaries.list());
+      expect(list).toHaveLength(9);
+      expect(list[0]?.grade).toBe("A1");
+      expect(list[0]?.minScore).toBe(75);
+      expect(list[list.length - 1]?.grade).toBe("F9");
+      expect(list[list.length - 1]?.minScore).toBe(0);
+    });
+
+    it("rejects a band set with no zero (catch-all) band", async () => {
+      await expect(
+        asA(() => boundaries.replace([
+          { grade: "A1", minScore: 75, remark: "Excellent", order: 0 },
+          { grade: "C6", minScore: 50, remark: "Credit", order: 1 },
+        ])),
+      ).rejects.toThrow();
+    });
+
+    it("rejects duplicate minScores", async () => {
+      await expect(
+        asA(() => boundaries.replace([
+          { grade: "A1", minScore: 50, remark: "x", order: 0 },
+          { grade: "C6", minScore: 50, remark: "y", order: 1 },
+          { grade: "F9", minScore: 0, remark: "z", order: 2 },
+        ])),
+      ).rejects.toThrow();
+    });
+  });
 });
