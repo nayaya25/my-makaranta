@@ -14,6 +14,7 @@ import { GradeBoundariesService } from "../src/modules/assessment/grade-boundari
 import { SubjectAssignmentsService } from "../src/modules/assessment/subject-assignments.service";
 import { ScoresService } from "../src/modules/assessment/scores.service";
 import { ReviewService } from "../src/modules/assessment/review.service";
+import { ReleaseService } from "../src/modules/assessment/release.service";
 import { getJwtSecret } from "../src/core/config/secrets";
 
 describe("Assessment config (e2e)", () => {
@@ -23,6 +24,7 @@ describe("Assessment config (e2e)", () => {
   let assignments: SubjectAssignmentsService;
   let scores: ScoresService;
   let review: ReviewService;
+  let release2: ReleaseService;
 
   const suffix = Date.now();
   let schoolId: string;
@@ -51,6 +53,7 @@ describe("Assessment config (e2e)", () => {
     assignments = moduleRef.get(SubjectAssignmentsService);
     scores = moduleRef.get(ScoresService);
     review = moduleRef.get(ReviewService);
+    release2 = moduleRef.get(ReleaseService);
 
     const a = await prisma.school.create({ data: { name: `Asmt A ${suffix}`, slug: `asmt-a-${suffix}` } });
     schoolId = a.id;
@@ -357,6 +360,69 @@ describe("Assessment config (e2e)", () => {
     it("rejects a foreign classId/subjectId (cross-tenant)", async () => {
       await expect(asB(() => review.classMaster(classA, rTerm))).rejects.toThrow(NotFoundException);
       await expect(asB(() => review.subjectMaster(phys, rTerm))).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("release", () => {
+    let rTerm: string;
+    let subj: string;
+    let cls: string;
+    let s1: string; let s2: string; let s3: string;
+
+    beforeAll(async () => {
+      const term = await prisma.term.create({ data: { schoolId, academicYearId, number: 3, startDate: new Date("2025-04-15"), endDate: new Date("2025-07-31"), isCurrent: false } });
+      rTerm = term.id;
+      const subject = await prisma.subject.create({ data: { schoolId, name: "Chemistry", code: `CHM-${suffix}` } });
+      subj = subject.id;
+      const lvl = await prisma.classLevel.create({ data: { schoolId, name: `JSS3-${suffix}`, order: 3 } });
+      const klass = await prisma.class.create({ data: { schoolId, classLevelId: lvl.id, name: `JSS3A-${suffix}` } });
+      cls = klass.id;
+      const staff = await prisma.staff.create({ data: { schoolId, staffNo: `RL-${suffix}`, firstName: "Rel", lastName: "T", email: `rl${suffix}@s.test`, phone: "+2348000000222" } });
+      await prisma.subjectAssignment.create({ data: { schoolId, subjectId: subj, classId: cls, staffId: staff.id, academicYearId } });
+      const t = await asA(() => types.list());
+      const caId = t.find((x) => x.name === "CA1")!.id;
+      const examId = t.find((x) => x.name === "Exam")!.id;
+      const mk = async (label: string, caV: number, examV: number) => {
+        const st = await prisma.student.create({ data: { schoolId, admissionNo: `${label}-${suffix}`, firstName: label, lastName: "T", gender: "MALE", dateOfBirth: new Date("2010-01-01") } });
+        await prisma.enrollment.create({ data: { studentId: st.id, classId: cls, termId: rTerm } });
+        await asA(() => scores.saveScores({ classId: cls, subjectId: subj, termId: rTerm, scores: [
+          { studentId: st.id, assessmentTypeId: caId, value: caV }, { studentId: st.id, assessmentTypeId: examId, value: examV },
+        ] }, "rel"));
+        return st.id;
+      };
+      s1 = await mk("S1", 28, 52); // 80
+      s2 = await mk("S2", 30, 50); // 80 — tie with S1
+      s3 = await mk("S3", 20, 40); // 60
+    });
+
+    it("releases a class: freezes ResultSheets with averages, positions (ties), and entries", async () => {
+      const res = await asA(() => release2.release(cls, rTerm, "principal-1"));
+      expect(res.released).toBe(3);
+      const sheet = await asA(() => release2.getSheet(cls, rTerm));
+      const byName = (n: string) => sheet.students.find((x) => x.name.startsWith(n))!;
+      expect(byName("S1").average).toBe(80);
+      expect(byName("S1").position).toBe(1);
+      expect(byName("S2").position).toBe(1); // tie
+      expect(byName("S3").position).toBe(3); // competition ranking
+      expect(byName("S1").entries[0]!.subjectId).toBe(subj);
+      expect(byName("S1").entries[0]!.total).toBe(80);
+      expect(sheet.students[0]!.position).toBeLessThanOrEqual(sheet.students[sheet.students.length - 1]!.position);
+    });
+
+    it("rejects re-releasing an already-released class", async () => {
+      await expect(asA(() => release2.release(cls, rTerm, "principal-1"))).rejects.toThrow(ConflictException);
+    });
+
+    it("status reflects the released class for the term", async () => {
+      const st = await asA(() => release2.getStatus(rTerm));
+      const row = st.find((c) => c.classId === cls)!;
+      expect(row.released).toBe(true);
+      expect(row.releasedAt).toBeTruthy();
+    });
+
+    it("rejects cross-tenant release/read", async () => {
+      await expect(asB(() => release2.release(cls, rTerm, "x"))).rejects.toThrow(NotFoundException);
+      await expect(asB(() => release2.getSheet(cls, rTerm))).rejects.toThrow(NotFoundException);
     });
   });
 });

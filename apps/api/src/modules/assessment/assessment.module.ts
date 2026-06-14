@@ -10,16 +10,19 @@ import { ScoresService } from "./scores.service";
 import { ScoresController } from "./scores.controller";
 import { ReviewService } from "./review.service";
 import { ReviewController } from "./review.controller";
+import { ReleaseService } from "./release.service";
+import { ReleaseController } from "./release.controller";
 
 @Module({
   imports: [AuthModule],
-  controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController, ReviewController],
+  controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController, ReviewController, ReleaseController],
   providers: [
     AssessmentTypesService,
     GradeBoundariesService,
     SubjectAssignmentsService,
     ScoresService,
     ReviewService,
+    ReleaseService,
   ],
 })
 export class AssessmentModule {}
