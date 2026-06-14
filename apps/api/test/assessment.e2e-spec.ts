@@ -269,5 +269,12 @@ describe("Assessment config (e2e)", () => {
         asB(() => scores.saveScores({ classId, subjectId, termId, scores: [{ studentId: s1, assessmentTypeId: ca1, value: 5 }] }, recorder)),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it("blocks assessment-type replace once a score exists (structure guard)", async () => {
+      // earlier tests in this describe already saved scores for school A
+      await expect(
+        asA(() => types.replace([{ name: "CA1", maxScore: 100, order: 0 }])),
+      ).rejects.toThrow(/scores have been entered/i);
+    });
   });
 });

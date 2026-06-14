@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { AssessmentTypeItemDto } from "./dto/assessment.dto";
@@ -24,6 +24,10 @@ export class AssessmentTypesService {
     // Scope BOTH ops explicitly: the tenant middleware does not reliably scope
     // operations executed inside an array $transaction, so never rely on it here.
     const schoolId = TenantContext.schoolIdOrThrow();
+    const scoreCount = await this.prisma.score.count({ where: { schoolId } });
+    if (scoreCount > 0) {
+      throw new ConflictException("Cannot change assessment structure after scores have been entered.");
+    }
     await this.prisma.$transaction([
       this.prisma.assessmentType.deleteMany({ where: { schoolId } }),
       this.prisma.assessmentType.createMany({
