@@ -67,9 +67,11 @@ export default function ReviewPage() {
     setError(null);
     try {
       if (mode === "class") {
+        setSubjectSheet(null); // drop the other mode's sheet so it can't flash
         if (!classId) return;
         setClassSheet(await api.getClassMaster(classId, termId));
       } else {
+        setClassSheet(null);
         if (!subjectId) return;
         setSubjectSheet(await api.getSubjectMaster(subjectId, termId));
       }
