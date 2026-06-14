@@ -13,6 +13,7 @@ import {
   CalendarCheck,
   ClipboardList,
   BarChart3,
+  Lock,
   Settings,
   LogOut,
   Menu,
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/attendance", label: "Attendance", icon: CalendarCheck },
   { href: "/gradebook", label: "Gradebook", icon: ClipboardList },
   { href: "/review", label: "Review", icon: BarChart3 },
+  { href: "/release", label: "Release", icon: Lock },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
