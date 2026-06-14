@@ -186,6 +186,7 @@ export interface MarkAttendanceRecord {
   studentId: string;
   status: AttendanceStatus;
   reason?: string;
+  idempotencyKey?: string;
 }
 
 export interface MarkAttendancePayload {
