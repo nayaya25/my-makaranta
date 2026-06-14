@@ -173,4 +173,26 @@ describe("Assessment config (e2e)", () => {
       expect(list.find((x) => x.id === createdId)).toBeUndefined();
     });
   });
+
+  describe("cross-tenant isolation", () => {
+    it("school B sees none of school A's assessment types", async () => {
+      // A set its types earlier; B set none.
+      expect(await asB(() => types.list())).toHaveLength(0);
+    });
+
+    it("school B cannot create an assignment with school A's ids (IDOR -> NotFound)", async () => {
+      await expect(
+        asB(() => assignments.create({ subjectId, classId, staffId, academicYearId })),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("school B cannot remove school A's assignment (IDOR -> NotFound)", async () => {
+      const a = await asA(() => assignments.create({ subjectId, classId, staffId, academicYearId }));
+      await expect(asB(() => assignments.remove(a.id))).rejects.toThrow(NotFoundException);
+      // A's row is untouched
+      const list = await asA(() => assignments.list({ classId, academicYearId }));
+      expect(list.find((x) => x.id === a.id)).toBeDefined();
+      await asA(() => assignments.remove(a.id)); // cleanup
+    });
+  });
 });
