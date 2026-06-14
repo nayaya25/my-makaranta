@@ -719,8 +719,12 @@ import { GRADE_TEMPLATES } from "./templates";
 export class GradeBoundariesService {
   constructor(private prisma: PrismaService) {}
 
+  // NOTE: explicitly scope every read/delete by schoolId — the $use middleware does
+  // NOT reliably inject the tenant filter in the service-level test context nor inside
+  // an array $transaction (proven in Task 5). Never rely on it here.
   list() {
-    return this.prisma.gradeBoundary.findMany({ orderBy: { minScore: "desc" } });
+    const schoolId = TenantContext.schoolIdOrThrow();
+    return this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } });
   }
 
   async replace(boundaries: GradeBoundaryItemDto[]) {
@@ -741,7 +745,7 @@ export class GradeBoundariesService {
 
     const schoolId = TenantContext.schoolIdOrThrow();
     await this.prisma.$transaction([
-      this.prisma.gradeBoundary.deleteMany({}),
+      this.prisma.gradeBoundary.deleteMany({ where: { schoolId } }),
       this.prisma.gradeBoundary.createMany({
         data: boundaries.map((b) => ({
           schoolId,
@@ -864,15 +868,21 @@ Expected: FAIL — `SubjectAssignmentsService` not found.
 import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
+import { TenantContext } from "../../core/tenant/tenant.context";
 import { CreateSubjectAssignmentDto, UpdateSubjectAssignmentDto } from "./dto/assessment.dto";
 
 @Injectable()
 export class SubjectAssignmentsService {
   constructor(private prisma: PrismaService) {}
 
+  // NOTE: explicitly scope every read by schoolId — do NOT rely on the $use middleware
+  // (it does not reliably inject the tenant filter in the service-level test context;
+  // proven in Task 5). Explicit scoping also IS the IDOR check here.
   list(filters: { classId?: string; academicYearId?: string }) {
+    const schoolId = TenantContext.schoolIdOrThrow();
     return this.prisma.subjectAssignment.findMany({
       where: {
+        schoolId,
         ...(filters.classId ? { classId: filters.classId } : {}),
         ...(filters.academicYearId ? { academicYearId: filters.academicYearId } : {}),
       },
@@ -885,14 +895,15 @@ export class SubjectAssignmentsService {
   }
 
   async create(dto: CreateSubjectAssignmentDto) {
-    // Tenant IDOR rule: validate every request-supplied id through its tenant-scoped
-    // model (findFirst is auto-scoped to the current school by the Prisma middleware)
-    // before linking them in a row. A foreign/unknown id returns null -> 404.
+    // Tenant IDOR rule: validate every request-supplied id against THIS school via an
+    // explicit schoolId filter before linking them in a row. A foreign/unknown id
+    // returns null -> 404. (Explicit, not middleware-dependent.)
+    const schoolId = TenantContext.schoolIdOrThrow();
     const [subject, klass, staff, year] = await Promise.all([
-      this.prisma.subject.findFirst({ where: { id: dto.subjectId } }),
-      this.prisma.class.findFirst({ where: { id: dto.classId } }),
-      this.prisma.staff.findFirst({ where: { id: dto.staffId } }),
-      this.prisma.academicYear.findFirst({ where: { id: dto.academicYearId } }),
+      this.prisma.subject.findFirst({ where: { id: dto.subjectId, schoolId } }),
+      this.prisma.class.findFirst({ where: { id: dto.classId, schoolId } }),
+      this.prisma.staff.findFirst({ where: { id: dto.staffId, schoolId } }),
+      this.prisma.academicYear.findFirst({ where: { id: dto.academicYearId, schoolId } }),
     ]);
     if (!subject) throw new NotFoundException("Subject not found in this school.");
     if (!klass) throw new NotFoundException("Class not found in this school.");
@@ -902,6 +913,7 @@ export class SubjectAssignmentsService {
     try {
       return await this.prisma.subjectAssignment.create({
         data: {
+          schoolId,
           subjectId: dto.subjectId,
           classId: dto.classId,
           staffId: dto.staffId,
@@ -917,15 +929,17 @@ export class SubjectAssignmentsService {
   }
 
   async update(id: string, dto: UpdateSubjectAssignmentDto) {
-    const existing = await this.prisma.subjectAssignment.findFirst({ where: { id } });
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const existing = await this.prisma.subjectAssignment.findFirst({ where: { id, schoolId } });
     if (!existing) throw new NotFoundException("Assignment not found in this school.");
-    const staff = await this.prisma.staff.findFirst({ where: { id: dto.staffId } });
+    const staff = await this.prisma.staff.findFirst({ where: { id: dto.staffId, schoolId } });
     if (!staff) throw new NotFoundException("Staff member not found in this school.");
     return this.prisma.subjectAssignment.update({ where: { id }, data: { staffId: dto.staffId } });
   }
 
   async remove(id: string) {
-    const existing = await this.prisma.subjectAssignment.findFirst({ where: { id } });
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const existing = await this.prisma.subjectAssignment.findFirst({ where: { id, schoolId } });
     if (!existing) throw new NotFoundException("Assignment not found in this school.");
     await this.prisma.subjectAssignment.delete({ where: { id } });
     return { deleted: true };
