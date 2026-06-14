@@ -13,6 +13,7 @@ import { StructureModule } from "./modules/structure/structure.module";
 import { SisModule } from "./modules/sis/sis.module";
 import { ImportsModule } from "./modules/imports/imports.module";
 import { AttendanceModule } from "./modules/attendance/attendance.module";
+import { AssessmentModule } from "./modules/assessment/assessment.module";
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AttendanceModule } from "./modules/attendance/attendance.module";
     SisModule,
     ImportsModule,
     AttendanceModule,
+    AssessmentModule,
   ],
   controllers: [AppController],
 })
