@@ -3,6 +3,7 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { computeSubjectResult } from "./score.util";
 import { computePositions } from "./position.util";
+import { generateVerificationCode } from "./verification.util";
 
 @Injectable()
 export class ReleaseService {
@@ -56,6 +57,12 @@ export class ReleaseService {
     });
     const positions = computePositions(perStudent.map((p) => ({ studentId: p.studentId, average: p.average })));
 
+    const academicYear = await this.prisma.academicYear.findFirst({ where: { id: term.academicYearId, schoolId } });
+    const school = await this.prisma.school.findUnique({ where: { id: schoolId }, select: { name: true } });
+    const studentRows = await this.prisma.student.findMany({ where: { id: { in: studentIds }, schoolId }, select: { id: true, firstName: true, lastName: true } });
+    const nameById = new Map(studentRows.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));
+    const termLabel = `${academicYear?.name ?? ""} · Term ${term.number}`;
+
     await this.prisma.$transaction(async (tx) => {
       const rel = await tx.release.create({ data: { schoolId, classId, termId, releasedBy } });
       for (const p of perStudent) {
@@ -67,6 +74,20 @@ export class ReleaseService {
             data: p.entries.map((e) => ({ schoolId, resultSheetId: rs.id, subjectId: e.subjectId, total: e.total, grade: e.grade })),
           });
         }
+        await tx.verification.create({
+          data: {
+            code: generateVerificationCode(),
+            resultSheetId: rs.id,
+            schoolId,
+            studentName: nameById.get(p.studentId) ?? "",
+            className: klass.name,
+            termLabel,
+            schoolName: school?.name ?? "",
+            average: p.average,
+            position: positions.get(p.studentId) ?? 0,
+            issuedAt: rel.releasedAt,
+          },
+        });
       }
     });
 

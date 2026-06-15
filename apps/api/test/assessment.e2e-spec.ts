@@ -418,6 +418,19 @@ describe("Assessment config (e2e)", () => {
       expect(sheet.students[0]!.position).toBeLessThanOrEqual(sheet.students[sheet.students.length - 1]!.position);
     });
 
+    it("creates a Verification per released sheet with a code + snapshot", async () => {
+      const sheets = await prisma.resultSheet.findMany({ where: { schoolId, classId: cls, termId: rTerm }, include: { verification: true } });
+      expect(sheets.length).toBeGreaterThan(0);
+      for (const s of sheets) {
+        expect(s.verification).toBeTruthy();
+        expect(s.verification!.code).toMatch(/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{16}$/);
+        expect(s.verification!.average).toBe(s.average);
+        expect(s.verification!.position).toBe(s.position);
+        expect(s.verification!.studentName.length).toBeGreaterThan(0);
+        expect(s.verification!.schoolId).toBe(schoolId);
+      }
+    });
+
     it("rejects re-releasing an already-released class", async () => {
       await expect(asA(() => release2.release(cls, rTerm, "principal-1"))).rejects.toThrow(ConflictException);
     });
