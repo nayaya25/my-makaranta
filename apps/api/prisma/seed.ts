@@ -18,6 +18,7 @@ const PERMISSIONS: Array<[string, string]> = [
   ["results.record", "Record assessment scores"],
   ["results.review", "Review results before release"],
   ["results.release", "Release results to parents/students"],
+  ["results.correct", "Correct (override) a released result score"],
   ["results.view.own", "View one's own (or one's children's) results"],
   ["assessment.configure", "Configure assessment types, grade boundaries, and subject assignments"],
   ["fees.view", "View fee positions and invoices"],

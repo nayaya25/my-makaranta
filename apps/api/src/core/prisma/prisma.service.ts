@@ -20,6 +20,7 @@ const TENANT_MODELS = new Set([
   "Release",
   "ResultSheet",
   "ResultSheetEntry",
+  "Correction",
 ]);
 
 @Injectable()

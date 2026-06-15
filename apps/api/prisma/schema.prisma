@@ -70,6 +70,7 @@ model School {
   logoUrl            String?
   country            CountryCode          @default(NG)
   currency           String               @default("NGN")
+  requireCorrectionOtp Boolean            @default(true)
   createdAt          DateTime             @default(now())
   classes            Class[]
   classLevels        ClassLevel[]
@@ -86,6 +87,7 @@ model School {
   releases           Release[]
   resultSheets       ResultSheet[]
   resultSheetEntries ResultSheetEntry[]
+  corrections        Correction[]
 }
 
 model AcademicYear {
@@ -114,6 +116,7 @@ model Term {
   scores         Score[]
   releases       Release[]
   resultSheets   ResultSheet[]
+  corrections    Correction[]
 }
 
 model ClassLevel {
@@ -140,6 +143,7 @@ model Class {
   scores             Score[]
   releases           Release[]
   resultSheets       ResultSheet[]
+  corrections        Correction[]
 
   @@unique([schoolId, name])
 }
@@ -153,6 +157,7 @@ model Subject {
   subjectAssignments SubjectAssignment[]
   scores             Score[]
   resultSheetEntries ResultSheetEntry[]
+  corrections        Correction[]
 
   @@unique([schoolId, code])
 }
@@ -192,6 +197,7 @@ model Student {
   attendance    AttendanceRecord[]
   scores        Score[]
   resultSheets  ResultSheet[]
+  corrections   Correction[]
 
   @@unique([schoolId, admissionNo])
 }
@@ -324,6 +330,7 @@ model AssessmentType {
   maxScore Int
   order    Int     @default(0)
   scores   Score[]
+  corrections Correction[]
 
   @@unique([schoolId, name])
 }
@@ -427,4 +434,32 @@ model ResultSheetEntry {
   grade         String
 
   @@unique([resultSheetId, subjectId])
+}
+
+model Correction {
+  id               String         @id @default(cuid())
+  schoolId         String
+  school           School         @relation(fields: [schoolId], references: [id])
+  classId          String
+  class            Class          @relation(fields: [classId], references: [id])
+  termId           String
+  term             Term           @relation(fields: [termId], references: [id])
+  studentId        String
+  student          Student        @relation(fields: [studentId], references: [id])
+  subjectId        String
+  subject          Subject        @relation(fields: [subjectId], references: [id])
+  assessmentTypeId String
+  assessmentType   AssessmentType @relation(fields: [assessmentTypeId], references: [id])
+  oldValue         Int
+  newValue         Int
+  oldTotal         Int
+  newTotal         Int
+  oldPosition      Int
+  newPosition      Int
+  reason           String
+  otpVerified      Boolean
+  correctedBy      String
+  correctedAt      DateTime       @default(now())
+
+  @@index([schoolId, classId, termId])
 }
