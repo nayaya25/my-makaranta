@@ -318,6 +318,33 @@ export interface CorrectScorePayload {
   otpCode?: string;
 }
 
+export interface ReportCard {
+  school: { name: string };
+  student: { name: string; admissionNo: string };
+  className: string;
+  term: { label: string };
+  entries: Array<{ subjectId: string; subjectName: string; total: number; grade: string }>;
+  average: number;
+  position: number;
+  classSize: number;
+  releasedAt: string;
+  gradeKey: Array<{ grade: string; minScore: number; remark: string }>;
+  verificationCode: string;
+}
+
+export type VerifyResult =
+  | { valid: false }
+  | {
+      valid: true;
+      student: string;
+      className: string;
+      term: string;
+      school: string;
+      average: number;
+      position: number;
+      issuedAt: string;
+    };
+
 export const api = {
   requestOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
@@ -535,4 +562,10 @@ export const api = {
     }),
   requestCorrectionOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
+
+  // Report card + public verify
+  getReportCard: (studentId: string, termId: string) =>
+    authedRequest<ReportCard>(`/v1/assessment/report-card?studentId=${studentId}&termId=${termId}`),
+  verifyResult: (code: string) =>
+    request<VerifyResult>(`/v1/public/verify/${encodeURIComponent(code)}`),
 };
