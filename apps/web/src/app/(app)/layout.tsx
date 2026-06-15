@@ -97,7 +97,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-ink-200 dark:border-white/10",
+          "fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-ink-200 dark:border-white/10 print:hidden",
           "bg-surface dark:bg-surface-dark",
           "transition-transform duration-standard ease-expo",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
@@ -146,7 +146,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Main */}
       <div className="flex flex-1 flex-col min-w-0">
         {/* Mobile topbar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-200 dark:border-white/10 bg-surface dark:bg-surface-dark px-4 lg:hidden">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-200 dark:border-white/10 bg-surface dark:bg-surface-dark px-4 lg:hidden print:hidden">
           <button
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
