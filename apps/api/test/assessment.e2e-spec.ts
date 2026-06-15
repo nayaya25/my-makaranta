@@ -532,5 +532,28 @@ describe("Assessment config (e2e)", () => {
       const code = await freshOtp(actor.phone);
       await expect(asB(() => correction.correct({ classId: cls, termId: cTerm, studentId: lo, subjectId: subj, assessmentTypeId: caId, newValue: 5, reason: "x", otpCode: code }, { ...actor, schoolId: schoolBId }))).rejects.toThrow(/not found/i);
     });
+
+    it("exposes and flips the OTP config (tenant-scoped)", async () => {
+      const c0 = await asA(() => correction.getConfig());
+      expect(c0.requireCorrectionOtp).toBe(true);
+      const c1 = await asA(() => correction.setConfig(false));
+      expect(c1.requireCorrectionOtp).toBe(false);
+      expect((await asA(() => correction.getConfig())).requireCorrectionOtp).toBe(false);
+    });
+
+    it("allows a correction with NO otp when the tenant disabled it (otpVerified=false)", async () => {
+      await asA(() => correction.setConfig(false));
+      await asA(() => correction.correct({ classId: cls, termId: cTerm, studentId: hi, subjectId: subj, assessmentTypeId: caId, newValue: 15, reason: "no-otp path", otpCode: undefined }, { id: "prop-nootp", phone: "+2348090000999", schoolId, identityType: "PROPRIETOR" }));
+      const rec = await prisma.correction.findFirst({ where: { schoolId, studentId: hi, assessmentTypeId: caId }, orderBy: { correctedAt: "desc" } });
+      expect(rec!.otpVerified).toBe(false);
+      await asA(() => correction.setConfig(true)); // restore
+    });
+
+    it("returns correctable component scores for a student+subject", async () => {
+      const comps = await asA(() => correction.getCorrectableScores(cls, cTerm, hi, subj));
+      const exam = comps.find((c) => c.name === "Exam")!;
+      expect(exam.maxScore).toBe(70);
+      expect(typeof exam.value === "number" || exam.value === null).toBe(true);
+    });
   });
 });
