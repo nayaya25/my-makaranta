@@ -236,7 +236,17 @@ export default function ReleasePage() {
                       {st.entries.map((e) => `${e.subjectName} ${e.total}${e.grade ? ` (${e.grade})` : ""}`).join(" · ") || "—"}
                     </td>
                     <td className="py-1.5 pl-3 text-right whitespace-nowrap">
-                      <Button variant="outline" size="sm" onClick={() => openCorrect(st.studentId, st.name)}>Correct</Button>
+                      <div className="flex items-center justify-end gap-3">
+                        <a
+                          href={`/report-card/${st.studentId}?termId=${termId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-small text-brand-500 hover:underline"
+                        >
+                          Report card
+                        </a>
+                        <Button variant="outline" size="sm" onClick={() => openCorrect(st.studentId, st.name)}>Correct</Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
