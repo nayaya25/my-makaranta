@@ -16,6 +16,7 @@ import { ScoresService } from "../src/modules/assessment/scores.service";
 import { ReviewService } from "../src/modules/assessment/review.service";
 import { ReleaseService } from "../src/modules/assessment/release.service";
 import { CorrectionService } from "../src/modules/assessment/correction.service";
+import { ReportCardService } from "../src/modules/assessment/report-card.service";
 import { AuthService } from "../src/core/auth/auth.service";
 import { SmsService } from "../src/core/auth/sms.service";
 import { getJwtSecret } from "../src/core/config/secrets";
@@ -29,6 +30,7 @@ describe("Assessment config (e2e)", () => {
   let review: ReviewService;
   let release2: ReleaseService;
   let correction: CorrectionService;
+  let reportCard: ReportCardService;
   let auth: AuthService;
   let sms: SmsService;
 
@@ -61,6 +63,7 @@ describe("Assessment config (e2e)", () => {
     review = moduleRef.get(ReviewService);
     release2 = moduleRef.get(ReleaseService);
     correction = moduleRef.get(CorrectionService);
+    reportCard = moduleRef.get(ReportCardService);
     auth = moduleRef.get(AuthService);
     sms = moduleRef.get(SmsService);
 
@@ -453,6 +456,23 @@ describe("Assessment config (e2e)", () => {
       await expect(
         asA(() => scores.saveScores({ classId: cls, subjectId: subj, termId: rTerm, scores: [{ studentId: s1, assessmentTypeId: caId, value: 5 }] }, "rel")),
       ).rejects.toThrow(/released/i);
+    });
+
+    it("returns a report card with the frozen sheet + a stable verification code", async () => {
+      const rc = await asA(() => reportCard.getReportCard(s1, rTerm));
+      expect(rc.student.name.length).toBeGreaterThan(0);
+      expect(rc.entries.length).toBeGreaterThan(0);
+      expect(typeof rc.average).toBe("number");
+      expect(rc.position).toBeGreaterThan(0);
+      expect(rc.classSize).toBeGreaterThan(0);
+      expect(rc.verificationCode).toMatch(/^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{16}$/);
+      expect(Array.isArray(rc.gradeKey)).toBe(true);
+      const again = await asA(() => reportCard.getReportCard(s1, rTerm));
+      expect(again.verificationCode).toBe(rc.verificationCode); // idempotent
+    });
+
+    it("rejects a report card for another tenant's student", async () => {
+      await expect(asB(() => reportCard.getReportCard(s1, rTerm))).rejects.toThrow(NotFoundException);
     });
   });
 
