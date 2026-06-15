@@ -515,6 +515,15 @@ describe("Assessment config (e2e)", () => {
       expect(rec!.reason).toBe("marking error");
     });
 
+    it("refreshes the Verification snapshot after a correction", async () => {
+      const loSheet = await prisma.resultSheet.findFirst({ where: { schoolId, classId: cls, termId: cTerm, studentId: lo }, include: { verification: true } });
+      expect(loSheet!.verification).toBeTruthy();
+      expect(loSheet!.verification!.average).toBe(loSheet!.average);
+      expect(loSheet!.verification!.position).toBe(loSheet!.position);
+      const hiSheet = await prisma.resultSheet.findFirst({ where: { schoolId, classId: cls, termId: cTerm, studentId: hi }, include: { verification: true } });
+      expect(hiSheet!.verification!.position).toBe(hiSheet!.position);
+    });
+
     it("rejects an invalid OTP when the tenant requires it", async () => {
       const actor = freshActor();
       await auth.requestOtp(actor.phone);

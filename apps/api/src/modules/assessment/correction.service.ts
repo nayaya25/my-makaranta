@@ -5,6 +5,7 @@ import { AuthService } from "../../core/auth/auth.service";
 import { computeSubjectResult } from "./score.util";
 import { computePositions } from "./position.util";
 import { CorrectScoreDto } from "./dto/assessment.dto";
+import { generateVerificationCode } from "./verification.util";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
 
 @Injectable()
@@ -81,6 +82,19 @@ export class CorrectionService {
     const typeIds = types.map((t) => t.id);
     const boundaries = await this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } });
 
+    // Snapshot data for refreshing public Verification records on re-rank (all tenant-scoped).
+    const klass = await this.prisma.class.findFirst({ where: { id: dto.classId, schoolId } });
+    const className = klass?.name ?? "";
+    const term = await this.prisma.term.findFirst({ where: { id: dto.termId, schoolId } });
+    const ay = await this.prisma.academicYear.findFirst({ where: { id: term!.academicYearId, schoolId } });
+    const termLabel = `${ay?.name ?? ""} · Term ${term!.number}`;
+    const school = await this.prisma.school.findUnique({ where: { id: schoolId }, select: { name: true } });
+    const schoolName = school?.name ?? "";
+    const release = await this.prisma.release.findFirst({ where: { schoolId, classId: dto.classId, termId: dto.termId } });
+    const clsStudents = await this.prisma.resultSheet.findMany({ where: { schoolId, classId: dto.classId, termId: dto.termId }, select: { studentId: true } });
+    const studs = await this.prisma.student.findMany({ where: { id: { in: clsStudents.map((c) => c.studentId) }, schoolId }, select: { id: true, firstName: true, lastName: true } });
+    const nameById = new Map(studs.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));
+
     await this.prisma.$transaction(async (tx) => {
       await tx.score.upsert({
         where: { studentId_subjectId_assessmentTypeId_termId: { studentId: dto.studentId, subjectId: dto.subjectId, assessmentTypeId: dto.assessmentTypeId, termId: dto.termId } },
@@ -106,7 +120,25 @@ export class CorrectionService {
       const sheets = await tx.resultSheet.findMany({ where: { schoolId, classId: dto.classId, termId: dto.termId }, select: { id: true, studentId: true, average: true } });
       const positions = computePositions(sheets.map((s) => ({ studentId: s.studentId, average: s.average })));
       for (const s of sheets) {
-        await tx.resultSheet.update({ where: { id: s.id, schoolId }, data: { position: positions.get(s.studentId) ?? 0 } });
+        const pos = positions.get(s.studentId) ?? 0;
+        await tx.resultSheet.update({ where: { id: s.id, schoolId }, data: { position: pos } });
+        const isCorrected = s.studentId === dto.studentId;
+        await tx.verification.upsert({
+          where: { resultSheetId: s.id },
+          update: { average: isCorrected ? average : s.average, position: pos },
+          create: {
+            code: generateVerificationCode(),
+            resultSheetId: s.id,
+            schoolId,
+            studentName: nameById.get(s.studentId) ?? "",
+            className,
+            termLabel,
+            schoolName,
+            average: isCorrected ? average : s.average,
+            position: pos,
+            issuedAt: release!.releasedAt,
+          },
+        });
       }
       const newPosition = positions.get(dto.studentId) ?? 0;
 
