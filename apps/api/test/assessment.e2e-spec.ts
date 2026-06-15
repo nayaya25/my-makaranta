@@ -15,6 +15,9 @@ import { SubjectAssignmentsService } from "../src/modules/assessment/subject-ass
 import { ScoresService } from "../src/modules/assessment/scores.service";
 import { ReviewService } from "../src/modules/assessment/review.service";
 import { ReleaseService } from "../src/modules/assessment/release.service";
+import { CorrectionService } from "../src/modules/assessment/correction.service";
+import { AuthService } from "../src/core/auth/auth.service";
+import { SmsService } from "../src/core/auth/sms.service";
 import { getJwtSecret } from "../src/core/config/secrets";
 
 describe("Assessment config (e2e)", () => {
@@ -25,6 +28,9 @@ describe("Assessment config (e2e)", () => {
   let scores: ScoresService;
   let review: ReviewService;
   let release2: ReleaseService;
+  let correction: CorrectionService;
+  let auth: AuthService;
+  let sms: SmsService;
 
   const suffix = Date.now();
   let schoolId: string;
@@ -54,6 +60,9 @@ describe("Assessment config (e2e)", () => {
     scores = moduleRef.get(ScoresService);
     review = moduleRef.get(ReviewService);
     release2 = moduleRef.get(ReleaseService);
+    correction = moduleRef.get(CorrectionService);
+    auth = moduleRef.get(AuthService);
+    sms = moduleRef.get(SmsService);
 
     const a = await prisma.school.create({ data: { name: `Asmt A ${suffix}`, slug: `asmt-a-${suffix}` } });
     schoolId = a.id;
@@ -431,6 +440,97 @@ describe("Assessment config (e2e)", () => {
       await expect(
         asA(() => scores.saveScores({ classId: cls, subjectId: subj, termId: rTerm, scores: [{ studentId: s1, assessmentTypeId: caId, value: 5 }] }, "rel")),
       ).rejects.toThrow(/released/i);
+    });
+  });
+
+  describe("correction", () => {
+    let cTerm: string; let subj: string; let cls: string;
+    let lo: string; let hi: string;
+    let caId: string; let examId: string;
+
+    beforeAll(async () => {
+      const term = await prisma.term.create({ data: { schoolId, academicYearId, number: 2, startDate: new Date("2025-01-10"), endDate: new Date("2025-04-10"), isCurrent: false } });
+      cTerm = term.id;
+      const subject = await prisma.subject.create({ data: { schoolId, name: "Biology", code: `BIO-${suffix}` } });
+      subj = subject.id;
+      const lvl = await prisma.classLevel.create({ data: { schoolId, name: `SS1-${suffix}`, order: 4 } });
+      const klass = await prisma.class.create({ data: { schoolId, classLevelId: lvl.id, name: `SS1A-${suffix}` } });
+      cls = klass.id;
+      const staff = await prisma.staff.create({ data: { schoolId, staffNo: `CR-${suffix}`, firstName: "Cor", lastName: "T", email: `cr${suffix}@s.test`, phone: "+2348000000333" } });
+      await prisma.subjectAssignment.create({ data: { schoolId, subjectId: subj, classId: cls, staffId: staff.id, academicYearId } });
+      const t = await asA(() => types.list());
+      caId = t.find((x) => x.name === "CA1")!.id;
+      examId = t.find((x) => x.name === "Exam")!.id;
+      const mk = async (label: string, caV: number, examV: number) => {
+        const st = await prisma.student.create({ data: { schoolId, admissionNo: `${label}-${suffix}`, firstName: label, lastName: "T", gender: "MALE", dateOfBirth: new Date("2009-01-01") } });
+        await prisma.enrollment.create({ data: { studentId: st.id, classId: cls, termId: cTerm } });
+        await asA(() => scores.saveScores({ classId: cls, subjectId: subj, termId: cTerm, scores: [
+          { studentId: st.id, assessmentTypeId: caId, value: caV }, { studentId: st.id, assessmentTypeId: examId, value: examV },
+        ] }, "rec"));
+        return st.id;
+      };
+      lo = await mk("Lo", 10, 40); // total 50 -> behind
+      hi = await mk("Hi", 20, 50); // total 70 -> ahead
+      await asA(() => release2.release(cls, cTerm, "principal"));
+    });
+
+    // Distinct phone per test keeps each under the 5/hour OTP rate limit.
+    let phoneSeq = 0;
+    const freshActor = () => {
+      const phone = `+234809000${String(2230 + phoneSeq++).padStart(4, "0")}`;
+      return { id: "prop-1", phone, schoolId, identityType: "PROPRIETOR" };
+    };
+    const freshOtp = async (phone: string) => { await auth.requestOtp(phone); return sms.lastCodeForTest(phone)!; };
+
+    it("corrects a score (OTP required), re-ranks the class, and records the Correction", async () => {
+      const actor = freshActor();
+      const before = await asA(() => release2.getSheet(cls, cTerm));
+      expect(before.students.find((s) => s.name.startsWith("Lo"))!.position).toBe(2);
+      const code = await freshOtp(actor.phone);
+      await asA(() => correction.correct({ classId: cls, termId: cTerm, studentId: lo, subjectId: subj, assessmentTypeId: examId, newValue: 60, reason: "marking error", otpCode: code }, actor));
+      const after = await asA(() => release2.getSheet(cls, cTerm));
+      const loRow = after.students.find((s) => s.name.startsWith("Lo"))!;
+      expect(loRow.entries[0]!.total).toBe(70);
+      expect(loRow.average).toBe(70);
+      expect(loRow.position).toBe(1);
+      const rec = await prisma.correction.findFirst({ where: { schoolId, studentId: lo, subjectId: subj, assessmentTypeId: examId } });
+      expect(rec).toBeTruthy();
+      expect(rec!.oldValue).toBe(40); expect(rec!.newValue).toBe(60);
+      expect(rec!.oldTotal).toBe(50); expect(rec!.newTotal).toBe(70);
+      expect(rec!.oldPosition).toBe(2); expect(rec!.newPosition).toBe(1);
+      expect(rec!.otpVerified).toBe(true);
+      expect(rec!.reason).toBe("marking error");
+    });
+
+    it("rejects an invalid OTP when the tenant requires it", async () => {
+      const actor = freshActor();
+      await auth.requestOtp(actor.phone);
+      await expect(asA(() => correction.correct({ classId: cls, termId: cTerm, studentId: lo, subjectId: subj, assessmentTypeId: caId, newValue: 5, reason: "x", otpCode: "000000" }, actor))).rejects.toThrow(/invalid|expired/i);
+    });
+
+    it("rejects an empty reason", async () => {
+      const actor = freshActor();
+      const code = await freshOtp(actor.phone);
+      await expect(asA(() => correction.correct({ classId: cls, termId: cTerm, studentId: lo, subjectId: subj, assessmentTypeId: caId, newValue: 5, reason: "  ", otpCode: code }, actor))).rejects.toThrow(/reason/i);
+    });
+
+    it("rejects a value above the component max", async () => {
+      const actor = freshActor();
+      const code = await freshOtp(actor.phone);
+      await expect(asA(() => correction.correct({ classId: cls, termId: cTerm, studentId: lo, subjectId: subj, assessmentTypeId: caId, newValue: 999, reason: "x", otpCode: code }, actor))).rejects.toThrow(/max|exceed/i);
+    });
+
+    it("rejects correcting an unreleased class", async () => {
+      const actor = freshActor();
+      const code = await freshOtp(actor.phone);
+      const t2 = await prisma.term.create({ data: { schoolId, academicYearId, number: 4, startDate: new Date("2025-09-01"), endDate: new Date("2025-12-01"), isCurrent: false } });
+      await expect(asA(() => correction.correct({ classId: cls, termId: t2.id, studentId: lo, subjectId: subj, assessmentTypeId: caId, newValue: 5, reason: "x", otpCode: code }, actor))).rejects.toThrow(/not released|released|sheet/i);
+    });
+
+    it("rejects cross-tenant correction", async () => {
+      const actor = freshActor();
+      const code = await freshOtp(actor.phone);
+      await expect(asB(() => correction.correct({ classId: cls, termId: cTerm, studentId: lo, subjectId: subj, assessmentTypeId: caId, newValue: 5, reason: "x", otpCode: code }, { ...actor, schoolId: schoolBId }))).rejects.toThrow(/not found/i);
     });
   });
 });

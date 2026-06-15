@@ -2,9 +2,11 @@ import { Type } from "class-transformer";
 import {
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Max,
   Min,
@@ -121,4 +123,19 @@ export class SaveScoresDto {
   @ValidateNested({ each: true })
   @Type(() => ScoreItemDto)
   scores!: ScoreItemDto[];
+}
+
+export class CorrectScoreDto {
+  @IsString() @IsNotEmpty() classId!: string;
+  @IsString() @IsNotEmpty() termId!: string;
+  @IsString() @IsNotEmpty() studentId!: string;
+  @IsString() @IsNotEmpty() subjectId!: string;
+  @IsString() @IsNotEmpty() assessmentTypeId!: string;
+  @IsInt() @Min(0) newValue!: number;
+  @IsString() @IsNotEmpty() reason!: string;
+  @IsOptional() @IsString() otpCode?: string;
+}
+
+export class CorrectionConfigDto {
+  @IsBoolean() requireCorrectionOtp!: boolean;
 }
