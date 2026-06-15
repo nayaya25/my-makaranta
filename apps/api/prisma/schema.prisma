@@ -417,6 +417,7 @@ model ResultSheet {
   average   Int
   position  Int
   entries   ResultSheetEntry[]
+  verification Verification?
 
   @@unique([studentId, termId])
   @@index([schoolId, classId, termId])
@@ -462,4 +463,21 @@ model Correction {
   correctedAt      DateTime       @default(now())
 
   @@index([schoolId, classId, termId])
+}
+
+model Verification {
+  id            String      @id @default(cuid())
+  code          String      @unique
+  resultSheetId String      @unique
+  resultSheet   ResultSheet @relation(fields: [resultSheetId], references: [id], onDelete: Cascade)
+  schoolId      String
+  studentName   String
+  className     String
+  termLabel     String
+  schoolName    String
+  average       Int
+  position      Int
+  issuedAt      DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
 }
