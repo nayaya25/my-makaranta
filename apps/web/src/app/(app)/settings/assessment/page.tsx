@@ -23,8 +23,52 @@ export default function AssessmentSettingsPage() {
       </header>
       <GradeBoundariesPanel />
       <AssessmentTypesPanel />
+      <CorrectionsPanel />
       <SubjectAssignmentsPanel />
     </div>
+  );
+}
+
+/* ---------------- Result corrections ---------------- */
+function CorrectionsPanel() {
+  const [requireOtp, setRequireOtp] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    void api.getCorrectionConfig().then((c) => setRequireOtp(c.requireCorrectionOtp)).catch(() => {});
+  }, []);
+
+  const toggleOtp = async () => {
+    if (requireOtp === null) return;
+    const next = !requireOtp;
+    setRequireOtp(next);
+    try {
+      await api.setCorrectionConfig(next);
+    } catch {
+      setRequireOtp(!next);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Result corrections</span>
+      </CardHeader>
+      <CardBody>
+        <label className="flex items-center gap-2 text-small text-ink-700 dark:text-ink-300">
+          <input
+            type="checkbox"
+            checked={requireOtp ?? true}
+            onChange={toggleOtp}
+            disabled={requireOtp === null}
+            className="h-4 w-4"
+          />
+          Require OTP for result corrections
+        </label>
+        <p className="mt-2 text-caption text-ink-500">
+          When enabled, correcting a released score requires a one-time code sent to the staff member&apos;s phone.
+        </p>
+      </CardBody>
+    </Card>
   );
 }
 
