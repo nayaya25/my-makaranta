@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { AuthService } from "../../core/auth/auth.service";
@@ -54,17 +54,17 @@ export class CorrectionService {
 
     const cfg = await this.prisma.school.findUnique({ where: { id: schoolId }, select: { requireCorrectionOtp: true } });
     const otpRequired = cfg?.requireCorrectionOtp ?? true;
+    let otpVerified = false;
     if (otpRequired) {
       if (!actor.phone) throw new BadRequestException("No phone on the authenticated account for OTP.");
       if (!dto.otpCode) throw new BadRequestException("OTP code required.");
       await this.auth.assertOtp(actor.phone, dto.otpCode);
+      otpVerified = true;
     }
 
     if (!dto.reason || dto.reason.trim().length === 0) throw new BadRequestException("A correction reason is required.");
 
     const { sheet } = await this.assertTarget(schoolId, dto.classId, dto.termId, dto.studentId, dto.subjectId);
-    const release = await this.prisma.release.findFirst({ where: { classId: dto.classId, termId: dto.termId, schoolId } });
-    if (!release) throw new ConflictException("Class not released; edit in the gradebook.");
     const type = await this.prisma.assessmentType.findFirst({ where: { id: dto.assessmentTypeId, schoolId } });
     if (!type) throw new NotFoundException("Assessment type not found in this school.");
     if (dto.newValue < 0 || dto.newValue > type.maxScore) {
@@ -93,7 +93,7 @@ export class CorrectionService {
       const newTotal = r.total;
 
       if (oldEntry) {
-        await tx.resultSheetEntry.update({ where: { id: oldEntry.id }, data: { total: newTotal, grade: r.grade ?? "" } });
+        await tx.resultSheetEntry.update({ where: { id: oldEntry.id, schoolId }, data: { total: newTotal, grade: r.grade ?? "" } });
       } else {
         await tx.resultSheetEntry.create({ data: { schoolId, resultSheetId: sheet.id, subjectId: dto.subjectId, total: newTotal, grade: r.grade ?? "" } });
       }
@@ -101,12 +101,12 @@ export class CorrectionService {
       const entries = await tx.resultSheetEntry.findMany({ where: { schoolId, resultSheetId: sheet.id } });
       const totals = entries.map((e) => e.total);
       const average = totals.length ? Math.round(totals.reduce((a, b) => a + b, 0) / totals.length) : 0;
-      await tx.resultSheet.update({ where: { id: sheet.id }, data: { average } });
+      await tx.resultSheet.update({ where: { id: sheet.id, schoolId }, data: { average } });
 
       const sheets = await tx.resultSheet.findMany({ where: { schoolId, classId: dto.classId, termId: dto.termId }, select: { id: true, studentId: true, average: true } });
       const positions = computePositions(sheets.map((s) => ({ studentId: s.studentId, average: s.average })));
       for (const s of sheets) {
-        await tx.resultSheet.update({ where: { id: s.id }, data: { position: positions.get(s.studentId) ?? 0 } });
+        await tx.resultSheet.update({ where: { id: s.id, schoolId }, data: { position: positions.get(s.studentId) ?? 0 } });
       }
       const newPosition = positions.get(dto.studentId) ?? 0;
 
@@ -114,7 +114,7 @@ export class CorrectionService {
         data: {
           schoolId, classId: dto.classId, termId: dto.termId, studentId: dto.studentId, subjectId: dto.subjectId, assessmentTypeId: dto.assessmentTypeId,
           oldValue, newValue: dto.newValue, oldTotal, newTotal, oldPosition, newPosition,
-          reason: dto.reason.trim(), otpVerified: otpRequired, correctedBy: actor.id,
+          reason: dto.reason.trim(), otpVerified, correctedBy: actor.id,
         },
       });
     });
