@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { Button, Spinner } from "@mymakaranta/ui";
 import { api, ApiError, type ReportCard } from "@/lib/api";
+import { ResultReveal } from "../ResultReveal";
 
 export default function ReportCardPage() {
   const params = useParams<{ studentId: string }>();
@@ -38,6 +39,7 @@ export default function ReportCardPage() {
       <div className="mb-4 flex justify-end print:hidden">
         <Button onClick={() => window.print()}>Print / Save as PDF</Button>
       </div>
+      <ResultReveal data={{ student: rc.student, average: rc.average, position: rc.position, classSize: rc.classSize, gradeKey: rc.gradeKey }}>
       <div className="rounded-card border border-ink-100 dark:border-white/10 p-6 print:border-0">
         <header className="text-center mb-4">
           <h1 className="font-display text-h3 font-semibold text-ink-1000 dark:text-ink-100">{rc.school.name}</h1>
@@ -82,6 +84,7 @@ export default function ReportCardPage() {
           )}
         </footer>
       </div>
+      </ResultReveal>
     </div>
   );
 }
