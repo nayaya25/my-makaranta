@@ -482,6 +482,7 @@ describe("Assessment config (e2e)", () => {
     let caId: string; let examId: string;
 
     beforeAll(async () => {
+      await prisma.otpRequest.deleteMany({ where: { phone: { startsWith: "+234809" } } });
       const term = await prisma.term.create({ data: { schoolId, academicYearId, number: 2, startDate: new Date("2025-01-10"), endDate: new Date("2025-04-10"), isCurrent: false } });
       cTerm = term.id;
       const subject = await prisma.subject.create({ data: { schoolId, name: "Biology", code: `BIO-${suffix}` } });
