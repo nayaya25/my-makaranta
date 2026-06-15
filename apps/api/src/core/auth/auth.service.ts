@@ -96,4 +96,20 @@ export class AuthService {
       },
     };
   }
+
+  /** Step-up re-verification: validate a fresh OTP for an already-authenticated user. No JWT issued; single-use. */
+  async assertOtp(phone: string, code: string): Promise<void> {
+    const otp = await this.prisma.otpRequest.findFirst({
+      where: { phone, consumed: false },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!otp || otp.expiresAt < new Date()) throw new BadRequestException("Invalid or expired code.");
+    if (otp.attempts >= MAX_ATTEMPTS) throw new BadRequestException("Too many attempts.");
+    const ok = await bcrypt.compare(code, otp.codeHash);
+    await this.prisma.otpRequest.update({
+      where: { id: otp.id },
+      data: { attempts: { increment: 1 }, consumed: ok },
+    });
+    if (!ok) throw new BadRequestException("Invalid or expired code.");
+  }
 }
