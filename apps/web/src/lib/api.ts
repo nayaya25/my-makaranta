@@ -300,6 +300,24 @@ export interface ReleasedSheet {
   }>;
 }
 
+export interface CorrectableComponent {
+  assessmentTypeId: string;
+  name: string;
+  maxScore: number;
+  value: number | null;
+}
+
+export interface CorrectScorePayload {
+  classId: string;
+  termId: string;
+  studentId: string;
+  subjectId: string;
+  assessmentTypeId: string;
+  newValue: number;
+  reason: string;
+  otpCode?: string;
+}
+
 export const api = {
   requestOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
@@ -497,4 +515,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ classId, termId }),
     }),
+
+  // Corrections
+  getCorrectionConfig: () =>
+    authedRequest<{ requireCorrectionOtp: boolean }>("/v1/assessment/correction/config"),
+  setCorrectionConfig: (requireCorrectionOtp: boolean) =>
+    authedRequest<{ requireCorrectionOtp: boolean }>("/v1/assessment/correction/config", {
+      method: "PATCH",
+      body: JSON.stringify({ requireCorrectionOtp }),
+    }),
+  getCorrectableScores: (classId: string, termId: string, studentId: string, subjectId: string) =>
+    authedRequest<CorrectableComponent[]>(
+      `/v1/assessment/correction/scores?classId=${classId}&termId=${termId}&studentId=${studentId}&subjectId=${subjectId}`,
+    ),
+  correctScore: (payload: CorrectScorePayload) =>
+    authedRequest<{ corrected: boolean }>("/v1/assessment/correction", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  requestCorrectionOtp: (phone: string) =>
+    request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
 };
