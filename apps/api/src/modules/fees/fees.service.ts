@@ -56,18 +56,16 @@ export class FeesService {
       arr.push({ name: fi.name, amountKobo: fi.amountKobo });
       itemsByLevel.set(fi.classLevelId, arr);
     }
-    const existing = await this.prisma.invoice.findMany({ where: { schoolId, termId }, select: { studentId: true, paidKobo: true } });
-    const paidByStudent = new Map(existing.map((e) => [e.studentId, e.paidKobo]));
-
-    let created = 0, refreshed = 0, skipped = 0;
-    await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
+      let created = 0, refreshed = 0, skipped = 0;
+      const existing = await tx.invoice.findMany({ where: { schoolId, termId }, select: { studentId: true, paidKobo: true } });
+      const paidByStudent = new Map(existing.map((e) => [e.studentId, e.paidKobo]));
       for (const e of enrollments) {
         const classLevelId = e.class.classLevelId;
         const lines = itemsByLevel.get(classLevelId) ?? [];
         const totalKobo = lines.reduce((s, l) => s + l.amountKobo, 0);
         const prevPaid = paidByStudent.get(e.studentId);
         if (prevPaid !== undefined && prevPaid > 0) { skipped++; continue; }
-
         const invoice = await tx.invoice.upsert({
           where: { studentId_termId: { studentId: e.studentId, termId } },
           create: { schoolId, studentId: e.studentId, termId, classLevelId, totalKobo },
@@ -79,8 +77,9 @@ export class FeesService {
         }
         if (prevPaid === undefined) created++; else refreshed++;
       }
+      return { created, refreshed, skipped };
     });
-    return { created, refreshed, skipped };
+    return result;
   }
 
   async getInvoices(termId: string, classId?: string) {
