@@ -23,6 +23,21 @@ export default function FeesPage() {
 
   const [detail, setDetail] = useState<InvoiceDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+  // Record payment form
+  const [channel, setChannel] = useState<"CASH" | "BANK_TRANSFER">("CASH");
+  const [amountNaira, setAmountNaira] = useState("");
+  const [reference, setReference] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [receiptCode, setReceiptCode] = useState<string | null>(null);
+
+  // Online payment
+  const [email, setEmail] = useState("");
+  const [onlineRef, setOnlineRef] = useState<string | null>(null);
+  const [initializing, setInitializing] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -72,9 +87,21 @@ export default function FeesPage() {
     }
   };
 
+  const resetPayForm = () => {
+    setChannel("CASH");
+    setAmountNaira("");
+    setReference("");
+    setPayError(null);
+    setReceiptCode(null);
+    setEmail("");
+    setOnlineRef(null);
+  };
+
   const openDetail = async (studentId: string) => {
     setDetail(null);
+    setSelectedStudentId(studentId);
     setDetailLoading(true);
+    resetPayForm();
     try {
       setDetail(await api.getInvoiceDetail(studentId, termId));
     } catch (e) {
@@ -83,7 +110,77 @@ export default function FeesPage() {
       setDetailLoading(false);
     }
   };
-  const closeDetail = () => { setDetail(null); setDetailLoading(false); };
+  const closeDetail = () => { setDetail(null); setDetailLoading(false); setSelectedStudentId(null); resetPayForm(); };
+
+  const reloadDetail = async () => {
+    if (!selectedStudentId) return;
+    try {
+      setDetail(await api.getInvoiceDetail(selectedStudentId, termId));
+    } catch {
+      /* keep current detail */
+    }
+    await loadInvoices();
+  };
+
+  const recordPayment = async () => {
+    if (!detail) return;
+    const kobo = Math.round(Number(amountNaira) * 100);
+    if (!kobo || kobo <= 0) { setPayError("Enter a valid amount."); return; }
+    setRecording(true);
+    setPayError(null);
+    setReceiptCode(null);
+    try {
+      const res = await api.recordPayment(detail.id, kobo, channel, reference || undefined);
+      setReceiptCode(res.receiptCode);
+      setAmountNaira("");
+      setReference("");
+      await reloadDetail();
+    } catch (e) {
+      setPayError(e instanceof ApiError ? e.message : "Could not record the payment.");
+    } finally {
+      setRecording(false);
+    }
+  };
+
+  const payOnline = async () => {
+    if (!detail) return;
+    const kobo = Math.round(Number(amountNaira) * 100);
+    if (!kobo || kobo <= 0) { setPayError("Enter a valid amount."); return; }
+    if (!email) { setPayError("Enter an email for the online payment."); return; }
+    setInitializing(true);
+    setPayError(null);
+    setReceiptCode(null);
+    try {
+      const res = await api.initializeOnline(detail.id, kobo, email);
+      setOnlineRef(res.reference);
+      window.open(res.authorizationUrl, "_blank");
+    } catch (e) {
+      setPayError(e instanceof ApiError ? e.message : "Could not start the online payment.");
+    } finally {
+      setInitializing(false);
+    }
+  };
+
+  const verifyOnline = async () => {
+    if (!onlineRef) return;
+    setVerifying(true);
+    setPayError(null);
+    try {
+      const res = await api.verifyPayment(onlineRef);
+      if (res.applied) {
+        if (res.receiptCode) setReceiptCode(res.receiptCode);
+        setOnlineRef(null);
+        setAmountNaira("");
+        await reloadDetail();
+      } else {
+        setPayError(`Payment not applied yet (status: ${res.status}).`);
+      }
+    } catch (e) {
+      setPayError(e instanceof ApiError ? e.message : "Could not verify the payment.");
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   return (
     <div className="px-4 py-8 mx-auto max-w-4xl">
@@ -188,6 +285,57 @@ export default function FeesPage() {
                       {formatMoney(detail.balanceKobo, currency)}
                     </span>
                   </div>
+                </div>
+
+                <div className="mt-5 border-t border-ink-100 dark:border-white/10 pt-4">
+                  <h3 className="text-small font-medium text-ink-1000 dark:text-ink-100 mb-3">Record payment</h3>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-2">
+                      <label className="text-caption text-ink-500 flex flex-col gap-1 flex-1">Channel
+                        <select value={channel} onChange={(e) => setChannel(e.target.value as "CASH" | "BANK_TRANSFER")} className={cls}>
+                          <option value="CASH">Cash</option>
+                          <option value="BANK_TRANSFER">Bank transfer</option>
+                        </select>
+                      </label>
+                      <label className="text-caption text-ink-500 flex flex-col gap-1 flex-1">Amount (₦)
+                        <input type="number" min="0" step="0.01" value={amountNaira} onChange={(e) => setAmountNaira(e.target.value)} placeholder="0.00" className={cls} />
+                      </label>
+                    </div>
+                    <label className="text-caption text-ink-500 flex flex-col gap-1">Reference (optional)
+                      <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. teller no." className={cls} />
+                    </label>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={recordPayment} disabled={recording}>
+                        {recording ? "Recording…" : "Record"}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-ink-100 dark:border-white/10 pt-4">
+                    <h3 className="text-small font-medium text-ink-1000 dark:text-ink-100 mb-3">Pay online</h3>
+                    <div className="flex flex-col gap-2">
+                      <label className="text-caption text-ink-500 flex flex-col gap-1">Payer email
+                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="payer@example.com" className={cls} />
+                      </label>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="secondary" onClick={payOnline} disabled={initializing}>
+                          {initializing ? "Starting…" : "Pay online"}
+                        </Button>
+                        {onlineRef && (
+                          <Button size="sm" onClick={verifyOnline} disabled={verifying}>
+                            {verifying ? "Verifying…" : "I've paid — verify"}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {payError && <p className="mt-3 text-caption text-error">{payError}</p>}
+                  {receiptCode && (
+                    <p className="mt-3 text-caption text-success">
+                      Recorded. <a href={`/receipt/${receiptCode}`} target="_blank" rel="noreferrer" className="underline font-medium">View receipt</a>
+                    </p>
+                  )}
                 </div>
 
                 <div className="mt-5 flex justify-end">

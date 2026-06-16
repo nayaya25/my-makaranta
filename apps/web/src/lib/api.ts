@@ -348,11 +348,23 @@ export type VerifyResult =
 export interface FeeItemRow { id: string; name: string; amountKobo: number; order: number; }
 export interface InvoiceRow { studentId: string; name: string; classLevelName: string; totalKobo: number; paidKobo: number; balanceKobo: number; }
 export interface InvoiceDetail {
+  id: string;
   student: { name: string; admissionNo: string };
   term: { label: string };
   classLevelName: string;
   lines: Array<{ name: string; amountKobo: number }>;
   totalKobo: number; paidKobo: number; balanceKobo: number;
+}
+
+export interface PublicReceipt {
+  receiptNo: string;
+  school: string;
+  student: string;
+  term: string;
+  amountKobo: number;
+  channel: string;
+  paidAt: string;
+  balanceAfterKobo: number;
 }
 
 export const api = {
@@ -590,4 +602,14 @@ export const api = {
     authedRequest<InvoiceRow[]>(`/v1/fees/invoices?termId=${termId}${classId ? `&classId=${classId}` : ""}`),
   getInvoiceDetail: (studentId: string, termId: string) =>
     authedRequest<InvoiceDetail>(`/v1/fees/invoice?studentId=${studentId}&termId=${termId}`),
+
+  // Payments
+  recordPayment: (invoiceId: string, amountKobo: number, channel: "CASH" | "BANK_TRANSFER", reference?: string) =>
+    authedRequest<{ paymentId: string; receiptCode: string }>("/v1/payments/record", { method: "POST", body: JSON.stringify({ invoiceId, amountKobo, channel, reference }) }),
+  initializeOnline: (invoiceId: string, amountKobo: number, email: string) =>
+    authedRequest<{ reference: string; authorizationUrl: string }>("/v1/payments/initialize", { method: "POST", body: JSON.stringify({ invoiceId, amountKobo, email }) }),
+  verifyPayment: (reference: string) =>
+    authedRequest<{ applied: boolean; status: string; receiptCode?: string }>("/v1/payments/verify", { method: "POST", body: JSON.stringify({ reference }) }),
+  getPublicReceipt: (code: string) =>
+    request<PublicReceipt | null>(`/v1/public/receipt/${encodeURIComponent(code)}`),
 };

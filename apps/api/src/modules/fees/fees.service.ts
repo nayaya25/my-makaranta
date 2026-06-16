@@ -118,6 +118,7 @@ export class FeesService {
     });
     if (!invoice) throw new NotFoundException("No invoice for this student/term.");
     return {
+      id: invoice.id,
       student: { name: `${invoice.student.firstName} ${invoice.student.lastName}`, admissionNo: invoice.student.admissionNo },
       term: { label: `${invoice.term.academicYear.name} · Term ${invoice.term.number}` },
       classLevelName: invoice.classLevel.name,
