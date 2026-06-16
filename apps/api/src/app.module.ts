@@ -16,6 +16,7 @@ import { ImportsModule } from "./modules/imports/imports.module";
 import { AttendanceModule } from "./modules/attendance/attendance.module";
 import { AssessmentModule } from "./modules/assessment/assessment.module";
 import { FeesModule } from "./modules/fees/fees.module";
+import { PaymentsModule } from "./modules/payments/payments.module";
 import { PublicModule } from "./modules/public/public.module";
 
 @Module({
@@ -38,6 +39,7 @@ import { PublicModule } from "./modules/public/public.module";
     AttendanceModule,
     AssessmentModule,
     FeesModule,
+    PaymentsModule,
     PublicModule,
   ],
   controllers: [AppController],
