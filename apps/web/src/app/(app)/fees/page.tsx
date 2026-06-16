@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Spinner, EmptyState, Badge } from "@mymakaranta/ui";
-import { api, ApiError, type AcademicYear, type CollectionRow, type InvoiceDetail, type BankRow, type ProposedMatch } from "@/lib/api";
+import { api, ApiError, type AcademicYear, type CollectionRow, type InvoiceDetail, type BankRow, type ProposedMatch, type FinanceSummary } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
 import { Wallet } from "lucide-react";
 
@@ -30,6 +30,11 @@ export default function FeesPage() {
   const [terms, setTerms] = useState<TermOpt[]>([]);
   const [termId, setTermId] = useState("");
   const [currency, setCurrency] = useState("NGN");
+
+  // Finance summary (term-scoped)
+  const [summary, setSummary] = useState<FinanceSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
 
   const [rows, setRows] = useState<CollectionRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -205,6 +210,21 @@ export default function FeesPage() {
     }
   }, [termId]);
   useEffect(() => { void loadInvoices(); }, [loadInvoices]);
+
+  const loadSummary = useCallback(async () => {
+    if (!termId) return;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      setSummary(await api.getFinanceSummary(termId));
+    } catch (e) {
+      setSummary(null);
+      setSummaryError(e instanceof ApiError ? e.message : "Could not load the finance summary.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [termId]);
+  useEffect(() => { void loadSummary(); }, [loadSummary]);
 
   const setDueDate = async () => {
     if (!termId || !dueDateInput) return;
@@ -383,6 +403,66 @@ export default function FeesPage() {
           {generating ? "Generating…" : "Generate invoices"}
         </Button>
         {msg && <span className="text-caption text-success">{msg}</span>}
+      </div>
+
+      {/* Finance summary */}
+      <div className="mb-8">
+        {summaryLoading ? (
+          <div className="flex justify-center py-10"><Spinner /></div>
+        ) : summaryError ? (
+          <p className="text-small text-error">{summaryError}</p>
+        ) : summary ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+              {[
+                { label: "Expected", kobo: summary.expectedKobo },
+                { label: "Collected", kobo: summary.collectedKobo },
+                { label: "Outstanding", kobo: summary.outstandingKobo },
+                { label: "Overdue", kobo: summary.overdueKobo, tone: "text-error" },
+                { label: "Collected this week", kobo: summary.collectedThisWeekKobo },
+              ].map((k) => (
+                <div
+                  key={k.label}
+                  className="rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-3 flex flex-col gap-1"
+                >
+                  <span className="text-caption text-ink-500">{k.label}</span>
+                  <span className={`text-body font-semibold tabular-nums ${k.tone ?? "text-ink-1000 dark:text-ink-100"}`}>
+                    {formatMoney(k.kobo, currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-small border-collapse">
+                <thead><tr className="text-left text-ink-500">
+                  <th className="py-2 pr-3 font-medium">Class level</th>
+                  <th className="py-2 px-3 font-medium text-right">Expected</th>
+                  <th className="py-2 px-3 font-medium text-right">Collected</th>
+                  <th className="py-2 px-3 font-medium text-right">Outstanding</th>
+                  <th className="py-2 pl-3 font-medium text-right">Students</th>
+                </tr></thead>
+                <tbody>
+                  {summary.byClassLevel.length === 0 ? (
+                    <tr className="border-t border-ink-100 dark:border-white/10">
+                      <td colSpan={5} className="py-3 text-ink-500">No invoices for this term yet.</td>
+                    </tr>
+                  ) : (
+                    summary.byClassLevel.map((c) => (
+                      <tr key={c.classLevelId} className="border-t border-ink-100 dark:border-white/10">
+                        <td className="py-1.5 pr-3 whitespace-nowrap text-ink-1000 dark:text-ink-100">{c.classLevelName}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.expectedKobo, currency)}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.collectedKobo, currency)}</td>
+                        <td className="py-1.5 px-3 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.outstandingKobo, currency)}</td>
+                        <td className="py-1.5 pl-3 text-right tabular-nums text-ink-700 dark:text-ink-300">{c.studentCount}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
       </div>
 
       <div className="mb-6 flex items-end gap-3 flex-wrap">

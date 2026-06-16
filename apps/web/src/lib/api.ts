@@ -362,6 +362,11 @@ export interface CollectionRow {
   dueDate: string | null; status: "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE"; lastRemindedAt: string | null;
 }
 
+export interface FinanceSummary {
+  expectedKobo: number; collectedKobo: number; outstandingKobo: number; overdueKobo: number; collectedThisWeekKobo: number;
+  byClassLevel: Array<{ classLevelId: string; classLevelName: string; expectedKobo: number; collectedKobo: number; outstandingKobo: number; studentCount: number }>;
+}
+
 export interface BankRow { reference: string; amountKobo: number; narration: string; date?: string }
 export interface MatchCandidateView { invoiceId: string; studentName: string; admissionNo: string; balanceKobo: number; score: number; confidence: "high" | "low" | "none" }
 export interface ProposedMatch { row: BankRow; candidates: MatchCandidateView[]; suggestedInvoiceId: string | null }
@@ -613,6 +618,7 @@ export const api = {
   getInvoiceDetail: (studentId: string, termId: string) =>
     authedRequest<InvoiceDetail>(`/v1/fees/invoice?studentId=${studentId}&termId=${termId}`),
   getCollections: (termId: string) => authedRequest<CollectionRow[]>(`/v1/fees/collections?termId=${termId}`),
+  getFinanceSummary: (termId: string) => authedRequest<FinanceSummary>(`/v1/fees/finance/summary?termId=${termId}`),
   setDueDate: (termId: string, dueDate: string) =>
     authedRequest<{ updated: number }>("/v1/fees/collections/due-date", { method: "POST", body: JSON.stringify({ termId, dueDate }) }),
   remindInvoice: (invoiceId: string) =>
