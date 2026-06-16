@@ -362,6 +362,10 @@ export interface CollectionRow {
   dueDate: string | null; status: "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE"; lastRemindedAt: string | null;
 }
 
+export interface BankRow { reference: string; amountKobo: number; narration: string; date?: string }
+export interface MatchCandidateView { invoiceId: string; studentName: string; admissionNo: string; balanceKobo: number; score: number; confidence: "high" | "low" | "none" }
+export interface ProposedMatch { row: BankRow; candidates: MatchCandidateView[]; suggestedInvoiceId: string | null }
+
 export interface PublicReceipt {
   receiptNo: string;
   school: string;
@@ -625,4 +629,10 @@ export const api = {
     authedRequest<{ applied: boolean; status: string; receiptCode?: string }>("/v1/payments/verify", { method: "POST", body: JSON.stringify({ reference }) }),
   getPublicReceipt: (code: string) =>
     request<PublicReceipt | null>(`/v1/public/receipt/${encodeURIComponent(code)}`),
+
+  // Reconciliation
+  proposeMatches: (termId: string, rows: BankRow[]) =>
+    authedRequest<ProposedMatch[]>("/v1/fees/reconcile/propose", { method: "POST", body: JSON.stringify({ termId, rows }) }),
+  confirmMatches: (confirmations: Array<{ reference: string; amountKobo: number; invoiceId: string }>) =>
+    authedRequest<{ recorded: number; skipped: number; errors: Array<{ reference: string; message: string }> }>("/v1/fees/reconcile/confirm", { method: "POST", body: JSON.stringify({ confirmations }) }),
 };

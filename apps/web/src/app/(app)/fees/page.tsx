@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Spinner, EmptyState, Badge } from "@mymakaranta/ui";
-import { api, ApiError, type AcademicYear, type CollectionRow, type InvoiceDetail } from "@/lib/api";
+import { api, ApiError, type AcademicYear, type CollectionRow, type InvoiceDetail, type BankRow, type ProposedMatch } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
 import { Wallet } from "lucide-react";
+
+const CONFIDENCE_TONE = { high: "success", low: "warning", none: "neutral" } as const;
 
 interface TermOpt { id: string; label: string; isCurrent: boolean; }
 
@@ -58,6 +60,120 @@ export default function FeesPage() {
   const [onlineRef, setOnlineRef] = useState<string | null>(null);
   const [initializing, setInitializing] = useState(false);
   const [verifying, setVerifying] = useState(false);
+
+  // Bank-statement reconciliation
+  const reconcileFileRef = useRef<HTMLInputElement>(null);
+  const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [parsing, setParsing] = useState(false);
+  const [proposing, setProposing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [reconcileError, setReconcileError] = useState<string | null>(null);
+  const [matches, setMatches] = useState<ProposedMatch[] | null>(null);
+  // per-row overrides keyed by reference: selected invoiceId ("" = skip) + naira amount
+  const [selections, setSelections] = useState<Record<string, string>>({});
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const [reconcileResult, setReconcileResult] = useState<{ recorded: number; skipped: number; errors: Array<{ reference: string; message: string }> } | null>(null);
+
+  const handleReconcileFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReconcileError(null);
+    setMatches(null);
+    setReconcileResult(null);
+    setParsing(true);
+    try {
+      const Papa = (await import("papaparse")).default;
+      const parsed = await new Promise<{ data: Record<string, string>[]; fields: string[] }>((resolve, reject) => {
+        Papa.parse<Record<string, string>>(file, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (res) => resolve({ data: res.data, fields: res.meta.fields ?? [] }),
+          error: (err) => reject(new Error(err.message)),
+        });
+      });
+      const find = (re: RegExp) => parsed.fields.find((f) => re.test(f));
+      const amtCol = find(/amount|credit|deposit/i);
+      const narrCol = find(/narration|description|details|particulars/i);
+      const refCol = find(/reference|ref|teller/i);
+      const dateCol = find(/date/i);
+      if (!amtCol || !narrCol) {
+        setReconcileError("Couldn't find an amount/description column.");
+        return;
+      }
+      const rows: BankRow[] = parsed.data
+        .map((row, i) => {
+          const amountKobo = Math.round(parseFloat(String(row[amtCol]).replace(/[^0-9.]/g, "")) * 100);
+          return {
+            reference: String(row[refCol!] ?? "").trim() || `ROW-${i + 1}`,
+            amountKobo,
+            narration: String(row[narrCol] ?? ""),
+            ...(dateCol ? { date: String(row[dateCol] ?? "").trim() || undefined } : {}),
+          };
+        })
+        .filter((r) => !Number.isNaN(r.amountKobo) && r.amountKobo > 0);
+      if (rows.length === 0) {
+        setReconcileError("No valid rows with a positive amount were found.");
+        return;
+      }
+      await proposeReconcile(rows);
+    } catch (err) {
+      setReconcileError(err instanceof Error ? err.message : "Could not parse the file.");
+    } finally {
+      setParsing(false);
+      if (reconcileFileRef.current) reconcileFileRef.current.value = "";
+    }
+  };
+
+  const proposeReconcile = async (rows: BankRow[]) => {
+    if (!termId) return;
+    setProposing(true);
+    setReconcileError(null);
+    try {
+      const res = await api.proposeMatches(termId, rows);
+      setMatches(res);
+      const sel: Record<string, string> = {};
+      const amt: Record<string, string> = {};
+      for (const m of res) {
+        sel[m.row.reference] = m.suggestedInvoiceId ?? "";
+        amt[m.row.reference] = String(m.row.amountKobo / 100);
+      }
+      setSelections(sel);
+      setAmounts(amt);
+    } catch (e) {
+      setReconcileError(e instanceof ApiError ? e.message : "Could not propose matches.");
+    } finally {
+      setProposing(false);
+    }
+  };
+
+  const confirmReconcile = async () => {
+    if (!matches) return;
+    const confirmations = matches
+      .filter((m) => selections[m.row.reference])
+      .map((m) => ({
+        reference: m.row.reference,
+        amountKobo: Math.round(Number(amounts[m.row.reference] ?? m.row.amountKobo / 100) * 100),
+        invoiceId: selections[m.row.reference] ?? "",
+      }))
+      .filter((c) => c.invoiceId && c.amountKobo > 0);
+    if (confirmations.length === 0) {
+      setReconcileError("Select at least one match to confirm.");
+      return;
+    }
+    setConfirming(true);
+    setReconcileError(null);
+    setReconcileResult(null);
+    try {
+      const res = await api.confirmMatches(confirmations);
+      setReconcileResult(res);
+      setMatches(null);
+      await loadInvoices();
+    } catch (e) {
+      setReconcileError(e instanceof ApiError ? e.message : "Could not confirm reconciliation.");
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   useEffect(() => {
     void (async () => {
@@ -333,6 +449,135 @@ export default function FeesPage() {
           </table>
         </div>
       )}
+
+      {/* Bank-statement reconciliation */}
+      <div className="mt-10 border-t border-ink-100 dark:border-white/10 pt-6">
+        <button
+          type="button"
+          onClick={() => setReconcileOpen((o) => !o)}
+          className="flex items-center gap-2 text-small font-medium text-ink-1000 dark:text-ink-100"
+        >
+          <span className="text-brand-500">{reconcileOpen ? "▾" : "▸"}</span>
+          Reconcile bank statement
+        </button>
+
+        {reconcileOpen && (
+          <div className="mt-4 flex flex-col gap-4">
+            <p className="text-caption text-ink-500">
+              Upload a bank-statement CSV to match credit transfers against outstanding invoices, review the matches, then confirm to record payments.
+            </p>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <input
+                ref={reconcileFileRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleReconcileFile}
+                disabled={!termId || parsing || proposing}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => reconcileFileRef.current?.click()}
+                disabled={!termId || parsing || proposing}
+              >
+                {parsing ? "Parsing…" : proposing ? "Matching…" : "Upload CSV"}
+              </Button>
+              {(parsing || proposing) && <Spinner size="sm" />}
+            </div>
+
+            {reconcileError && <p className="text-caption text-error">{reconcileError}</p>}
+
+            {reconcileResult && (
+              <div className="rounded-card border border-ink-100 dark:border-white/10 bg-paper dark:bg-surface-dark p-4 flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge tone="success">{reconcileResult.recorded} recorded</Badge>
+                  {reconcileResult.skipped > 0 && <Badge tone="neutral">{reconcileResult.skipped} skipped</Badge>}
+                  {reconcileResult.errors.length > 0 && <Badge tone="error">{reconcileResult.errors.length} errors</Badge>}
+                </div>
+                {reconcileResult.errors.length > 0 && (
+                  <ul className="text-caption text-error list-disc pl-5">
+                    {reconcileResult.errors.map((e, i) => (
+                      <li key={i}><span className="font-medium">{e.reference}</span>: {e.message}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {matches && matches.length === 0 && (
+              <p className="text-caption text-ink-500">No transfer rows to reconcile.</p>
+            )}
+
+            {matches && matches.length > 0 && (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-small border-collapse">
+                    <thead><tr className="text-left text-ink-500">
+                      <th className="py-2 pr-3 font-medium">Narration</th>
+                      <th className="py-2 px-3 font-medium text-right">Amount</th>
+                      <th className="py-2 px-3 font-medium">Reference</th>
+                      <th className="py-2 px-3 font-medium">Match</th>
+                      <th className="py-2 pl-3 font-medium text-right">Apply (₦)</th>
+                    </tr></thead>
+                    <tbody>
+                      {matches.map((m) => {
+                        const ref = m.row.reference;
+                        const selected = m.candidates.find((c) => c.invoiceId === selections[ref]);
+                        return (
+                          <tr key={ref} className="border-t border-ink-100 dark:border-white/10 align-top">
+                            <td className="py-2 pr-3 text-ink-1000 dark:text-ink-100 max-w-[16rem] truncate" title={m.row.narration}>{m.row.narration || "—"}</td>
+                            <td className="py-2 px-3 text-right tabular-nums whitespace-nowrap text-ink-700 dark:text-ink-300">{formatMoney(m.row.amountKobo, currency)}</td>
+                            <td className="py-2 px-3 whitespace-nowrap text-ink-700 dark:text-ink-300">{ref}</td>
+                            <td className="py-2 px-3">
+                              <div className="flex flex-col gap-1">
+                                <select
+                                  value={selections[ref] ?? ""}
+                                  onChange={(e) => setSelections((s) => ({ ...s, [ref]: e.target.value }))}
+                                  className={cls}
+                                >
+                                  <option value="">— Skip —</option>
+                                  {m.candidates.map((c) => (
+                                    <option key={c.invoiceId} value={c.invoiceId}>
+                                      {c.studentName} ({c.admissionNo}) · {formatMoney(c.balanceKobo, currency)}
+                                    </option>
+                                  ))}
+                                </select>
+                                {selected && (
+                                  <Badge tone={CONFIDENCE_TONE[selected.confidence]}>
+                                    {selected.confidence === "high" ? "High confidence" : selected.confidence === "low" ? "Low confidence" : "No match"}
+                                  </Badge>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2 pl-3 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={amounts[ref] ?? ""}
+                                onChange={(e) => setAmounts((a) => ({ ...a, [ref]: e.target.value }))}
+                                className={`${cls} w-28 text-right`}
+                                disabled={!selections[ref]}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={confirmReconcile} disabled={confirming}>
+                    {confirming ? "Confirming…" : "Confirm reconciliation"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {(detail || detailLoading) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-1000/40 p-4" onClick={closeDetail}>
