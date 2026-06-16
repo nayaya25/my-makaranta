@@ -88,6 +88,9 @@ model School {
   resultSheets       ResultSheet[]
   resultSheetEntries ResultSheetEntry[]
   corrections        Correction[]
+  feeItems           FeeItem[]
+  invoices           Invoice[]
+  invoiceLines       InvoiceLine[]
 }
 
 model AcademicYear {
@@ -117,6 +120,8 @@ model Term {
   releases       Release[]
   resultSheets   ResultSheet[]
   corrections    Correction[]
+  feeItems       FeeItem[]
+  invoices       Invoice[]
 }
 
 model ClassLevel {
@@ -126,6 +131,8 @@ model ClassLevel {
   name     String
   order    Int
   classes  Class[]
+  feeItems FeeItem[]
+  invoices Invoice[]
 
   @@unique([schoolId, name])
 }
@@ -198,6 +205,7 @@ model Student {
   scores        Score[]
   resultSheets  ResultSheet[]
   corrections   Correction[]
+  invoices      Invoice[]
 
   @@unique([schoolId, admissionNo])
 }
@@ -480,4 +488,51 @@ model Verification {
   issuedAt      DateTime
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+}
+
+model FeeItem {
+  id           String     @id @default(cuid())
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id])
+  classLevelId String
+  classLevel   ClassLevel @relation(fields: [classLevelId], references: [id])
+  termId       String
+  term         Term       @relation(fields: [termId], references: [id])
+  name         String
+  amountKobo   Int
+  order        Int        @default(0)
+
+  @@unique([classLevelId, termId, name])
+  @@index([schoolId, classLevelId, termId])
+}
+
+model Invoice {
+  id           String        @id @default(cuid())
+  schoolId     String
+  school       School        @relation(fields: [schoolId], references: [id])
+  studentId    String
+  student      Student       @relation(fields: [studentId], references: [id])
+  termId       String
+  term         Term          @relation(fields: [termId], references: [id])
+  classLevelId String
+  classLevel   ClassLevel    @relation(fields: [classLevelId], references: [id])
+  totalKobo    Int
+  paidKobo     Int           @default(0)
+  issuedAt     DateTime      @default(now())
+  lines        InvoiceLine[]
+
+  @@unique([studentId, termId])
+  @@index([schoolId, termId])
+}
+
+model InvoiceLine {
+  id         String  @id @default(cuid())
+  schoolId   String
+  school     School  @relation(fields: [schoolId], references: [id])
+  invoiceId  String
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  name       String
+  amountKobo Int
+
+  @@index([schoolId, invoiceId])
 }

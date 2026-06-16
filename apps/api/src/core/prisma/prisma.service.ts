@@ -21,6 +21,9 @@ const TENANT_MODELS = new Set([
   "ResultSheet",
   "ResultSheetEntry",
   "Correction",
+  "FeeItem",
+  "Invoice",
+  "InvoiceLine",
 ]);
 
 @Injectable()
