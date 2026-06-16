@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma, PaymentChannel } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
@@ -36,14 +36,21 @@ export class PaymentsService {
     if (!OFFLINE_CHANNELS.includes(dto.channel)) throw new BadRequestException("Channel must be CASH or BANK_TRANSFER for a recorded payment.");
     const invoice = await this.invoiceOr404(schoolId, dto.invoiceId);
     const reference = dto.reference?.trim() || generatePaymentReference();
-    return this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: { schoolId, invoiceId: invoice.id, amountKobo: dto.amountKobo, channel: dto.channel, reference, status: "SUCCESS", paidAt: new Date(), recordedBy: actor.id },
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.create({
+          data: { schoolId, invoiceId: invoice.id, amountKobo: dto.amountKobo, channel: dto.channel, reference, status: "SUCCESS", paidAt: new Date(), recordedBy: actor.id },
+        });
+        const updated = await tx.invoice.update({ where: { id: invoice.id, schoolId }, data: { paidKobo: { increment: dto.amountKobo } } });
+        const receiptCode = await this.writeReceipt(tx, payment.id, schoolId, invoice, dto.amountKobo, dto.channel, updated.totalKobo - updated.paidKobo, payment.paidAt ?? new Date());
+        return { paymentId: payment.id, receiptCode };
       });
-      const updated = await tx.invoice.update({ where: { id: invoice.id, schoolId }, data: { paidKobo: { increment: dto.amountKobo } } });
-      const receiptCode = await this.writeReceipt(tx, payment.id, schoolId, invoice, dto.amountKobo, dto.channel, updated.totalKobo - updated.paidKobo, payment.paidAt ?? new Date());
-      return { paymentId: payment.id, receiptCode };
-    });
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+        throw new ConflictException("A payment with this reference already exists.");
+      }
+      throw e;
+    }
   }
 
   async initializeOnline(dto: { invoiceId: string; amountKobo: number; email: string }, actor: RequestUser) {

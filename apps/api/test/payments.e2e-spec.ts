@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Test } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
@@ -96,6 +96,12 @@ describe("Payments (e2e)", () => {
     it("rejects cross-tenant record + zero amount", async () => {
       await expect(asB(() => payments.recordOfflinePayment({ invoiceId, amountKobo: 1000, channel: "CASH" }, { ...actor, schoolId: schoolBId }))).rejects.toThrow(NotFoundException);
       await expect(asA(() => payments.recordOfflinePayment({ invoiceId, amountKobo: 0, channel: "CASH" }, actor))).rejects.toThrow(BadRequestException);
+    });
+
+    it("rejects a duplicate explicit reference with 409", async () => {
+      const ref = `DUP-${suffix}`;
+      await asA(() => payments.recordOfflinePayment({ invoiceId, amountKobo: 1000, channel: "CASH", reference: ref }, actor));
+      await expect(asA(() => payments.recordOfflinePayment({ invoiceId, amountKobo: 1000, channel: "CASH", reference: ref }, actor))).rejects.toThrow(ConflictException);
     });
   });
 });
