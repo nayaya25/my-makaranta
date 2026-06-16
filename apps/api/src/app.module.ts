@@ -8,6 +8,7 @@ import { TenantMiddleware } from "./core/tenant/tenant.middleware";
 import { AuthModule } from "./core/auth/auth.module";
 import { StorageModule } from "./core/storage/storage.module";
 import { EmailModule } from "./core/email/email.module";
+import { PaymentsProviderModule } from "./core/payments/payments.module";
 import { getJwtSecret } from "./core/config/secrets";
 import { StructureModule } from "./modules/structure/structure.module";
 import { SisModule } from "./modules/sis/sis.module";
@@ -30,6 +31,7 @@ import { PublicModule } from "./modules/public/public.module";
     AuthModule,
     StorageModule,
     EmailModule,
+    PaymentsProviderModule,
     StructureModule,
     SisModule,
     ImportsModule,
