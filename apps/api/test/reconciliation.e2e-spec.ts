@@ -54,6 +54,10 @@ describe("Reconciliation (e2e)", () => {
   describe("reconciliation", () => {
     let termId: string; let adaInv: string; let bolaInv: string;
     const actor = { id: "bursar-1", phone: "+2348093000001", schoolId, identityType: "PROPRIETOR" };
+    const ref1 = `TXN1-${suffix}`;
+    const ref2 = `TXN2-${suffix}`;
+    const ref3 = `TXN3-${suffix}`;
+    const refX = `TXNX-${suffix}`;
 
     beforeAll(async () => {
       const ay = await prisma.academicYear.create({ data: { schoolId, name: `RecYr-${suffix}`, startDate: new Date("2025-09-01"), endDate: new Date("2026-07-31") } });
@@ -68,9 +72,9 @@ describe("Reconciliation (e2e)", () => {
 
     it("proposes ranked matches; correct top suggestion + confidence", async () => {
       const res = await asA(() => recon.proposeMatches(termId, [
-        { reference: "TXN1", amountKobo: 6000000, narration: "TRF FROM ADA EZE" },
-        { reference: "TXN2", amountKobo: 2000000, narration: "school fees bola ade" },
-        { reference: "TXN3", amountKobo: 1000000, narration: "anonymous deposit 0000" },
+        { reference: ref1, amountKobo: 6000000, narration: "TRF FROM ADA EZE" },
+        { reference: ref2, amountKobo: 2000000, narration: "school fees bola ade" },
+        { reference: ref3, amountKobo: 1000000, narration: "anonymous deposit 0000" },
       ]));
       expect(res[0]!.suggestedInvoiceId).toBe(adaInv);
       expect(res[0]!.candidates[0]!.confidence).toBe("high");
@@ -80,24 +84,24 @@ describe("Reconciliation (e2e)", () => {
 
     it("confirms matches → records BANK_TRANSFER payments + applies", async () => {
       const r = await asA(() => recon.confirmMatches([
-        { reference: "TXN1", amountKobo: 6000000, invoiceId: adaInv },
-        { reference: "TXN2", amountKobo: 2000000, invoiceId: bolaInv },
+        { reference: ref1, amountKobo: 6000000, invoiceId: adaInv },
+        { reference: ref2, amountKobo: 2000000, invoiceId: bolaInv },
       ], actor));
       expect(r.recorded).toBe(2);
       expect(r.skipped).toBe(0);
       expect((await prisma.invoice.findFirstOrThrow({ where: { schoolId, id: adaInv } })).paidKobo).toBe(6000000);
       expect((await prisma.invoice.findFirstOrThrow({ where: { schoolId, id: bolaInv } })).paidKobo).toBe(2000000);
-      expect((await prisma.payment.findFirst({ where: { schoolId, reference: "TXN1" } }))!.channel).toBe("BANK_TRANSFER");
+      expect((await prisma.payment.findFirst({ where: { schoolId, reference: ref1 } }))!.channel).toBe("BANK_TRANSFER");
     });
 
     it("skips a duplicate reference on re-confirm (idempotent)", async () => {
-      const r = await asA(() => recon.confirmMatches([{ reference: "TXN1", amountKobo: 6000000, invoiceId: adaInv }], actor));
+      const r = await asA(() => recon.confirmMatches([{ reference: ref1, amountKobo: 6000000, invoiceId: adaInv }], actor));
       expect(r.skipped).toBe(1);
       expect(r.recorded).toBe(0);
     });
 
     it("does not apply a cross-tenant invoice", async () => {
-      const r = await asB(() => recon.confirmMatches([{ reference: "TXNX", amountKobo: 1000, invoiceId: adaInv }], { ...actor, schoolId: schoolBId }));
+      const r = await asB(() => recon.confirmMatches([{ reference: refX, amountKobo: 1000, invoiceId: adaInv }], { ...actor, schoolId: schoolBId }));
       expect(r.recorded).toBe(0);
       expect(r.errors.length).toBe(1);
       expect((await prisma.invoice.findFirstOrThrow({ where: { schoolId, id: adaInv } })).paidKobo).toBe(6000000);
