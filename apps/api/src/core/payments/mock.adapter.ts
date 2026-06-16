@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { Injectable } from "@nestjs/common";
 import type { InitializeArgs, PaymentProvider, VerifyResult } from "./payments.types";
 
@@ -10,6 +11,9 @@ export class MockPaymentAdapter implements PaymentProvider {
     return { status: reference ? "success" : "failed", amountKobo: 0 };
   }
   verifySignature(_rawBody: Buffer, signature: string): boolean {
-    return signature === (process.env.PAYMENTS_MOCK_WEBHOOK_TOKEN ?? "mock-signature");
+    const token = process.env.PAYMENTS_MOCK_WEBHOOK_TOKEN ?? "mock-signature";
+    const a = Buffer.from(signature ?? "");
+    const b = Buffer.from(token);
+    return a.length === b.length && timingSafeEqual(a, b);
   }
 }

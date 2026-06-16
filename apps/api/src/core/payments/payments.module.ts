@@ -8,8 +8,13 @@ import { PaystackPaymentAdapter } from "./paystack.adapter";
   providers: [
     {
       provide: PAYMENT_SERVICE,
-      useFactory: () =>
-        process.env.PAYMENTS_PROVIDER === "paystack" ? new PaystackPaymentAdapter() : new MockPaymentAdapter(),
+      useFactory: () => {
+        const provider = process.env.PAYMENTS_PROVIDER;
+        if (process.env.NODE_ENV === "production" && provider !== "paystack") {
+          throw new Error('Refusing to start: PAYMENTS_PROVIDER must be "paystack" in production.');
+        }
+        return provider === "paystack" ? new PaystackPaymentAdapter() : new MockPaymentAdapter();
+      },
     },
   ],
   exports: [PAYMENT_SERVICE],
