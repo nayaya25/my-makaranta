@@ -8,10 +8,12 @@ import { CollectionsController } from "./collections.controller";
 import { CollectionsService } from "./collections.service";
 import { ReconciliationController } from "./reconciliation.controller";
 import { ReconciliationService } from "./reconciliation.service";
+import { FinanceController } from "./finance.controller";
+import { FinanceService } from "./finance.service";
 
 @Module({
   imports: [AuthModule, EmailModule, PaymentsModule],
-  controllers: [FeesController, CollectionsController, ReconciliationController],
-  providers: [FeesService, CollectionsService, ReconciliationService],
+  controllers: [FeesController, CollectionsController, ReconciliationController, FinanceController],
+  providers: [FeesService, CollectionsService, ReconciliationService, FinanceService],
 })
 export class FeesModule {}
