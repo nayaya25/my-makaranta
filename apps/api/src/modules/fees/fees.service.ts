@@ -40,7 +40,7 @@ export class FeesService {
     return this.prisma.feeItem.findMany({ where: { schoolId, classLevelId, termId }, orderBy: { order: "asc" } });
   }
 
-  async generateInvoices(termId: string) {
+  async generateInvoices(termId: string, dueDate?: Date) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const term = await this.prisma.term.findFirst({ where: { id: termId, schoolId } });
     if (!term) throw new NotFoundException("Term not found in this school.");
@@ -68,8 +68,8 @@ export class FeesService {
         if (prevPaid !== undefined && prevPaid > 0) { skipped++; continue; }
         const invoice = await tx.invoice.upsert({
           where: { studentId_termId: { studentId: e.studentId, termId } },
-          create: { schoolId, studentId: e.studentId, termId, classLevelId, totalKobo },
-          update: { classLevelId, totalKobo },
+          create: { schoolId, studentId: e.studentId, termId, classLevelId, totalKobo, dueDate },
+          update: { classLevelId, totalKobo, dueDate },
         });
         await tx.invoiceLine.deleteMany({ where: { schoolId, invoiceId: invoice.id } });
         if (lines.length) {
