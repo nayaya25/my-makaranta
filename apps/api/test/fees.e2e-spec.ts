@@ -8,6 +8,7 @@ import { PrismaModule } from "../src/core/prisma/prisma.module";
 import { PrismaService } from "../src/core/prisma/prisma.service";
 import { TenantContext } from "../src/core/tenant/tenant.context";
 import { AuthModule } from "../src/core/auth/auth.module";
+import { PaymentsProviderModule } from "../src/core/payments/payments.module";
 import { FeesModule } from "../src/modules/fees/fees.module";
 import { FeesService } from "../src/modules/fees/fees.service";
 import { getJwtSecret } from "../src/core/config/secrets";
@@ -29,6 +30,7 @@ describe("Fees (e2e)", () => {
         PassportModule,
         PrismaModule,
         AuthModule,
+        PaymentsProviderModule,
         FeesModule,
       ],
     }).compile();

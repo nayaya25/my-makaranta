@@ -9,6 +9,7 @@ import { PrismaService } from "../src/core/prisma/prisma.service";
 import { TenantContext } from "../src/core/tenant/tenant.context";
 import { AuthModule } from "../src/core/auth/auth.module";
 import { EmailModule } from "../src/core/email/email.module";
+import { PaymentsProviderModule } from "../src/core/payments/payments.module";
 import { FeesModule } from "../src/modules/fees/fees.module";
 import { CollectionsService } from "../src/modules/fees/collections.service";
 import { getJwtSecret } from "../src/core/config/secrets";
@@ -31,6 +32,7 @@ describe("Collections (e2e)", () => {
         PrismaModule,
         EmailModule,
         AuthModule,
+        PaymentsProviderModule,
         FeesModule,
       ],
     }).compile();
