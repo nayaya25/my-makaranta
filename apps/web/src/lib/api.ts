@@ -356,6 +356,12 @@ export interface InvoiceDetail {
   totalKobo: number; paidKobo: number; balanceKobo: number;
 }
 
+export interface CollectionRow {
+  invoiceId: string; studentId: string; name: string;
+  totalKobo: number; paidKobo: number; balanceKobo: number;
+  dueDate: string | null; status: "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE"; lastRemindedAt: string | null;
+}
+
 export interface PublicReceipt {
   receiptNo: string;
   school: string;
@@ -602,6 +608,13 @@ export const api = {
     authedRequest<InvoiceRow[]>(`/v1/fees/invoices?termId=${termId}${classId ? `&classId=${classId}` : ""}`),
   getInvoiceDetail: (studentId: string, termId: string) =>
     authedRequest<InvoiceDetail>(`/v1/fees/invoice?studentId=${studentId}&termId=${termId}`),
+  getCollections: (termId: string) => authedRequest<CollectionRow[]>(`/v1/fees/collections?termId=${termId}`),
+  setDueDate: (termId: string, dueDate: string) =>
+    authedRequest<{ updated: number }>("/v1/fees/collections/due-date", { method: "POST", body: JSON.stringify({ termId, dueDate }) }),
+  remindInvoice: (invoiceId: string) =>
+    authedRequest<{ recipientCount: number }>("/v1/fees/collections/remind", { method: "POST", body: JSON.stringify({ invoiceId }) }),
+  remindAllOverdue: (termId: string) =>
+    authedRequest<{ remindersSent: number; totalRecipients: number }>("/v1/fees/collections/remind-all", { method: "POST", body: JSON.stringify({ termId }) }),
 
   // Payments
   recordPayment: (invoiceId: string, amountKobo: number, channel: "CASH" | "BANK_TRANSFER", reference?: string) =>

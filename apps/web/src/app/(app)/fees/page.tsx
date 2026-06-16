@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Spinner, EmptyState } from "@mymakaranta/ui";
-import { api, ApiError, type AcademicYear, type InvoiceRow, type InvoiceDetail } from "@/lib/api";
+import { Button, Spinner, EmptyState, Badge } from "@mymakaranta/ui";
+import { api, ApiError, type AcademicYear, type CollectionRow, type InvoiceDetail } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
 import { Wallet } from "lucide-react";
 
@@ -10,16 +10,36 @@ interface TermOpt { id: string; label: string; isCurrent: boolean; }
 
 const cls = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small text-ink-1000 dark:text-ink-100";
 
+const STATUS_TONE = {
+  OVERDUE: "error",
+  PAID: "success",
+  PARTIAL: "warning",
+  UNPAID: "neutral",
+} as const;
+const STATUS_LABEL = { OVERDUE: "Overdue", PAID: "Paid", PARTIAL: "Partial", UNPAID: "Unpaid" } as const;
+
+function formatDate(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 export default function FeesPage() {
   const [terms, setTerms] = useState<TermOpt[]>([]);
   const [termId, setTermId] = useState("");
   const [currency, setCurrency] = useState("NGN");
 
-  const [rows, setRows] = useState<InvoiceRow[]>([]);
+  const [rows, setRows] = useState<CollectionRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // Collections controls
+  const [dueDateInput, setDueDateInput] = useState("");
+  const [settingDueDate, setSettingDueDate] = useState(false);
+  const [remindingAll, setRemindingAll] = useState(false);
+  const [remindingId, setRemindingId] = useState<string | null>(null);
 
   const [detail, setDetail] = useState<InvoiceDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -61,14 +81,62 @@ export default function FeesPage() {
     setLoading(true);
     setError(null);
     try {
-      setRows(await api.getInvoices(termId));
+      setRows(await api.getCollections(termId));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Could not load invoices.");
+      setError(e instanceof ApiError ? e.message : "Could not load collections.");
     } finally {
       setLoading(false);
     }
   }, [termId]);
   useEffect(() => { void loadInvoices(); }, [loadInvoices]);
+
+  const setDueDate = async () => {
+    if (!termId || !dueDateInput) return;
+    setSettingDueDate(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await api.setDueDate(termId, new Date(dueDateInput).toISOString());
+      setMsg(`Due date set on ${res.updated} invoice(s).`);
+      await loadInvoices();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not set the due date.");
+    } finally {
+      setSettingDueDate(false);
+    }
+  };
+
+  const remindAll = async () => {
+    if (!termId) return;
+    if (!window.confirm("Send reminders to all overdue invoices in this term?")) return;
+    setRemindingAll(true);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await api.remindAllOverdue(termId);
+      setMsg(`${res.remindersSent} reminders, ${res.totalRecipients} recipients`);
+      await loadInvoices();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not send reminders.");
+    } finally {
+      setRemindingAll(false);
+    }
+  };
+
+  const remindOne = async (invoiceId: string) => {
+    setRemindingId(invoiceId);
+    setError(null);
+    setMsg(null);
+    try {
+      const res = await api.remindInvoice(invoiceId);
+      setMsg(`Reminded ${res.recipientCount} recipient(s)`);
+      await loadInvoices();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "Could not send the reminder.");
+    } finally {
+      setRemindingId(null);
+    }
+  };
 
   const generate = async () => {
     if (!termId) return;
@@ -201,6 +269,18 @@ export default function FeesPage() {
         {msg && <span className="text-caption text-success">{msg}</span>}
       </div>
 
+      <div className="mb-6 flex items-end gap-3 flex-wrap">
+        <label className="text-small text-ink-500 flex flex-col gap-1">Due date
+          <input type="date" value={dueDateInput} onChange={(e) => setDueDateInput(e.target.value)} className={cls} />
+        </label>
+        <Button variant="secondary" onClick={setDueDate} disabled={!termId || !dueDateInput || settingDueDate}>
+          {settingDueDate ? "Setting…" : "Set"}
+        </Button>
+        <Button variant="secondary" onClick={remindAll} disabled={!termId || remindingAll}>
+          {remindingAll ? "Reminding…" : "Remind all overdue"}
+        </Button>
+      </div>
+
       {error && <p className="mb-4 text-small text-error">{error}</p>}
 
       {loading ? (
@@ -216,24 +296,36 @@ export default function FeesPage() {
           <table className="w-full text-small border-collapse">
             <thead><tr className="text-left text-ink-500">
               <th className="py-2 pr-3 font-medium">Student</th>
-              <th className="py-2 px-3 font-medium">Class level</th>
+              <th className="py-2 px-3 font-medium">Status</th>
+              <th className="py-2 px-3 font-medium">Due date</th>
               <th className="py-2 px-3 font-medium text-right">Total</th>
               <th className="py-2 px-3 font-medium text-right">Paid</th>
-              <th className="py-2 pl-3 font-medium text-right">Balance</th>
+              <th className="py-2 px-3 font-medium text-right">Balance</th>
+              <th className="py-2 px-3 font-medium">Last reminded</th>
+              <th className="py-2 pl-3 font-medium text-right">Remind</th>
             </tr></thead>
             <tbody>
               {rows.map((r) => (
                 <tr
-                  key={r.studentId}
+                  key={r.invoiceId}
                   className="border-t border-ink-100 dark:border-white/10 cursor-pointer hover:bg-ink-100/50 dark:hover:bg-white/5"
                   onClick={() => openDetail(r.studentId)}
                 >
                   <td className="py-1.5 pr-3 whitespace-nowrap text-ink-1000 dark:text-ink-100">{r.name}</td>
-                  <td className="py-1.5 px-3 text-ink-700 dark:text-ink-300">{r.classLevelName}</td>
+                  <td className="py-1.5 px-3"><Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge></td>
+                  <td className="py-1.5 px-3 whitespace-nowrap text-ink-700 dark:text-ink-300">{formatDate(r.dueDate)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{formatMoney(r.totalKobo, currency)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{formatMoney(r.paidKobo, currency)}</td>
-                  <td className={`py-1.5 pl-3 text-right tabular-nums font-medium ${r.balanceKobo > 0 ? "text-error" : "text-success"}`}>
+                  <td className={`py-1.5 px-3 text-right tabular-nums font-medium ${r.balanceKobo > 0 ? "text-error" : "text-success"}`}>
                     {formatMoney(r.balanceKobo, currency)}
+                  </td>
+                  <td className="py-1.5 px-3 whitespace-nowrap text-ink-700 dark:text-ink-300">{formatDate(r.lastRemindedAt)}</td>
+                  <td className="py-1.5 pl-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    {r.balanceKobo > 0 && (
+                      <Button size="sm" variant="ghost" onClick={() => remindOne(r.invoiceId)} disabled={remindingId === r.invoiceId}>
+                        {remindingId === r.invoiceId ? "Reminding…" : "Remind"}
+                      </Button>
+                    )}
                   </td>
                 </tr>
               ))}
