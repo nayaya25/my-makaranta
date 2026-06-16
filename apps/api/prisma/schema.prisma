@@ -91,6 +91,7 @@ model School {
   feeItems           FeeItem[]
   invoices           Invoice[]
   invoiceLines       InvoiceLine[]
+  payments           Payment[]
 }
 
 model AcademicYear {
@@ -520,6 +521,7 @@ model Invoice {
   paidKobo     Int           @default(0)
   issuedAt     DateTime      @default(now())
   lines        InvoiceLine[]
+  payments     Payment[]
 
   @@unique([studentId, termId])
   @@index([schoolId, termId])
@@ -535,4 +537,39 @@ model InvoiceLine {
   amountKobo Int
 
   @@index([schoolId, invoiceId])
+}
+
+model Payment {
+  id          String         @id @default(cuid())
+  schoolId    String
+  school      School         @relation(fields: [schoolId], references: [id])
+  invoiceId   String
+  invoice     Invoice        @relation(fields: [invoiceId], references: [id])
+  amountKobo  Int
+  channel     PaymentChannel
+  reference   String         @unique
+  status      PaymentStatus  @default(PENDING)
+  paidAt      DateTime?
+  recordedBy  String
+  createdAt   DateTime       @default(now())
+  receipt     Receipt?
+
+  @@index([schoolId, invoiceId])
+}
+
+model Receipt {
+  id               String   @id @default(cuid())
+  code             String   @unique
+  paymentId        String   @unique
+  payment          Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  schoolId         String
+  receiptNo        String
+  studentName      String
+  schoolName       String
+  termLabel        String
+  amountKobo       Int
+  channel          String
+  paidAt           DateTime
+  balanceAfterKobo Int
+  createdAt        DateTime @default(now())
 }
