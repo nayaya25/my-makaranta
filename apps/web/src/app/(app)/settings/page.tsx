@@ -34,6 +34,20 @@ export default function SettingsPage() {
             </CardBody>
           </Card>
         </Link>
+        <Link href="/settings/fees" className="block">
+          <Card elevation="sm" interactive>
+            <CardHeader>
+              <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">
+                Fees
+              </h2>
+            </CardHeader>
+            <CardBody>
+              <p className="text-small text-ink-500">
+                Per-class-level fee structure for each term.
+              </p>
+            </CardBody>
+          </Card>
+        </Link>
       </div>
     </div>
   );

@@ -345,6 +345,16 @@ export type VerifyResult =
       issuedAt: string;
     };
 
+export interface FeeItemRow { id: string; name: string; amountKobo: number; order: number; }
+export interface InvoiceRow { studentId: string; name: string; classLevelName: string; totalKobo: number; paidKobo: number; balanceKobo: number; }
+export interface InvoiceDetail {
+  student: { name: string; admissionNo: string };
+  term: { label: string };
+  classLevelName: string;
+  lines: Array<{ name: string; amountKobo: number }>;
+  totalKobo: number; paidKobo: number; balanceKobo: number;
+}
+
 export const api = {
   requestOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
@@ -568,4 +578,16 @@ export const api = {
     authedRequest<ReportCard>(`/v1/assessment/report-card?studentId=${studentId}&termId=${termId}`),
   verifyResult: (code: string) =>
     request<VerifyResult>(`/v1/public/verify/${encodeURIComponent(code)}`),
+
+  // Fees
+  getFeeItems: (classLevelId: string, termId: string) =>
+    authedRequest<FeeItemRow[]>(`/v1/fees/items?classLevelId=${classLevelId}&termId=${termId}`),
+  setFeeItems: (classLevelId: string, termId: string, items: Array<{ name: string; amountKobo: number; order: number }>) =>
+    authedRequest<FeeItemRow[]>("/v1/fees/items", { method: "POST", body: JSON.stringify({ classLevelId, termId, items }) }),
+  generateInvoices: (termId: string) =>
+    authedRequest<{ created: number; refreshed: number; skipped: number }>("/v1/fees/generate", { method: "POST", body: JSON.stringify({ termId }) }),
+  getInvoices: (termId: string, classId?: string) =>
+    authedRequest<InvoiceRow[]>(`/v1/fees/invoices?termId=${termId}${classId ? `&classId=${classId}` : ""}`),
+  getInvoiceDetail: (studentId: string, termId: string) =>
+    authedRequest<InvoiceDetail>(`/v1/fees/invoice?studentId=${studentId}&termId=${termId}`),
 };
