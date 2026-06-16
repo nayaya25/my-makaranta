@@ -92,6 +92,7 @@ model School {
   invoices           Invoice[]
   invoiceLines       InvoiceLine[]
   payments           Payment[]
+  feeReminders       FeeReminder[]
 }
 
 model AcademicYear {
@@ -519,9 +520,11 @@ model Invoice {
   classLevel   ClassLevel    @relation(fields: [classLevelId], references: [id])
   totalKobo    Int
   paidKobo     Int           @default(0)
+  dueDate      DateTime?
   issuedAt     DateTime      @default(now())
   lines        InvoiceLine[]
   payments     Payment[]
+  reminders    FeeReminder[]
 
   @@unique([studentId, termId])
   @@index([schoolId, termId])
@@ -535,6 +538,20 @@ model InvoiceLine {
   invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   name       String
   amountKobo Int
+
+  @@index([schoolId, invoiceId])
+}
+
+model FeeReminder {
+  id             String   @id @default(cuid())
+  schoolId       String
+  school         School   @relation(fields: [schoolId], references: [id])
+  invoiceId      String
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  sentBy         String
+  sentAt         DateTime @default(now())
+  recipientCount Int
+  channels       String
 
   @@index([schoolId, invoiceId])
 }
