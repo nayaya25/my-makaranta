@@ -367,6 +367,13 @@ export interface FinanceSummary {
   byClassLevel: Array<{ classLevelId: string; classLevelName: string; expectedKobo: number; collectedKobo: number; outstandingKobo: number; studentCount: number }>;
 }
 
+export interface ProprietorDashboard {
+  term: { id: string; name: string; number: number } | null;
+  fees: { expectedKobo: number; collectedKobo: number; outstandingKobo: number; overdueKobo: number; collectedThisWeekKobo: number };
+  attendance: { rate: number; presentDays: number; totalDays: number; windowFrom: string; windowTo: string };
+  results: { classesReleased: number; classesTotal: number; topClass: { classId: string; name: string; average: number } | null };
+}
+
 export interface BankRow { reference: string; amountKobo: number; narration: string; date?: string }
 export interface MatchCandidateView { invoiceId: string; studentName: string; admissionNo: string; balanceKobo: number; score: number; confidence: "high" | "low" | "none" }
 export interface ProposedMatch { row: BankRow; candidates: MatchCandidateView[]; suggestedInvoiceId: string | null }
@@ -631,6 +638,8 @@ export const api = {
     authedRequest<InvoiceDetail>(`/v1/fees/invoice?studentId=${studentId}&termId=${termId}`),
   getCollections: (termId: string) => authedRequest<CollectionRow[]>(`/v1/fees/collections?termId=${termId}`),
   getFinanceSummary: (termId: string) => authedRequest<FinanceSummary>(`/v1/fees/finance/summary?termId=${termId}`),
+  getProprietorDashboard: (termId?: string) =>
+    authedRequest<ProprietorDashboard>(`/v1/dashboard/proprietor${termId ? `?termId=${termId}` : ""}`),
   setDueDate: (termId: string, dueDate: string) =>
     authedRequest<{ updated: number }>("/v1/fees/collections/due-date", { method: "POST", body: JSON.stringify({ termId, dueDate }) }),
   remindInvoice: (invoiceId: string) =>

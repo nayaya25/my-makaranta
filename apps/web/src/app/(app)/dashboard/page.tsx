@@ -7,6 +7,7 @@ import { Button, Card, CardBody, CardHeader, Badge } from "@mymakaranta/ui";
 import { session } from "@/lib/auth";
 import type { AuthUser } from "@/lib/api";
 import { Users, UserSquare2, BookOpen, ArrowRight } from "lucide-react";
+import ProprietorDashboardView from "./proprietor-dashboard";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -26,6 +27,10 @@ export default function DashboardPage() {
   if (user.identityType === "PARENT") {
     router.replace("/parent");
     return null;
+  }
+
+  if (user.identityType === "PROPRIETOR" && user.schoolId) {
+    return <ProprietorDashboardView />;
   }
 
   if (!user.schoolId) {
