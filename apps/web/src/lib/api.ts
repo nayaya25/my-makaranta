@@ -426,6 +426,26 @@ export interface PublicReceipt {
   balanceAfterKobo: number;
 }
 
+export interface SentAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  audienceType: "ALL" | "LEVEL" | "CLASS";
+  audienceIds: string[];
+  channels: string[];
+  sentAt: string;
+  recipientCount: number;
+  readCount: number;
+}
+export interface ParentAnnouncement {
+  recipientId: string;
+  announcementId: string;
+  title: string;
+  body: string;
+  sentAt: string;
+  readAt: string | null;
+}
+
 export const api = {
   requestOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
@@ -463,6 +483,13 @@ export const api = {
   listClasses: () => authedRequest<Class[]>("/v1/classes"),
   createClass: (data: { classLevelId: string; name: string }) =>
     authedRequest<Class>("/v1/classes", { method: "POST", body: JSON.stringify(data) }),
+
+  createAnnouncement: (input: { title: string; body: string; audienceType: "ALL" | "LEVEL" | "CLASS"; audienceIds: string[]; channels: ("SMS" | "EMAIL")[] }) =>
+    authedRequest<{ id: string; recipientCount: number }>("/v1/announcements", { method: "POST", body: JSON.stringify(input) }),
+  listAnnouncements: () => authedRequest<SentAnnouncement[]>("/v1/announcements"),
+  getParentAnnouncements: () => authedRequest<ParentAnnouncement[]>("/v1/parent/announcements"),
+  markAnnouncementRead: (announcementId: string) =>
+    authedRequest<{ ok: boolean }>(`/v1/parent/announcements/${announcementId}/read`, { method: "POST" }),
 
   listSubjects: () => authedRequest<Subject[]>("/v1/subjects"),
   createSubject: (data: { name: string; code: string }) =>

@@ -15,6 +15,7 @@ import {
   ClipboardList,
   BarChart3,
   Lock,
+  Megaphone,
   Wallet,
   Settings,
   LogOut,
@@ -31,11 +32,15 @@ const NAV_ITEMS = [
   { href: "/gradebook", label: "Gradebook", icon: ClipboardList },
   { href: "/review", label: "Review", icon: BarChart3 },
   { href: "/release", label: "Release", icon: Lock },
+  { href: "/announcements", label: "Announcements", icon: Megaphone },
   { href: "/fees", label: "Fees", icon: Wallet },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-const PARENT_NAV = [{ href: "/parent", label: "Fees", icon: Wallet }];
+const PARENT_NAV = [
+  { href: "/parent", label: "Fees", icon: Wallet },
+  { href: "/parent/announcements", label: "Announcements", icon: Megaphone },
+];
 
 function NavLink({
   href,
