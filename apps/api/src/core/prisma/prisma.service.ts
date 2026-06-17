@@ -26,6 +26,8 @@ const TENANT_MODELS = new Set([
   "InvoiceLine",
   "Payment",
   "FeeReminder",
+  "Announcement",
+  "AnnouncementRecipient",
 ]);
 
 @Injectable()

@@ -93,6 +93,8 @@ model School {
   invoiceLines       InvoiceLine[]
   payments           Payment[]
   feeReminders       FeeReminder[]
+  announcements          Announcement[]
+  announcementRecipients AnnouncementRecipient[]
 }
 
 model AcademicYear {
@@ -222,8 +224,41 @@ model Parent {
   lastName      String
   preferredLang LangCode   @default(EN)
   guardians     Guardian[]
+  announcementRecipients AnnouncementRecipient[]
 
   @@unique([schoolId, phone])
+}
+
+model Announcement {
+  id           String                  @id @default(cuid())
+  schoolId     String
+  school       School                  @relation(fields: [schoolId], references: [id])
+  authorId     String
+  title        String
+  body         String
+  audienceType String
+  audienceIds  String[]
+  channels     String[]
+  sentAt       DateTime                @default(now())
+  recipients   AnnouncementRecipient[]
+
+  @@index([schoolId, sentAt])
+}
+
+model AnnouncementRecipient {
+  id             String       @id @default(cuid())
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id])
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  parentId       String
+  parent         Parent       @relation(fields: [parentId], references: [id])
+  readAt         DateTime?
+  smsSent        Boolean      @default(false)
+  emailSent      Boolean      @default(false)
+
+  @@unique([announcementId, parentId])
+  @@index([schoolId, parentId])
 }
 
 model Guardian {
