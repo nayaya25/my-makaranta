@@ -25,6 +25,13 @@ export class AnnouncementsController {
     return this.service.list();
   }
 
+  @Get("announcements/:id")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("announcements.view")
+  receipts(@Param("id") id: string) {
+    return this.service.getRecipients(id);
+  }
+
   @Get("parent/announcements")
   @UseGuards(JwtAuthGuard)
   parentInbox(@CurrentUser() user: RequestUser) {
