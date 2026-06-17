@@ -114,13 +114,13 @@ export class AuthService {
     });
     if (parents.length !== 1) return user;
     const parent = parents[0]!;
-    const perms = await this.prisma.permission.findMany({
-      where: { key: { in: ["fees.pay.own", "results.view.own"] } },
-      select: { id: true },
-    });
-    return this.prisma.$transaction(async (tx) => {
-      const updated = await tx.user.update({
-        where: { id: user.id },
+
+    const { linked, fresh } = await this.prisma.$transaction(async (tx) => {
+      // Atomic conditional claim: only one of two concurrent PENDING logins wins the link
+      // (and the single tokenVersion bump). The WHERE re-checks identityType so a row that
+      // was already claimed/changed yields count === 0.
+      const claim = await tx.user.updateMany({
+        where: { id: user.id, identityType: "PENDING" },
         data: {
           identityType: "PARENT",
           identityId: parent.id,
@@ -128,14 +128,42 @@ export class AuthService {
           tokenVersion: { increment: 1 },
         },
       });
+      if (claim.count === 0) {
+        return { linked: false, fresh: await tx.user.findFirstOrThrow({ where: { id: user.id } }) };
+      }
+      // Resolve permission ids inside the txn so a concurrently-deleted perm cannot leave us
+      // creating a UserPermission against a stale (FK-violating) permissionId.
+      const perms = await tx.permission.findMany({
+        where: { key: { in: ["fees.pay.own", "results.view.own"] } },
+        select: { id: true },
+      });
       if (perms.length > 0) {
         await tx.userPermission.createMany({
           data: perms.map((p) => ({ userId: user.id, permissionId: p.id, scope: {} })),
           skipDuplicates: true,
         });
       }
-      return updated as unknown as T;
+      return { linked: true, fresh: await tx.user.findFirstOrThrow({ where: { id: user.id } }) };
     });
+
+    if (linked) {
+      // Best-effort audit of the identity elevation; an audit failure must never break login.
+      try {
+        await this.prisma.auditLog.create({
+          data: {
+            schoolId: parent.schoolId,
+            actorId: user.id,
+            action: "User.linkParent",
+            resourceType: "User",
+            resourceId: user.id,
+            after: { identityType: "PARENT", identityId: parent.id, schoolId: parent.schoolId },
+          },
+        });
+      } catch {
+        // best-effort audit; never break login
+      }
+    }
+    return fresh as unknown as T;
   }
 
   /** Step-up re-verification: validate a fresh OTP for an already-authenticated user. No JWT issued; single-use. */
