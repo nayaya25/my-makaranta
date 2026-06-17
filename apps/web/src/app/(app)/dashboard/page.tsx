@@ -23,6 +23,11 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
+  if (user.identityType === "PARENT") {
+    router.replace("/parent");
+    return null;
+  }
+
   if (!user.schoolId) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 flex flex-col items-center gap-6 text-center">

@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@mymakaranta/ui";
 import { session } from "@/lib/auth";
+import type { AuthUser } from "@/lib/api";
 import {
   LayoutDashboard,
   Users,
@@ -33,6 +34,8 @@ const NAV_ITEMS = [
   { href: "/fees", label: "Fees", icon: Wallet },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+const PARENT_NAV = [{ href: "/parent", label: "Fees", icon: Wallet }];
 
 function NavLink({
   href,
@@ -69,17 +72,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    if (!session.token() || !session.user()) {
+    const u = session.user();
+    if (!session.token() || !u) {
       router.replace("/login");
       return;
     }
+    setUser(u);
     setReady(true);
   }, [router]);
 
   if (!ready) return null;
+
+  const navItems = user?.identityType === "PARENT" ? PARENT_NAV : NAV_ITEMS;
 
   function signOut() {
     session.clear();
@@ -120,7 +128,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 p-3 overflow-y-auto">
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <NavLink
               key={item.href}
               {...item}

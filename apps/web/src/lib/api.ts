@@ -371,6 +371,18 @@ export interface BankRow { reference: string; amountKobo: number; narration: str
 export interface MatchCandidateView { invoiceId: string; studentName: string; admissionNo: string; balanceKobo: number; score: number; confidence: "high" | "low" | "none" }
 export interface ProposedMatch { row: BankRow; candidates: MatchCandidateView[]; suggestedInvoiceId: string | null }
 
+export interface ParentInvoice {
+  studentId: string;
+  studentName: string;
+  invoiceId: string;
+  termLabel: string;
+  totalKobo: number;
+  paidKobo: number;
+  balanceKobo: number;
+  status: "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE";
+  dueDate: string | null;
+}
+
 export interface PublicReceipt {
   receiptNo: string;
   school: string;
@@ -641,4 +653,11 @@ export const api = {
     authedRequest<ProposedMatch[]>("/v1/fees/reconcile/propose", { method: "POST", body: JSON.stringify({ termId, rows }) }),
   confirmMatches: (confirmations: Array<{ reference: string; amountKobo: number; invoiceId: string }>) =>
     authedRequest<{ recorded: number; skipped: number; errors: Array<{ reference: string; message: string }> }>("/v1/fees/reconcile/confirm", { method: "POST", body: JSON.stringify({ confirmations }) }),
+
+  // Parent portal
+  getParentInvoices: () => authedRequest<ParentInvoice[]>("/v1/parent/invoices"),
+  parentPay: (invoiceId: string, amountKobo: number, email: string) =>
+    authedRequest<{ reference: string; authorizationUrl: string }>("/v1/parent/pay", { method: "POST", body: JSON.stringify({ invoiceId, amountKobo, email }) }),
+  parentPayVerify: (reference: string) =>
+    authedRequest<{ applied: boolean; status: string; receiptCode?: string }>("/v1/parent/pay/verify", { method: "POST", body: JSON.stringify({ reference }) }),
 };
