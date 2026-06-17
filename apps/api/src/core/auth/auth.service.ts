@@ -79,6 +79,8 @@ export class AuthService {
     }
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
+    user = await this.linkParentIfMatch(user);
+
     const token = await this.jwt.signAsync({
       sub: user.id,
       phone: user.phone,
@@ -95,6 +97,45 @@ export class AuthService {
         identityType: user.identityType,
       },
     };
+  }
+
+  /**
+   * Auto-claim a freshly auto-provisioned (PENDING) login as a PARENT when their phone matches
+   * exactly one Parent record. A phone that matches Parents across multiple schools is ambiguous
+   * and left PENDING (no tenant assignment) until explicitly invited/claimed.
+   */
+  private async linkParentIfMatch<T extends { id: string; phone: string | null; identityType: string }>(
+    user: T,
+  ): Promise<T> {
+    if (user.identityType !== "PENDING" || !user.phone) return user;
+    const parents = await this.prisma.parent.findMany({
+      where: { phone: user.phone },
+      select: { id: true, schoolId: true },
+    });
+    if (parents.length !== 1) return user;
+    const parent = parents[0]!;
+    const perms = await this.prisma.permission.findMany({
+      where: { key: { in: ["fees.pay.own", "results.view.own"] } },
+      select: { id: true },
+    });
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: user.id },
+        data: {
+          identityType: "PARENT",
+          identityId: parent.id,
+          schoolId: parent.schoolId,
+          tokenVersion: { increment: 1 },
+        },
+      });
+      if (perms.length > 0) {
+        await tx.userPermission.createMany({
+          data: perms.map((p) => ({ userId: user.id, permissionId: p.id, scope: {} })),
+          skipDuplicates: true,
+        });
+      }
+      return updated as unknown as T;
+    });
   }
 
   /** Step-up re-verification: validate a fresh OTP for an already-authenticated user. No JWT issued; single-use. */
