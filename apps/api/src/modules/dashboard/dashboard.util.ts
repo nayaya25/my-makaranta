@@ -33,3 +33,7 @@ export function pickTopClass(
   }
   return best;
 }
+
+export function feePaidRate(collectedKobo: number, expectedKobo: number): number {
+  return expectedKobo === 0 ? 0 : collectedKobo / expectedKobo;
+}

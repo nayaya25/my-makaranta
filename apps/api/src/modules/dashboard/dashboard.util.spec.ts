@@ -1,4 +1,4 @@
-import { attendanceRate, pickTopClass } from "./dashboard.util";
+import { attendanceRate, pickTopClass, feePaidRate } from "./dashboard.util";
 
 describe("attendanceRate", () => {
   it("counts present + late as attended over total", () => {
@@ -33,5 +33,17 @@ describe("pickTopClass", () => {
         { classId: "b", name: "B", average: 80 },
       ]),
     ).toEqual({ classId: "a", name: "A", average: 80 });
+  });
+});
+
+describe("feePaidRate", () => {
+  it("returns the collected/expected ratio", () => {
+    expect(feePaidRate(9000000, 12000000)).toBe(0.75);
+  });
+  it("returns 0 (not NaN) when nothing is expected", () => {
+    expect(feePaidRate(0, 0)).toBe(0);
+  });
+  it("can exceed 1 on overpayment (credit)", () => {
+    expect(feePaidRate(12000000, 10000000)).toBe(1.2);
   });
 });
