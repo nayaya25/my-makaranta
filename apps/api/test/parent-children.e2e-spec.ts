@@ -6,6 +6,7 @@ import { PrismaModule } from "../src/core/prisma/prisma.module";
 import { PrismaService } from "../src/core/prisma/prisma.service";
 import { TenantContext } from "../src/core/tenant/tenant.context";
 import { AuthModule } from "../src/core/auth/auth.module";
+import { PaymentsProviderModule } from "../src/core/payments/payments.module";
 import { ParentModule } from "../src/modules/parent/parent.module";
 import { ParentService } from "../src/modules/parent/parent.service";
 import { getJwtSecret } from "../src/core/config/secrets";
@@ -27,6 +28,7 @@ describe("Parent children (e2e)", () => {
         PassportModule,
         PrismaModule,
         AuthModule,
+        PaymentsProviderModule,
         ParentModule,
       ],
     }).compile();
