@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { summarizeInvoices, type SummaryRow } from "../fees/finance-summary.util";
-import { attendanceRate, pickTopClass, type AttendanceCounts, type TopClassRow } from "./dashboard.util";
+import { attendanceRate, pickTopClass, feePaidRate, type AttendanceCounts, type TopClassRow } from "./dashboard.util";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -101,5 +101,103 @@ export class DashboardService {
     const results = { classesReleased: releases.length, classesTotal, topClass: pickTopClass(topRows) };
 
     return { term: { id: term.id, name: term.academicYear.name, number: term.number }, fees, attendance, results };
+  }
+
+  async getPrincipalSummary(termId?: string) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const now = new Date();
+
+    const term = termId
+      ? await this.prisma.term.findFirst({ where: { id: termId, schoolId }, include: { academicYear: { select: { name: true } } } })
+      : await this.prisma.term.findFirst({ where: { schoolId, isCurrent: true }, include: { academicYear: { select: { name: true } } } });
+    if (termId && !term) throw new NotFoundException("Term not found in this school.");
+    if (!term) return { term: null, classes: [] };
+    const termHeader = { id: term.id, name: term.academicYear.name, number: term.number };
+
+    const classes = await this.prisma.class.findMany({
+      where: { schoolId, enrollments: { some: { termId: term.id } } },
+      select: { id: true, name: true, formTeacherId: true, classLevel: { select: { order: true } } },
+    });
+    if (classes.length === 0) return { term: termHeader, classes: [] };
+    const classIds = classes.map((c) => c.id);
+
+    // Form teachers
+    const teacherIds = classes.map((c) => c.formTeacherId).filter((x): x is string => !!x);
+    const staff = teacherIds.length
+      ? await this.prisma.staff.findMany({ where: { schoolId, id: { in: teacherIds } }, select: { id: true, firstName: true, lastName: true } })
+      : [];
+    const teacherBy = new Map(staff.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));
+
+    // Attendance (window = term.startDate .. min(now, term.endDate))
+    const windowTo = now < term.endDate ? now : term.endDate;
+    const attRows = await this.prisma.attendanceRecord.groupBy({
+      by: ["classId", "status"],
+      where: { schoolId, classId: { in: classIds }, date: { gte: term.startDate, lte: windowTo } },
+      _count: { _all: true },
+    });
+    const attBy = new Map<string, AttendanceCounts>();
+    for (const r of attRows) {
+      const c = attBy.get(r.classId) ?? { present: 0, late: 0, absent: 0, excused: 0 };
+      const n = r._count._all;
+      if (r.status === "PRESENT") c.present += n;
+      else if (r.status === "LATE") c.late += n;
+      else if (r.status === "ABSENT") c.absent += n;
+      else if (r.status === "EXCUSED") c.excused += n;
+      attBy.set(r.classId, c);
+    }
+
+    // Offered subjects per class (subject assignments this academic year)
+    const offered = await this.prisma.subjectAssignment.groupBy({
+      by: ["classId"],
+      where: { schoolId, classId: { in: classIds }, academicYearId: term.academicYearId },
+      _count: { _all: true },
+    });
+    const offeredBy = new Map(offered.map((o) => [o.classId, o._count._all]));
+
+    // Scored subjects per class (distinct subjectId with >=1 score)
+    const scoredRows = await this.prisma.score.findMany({
+      where: { schoolId, termId: term.id, classId: { in: classIds } },
+      distinct: ["classId", "subjectId"],
+      select: { classId: true },
+    });
+    const scoredBy = new Map<string, number>();
+    for (const s of scoredRows) scoredBy.set(s.classId, (scoredBy.get(s.classId) ?? 0) + 1);
+
+    // Released set
+    const releases = await this.prisma.release.findMany({ where: { schoolId, termId: term.id, classId: { in: classIds } }, select: { classId: true } });
+    const releasedSet = new Set(releases.map((r) => r.classId));
+
+    // Fees per class via enrollment
+    const enrollments = await this.prisma.enrollment.findMany({ where: { classId: { in: classIds }, termId: term.id }, select: { studentId: true, classId: true } });
+    const classByStudent = new Map(enrollments.map((e) => [e.studentId, e.classId]));
+    const studentIds = enrollments.map((e) => e.studentId);
+    const invoices = studentIds.length
+      ? await this.prisma.invoice.findMany({ where: { schoolId, termId: term.id, studentId: { in: studentIds } }, select: { studentId: true, totalKobo: true, paidKobo: true } })
+      : [];
+    const feesBy = new Map<string, { expectedKobo: number; collectedKobo: number }>();
+    for (const inv of invoices) {
+      const cid = classByStudent.get(inv.studentId);
+      if (!cid) continue;
+      const f = feesBy.get(cid) ?? { expectedKobo: 0, collectedKobo: 0 };
+      f.expectedKobo += inv.totalKobo;
+      f.collectedKobo += inv.paidKobo;
+      feesBy.set(cid, f);
+    }
+
+    const sorted = [...classes].sort((a, b) => a.classLevel.order - b.classLevel.order || a.name.localeCompare(b.name));
+    const rows = sorted.map((c) => {
+      const counts = attBy.get(c.id) ?? { present: 0, late: 0, absent: 0, excused: 0 };
+      const fee = feesBy.get(c.id) ?? { expectedKobo: 0, collectedKobo: 0 };
+      return {
+        classId: c.id,
+        className: c.name,
+        formTeacher: c.formTeacherId ? (teacherBy.get(c.formTeacherId) ?? null) : null,
+        attendance: attendanceRate(counts),
+        results: { subjectsScored: scoredBy.get(c.id) ?? 0, subjectsOffered: offeredBy.get(c.id) ?? 0, released: releasedSet.has(c.id) },
+        fees: { expectedKobo: fee.expectedKobo, collectedKobo: fee.collectedKobo, paidRate: feePaidRate(fee.collectedKobo, fee.expectedKobo) },
+      };
+    });
+
+    return { term: termHeader, classes: rows };
   }
 }

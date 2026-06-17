@@ -14,4 +14,11 @@ export class DashboardController {
   proprietor(@Query("termId") termId?: string) {
     return this.service.getProprietorSummary(termId);
   }
+
+  @Get("principal")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("reports.view")
+  principal(@Query("termId") termId?: string) {
+    return this.service.getPrincipalSummary(termId);
+  }
 }
