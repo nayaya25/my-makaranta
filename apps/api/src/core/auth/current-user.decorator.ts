@@ -5,6 +5,7 @@ export interface RequestUser {
   phone?: string;
   schoolId: string | null;
   identityType: string;
+  identityId?: string;
 }
 
 /** Inject the authenticated user (set by JwtStrategy) into a controller handler. */

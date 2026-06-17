@@ -9,6 +9,7 @@ export interface JwtPayload {
   phone?: string;
   schoolId?: string | null;
   identityType: string;
+  identityId?: string;
   tokenVersion?: number;
 }
 
@@ -34,6 +35,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       phone: user.phone ?? undefined,
       schoolId: user.schoolId,
       identityType: user.identityType,
+      identityId: user.identityId || undefined,
     };
   }
 }

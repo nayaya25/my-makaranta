@@ -86,6 +86,7 @@ export class AuthService {
       phone: user.phone,
       schoolId: user.schoolId,
       identityType: user.identityType,
+      identityId: user.identityId,
       tokenVersion: user.tokenVersion,
     });
     return {
