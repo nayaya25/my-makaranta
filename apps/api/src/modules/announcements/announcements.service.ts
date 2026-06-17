@@ -37,7 +37,12 @@ export class AnnouncementsService {
     }
     if (studentIds.length === 0) return [];
     const guardians = await this.prisma.guardian.findMany({ where: { studentId: { in: studentIds }, student: { schoolId } }, select: { parentId: true } });
-    return [...new Set(guardians.map((g) => g.parentId))];
+    const candidateIds = [...new Set(guardians.map((g) => g.parentId))];
+    if (candidateIds.length === 0) return [];
+    // Guardian has no schoolId — re-validate every parent through the tenant-scoped Parent
+    // model so a cross-school guardian link can never seed a foreign-tenant recipient row.
+    const parents = await this.prisma.parent.findMany({ where: { schoolId, id: { in: candidateIds } }, select: { id: true } });
+    return parents.map((p) => p.id);
   }
 
   async create(dto: CreateAnnouncementDto, user: RequestUser) {
@@ -45,12 +50,17 @@ export class AnnouncementsService {
     const parentIds = await this.resolveParentIds(dto, schoolId);
     const selected = (dto.channels ?? []).filter((c) => c === "SMS" || c === "EMAIL");
     const channels = ["IN_APP", ...selected];
-    const ann = await this.prisma.announcement.create({
-      data: { schoolId, authorId: user.id, title: dto.title, body: dto.body, audienceType: dto.audienceType, audienceIds: dto.audienceIds ?? [], channels },
+    // Announcement + its recipient rows are created atomically (explicit schoolId on both,
+    // since the tx client runs no $use middleware) so a createMany failure leaves no orphan.
+    const ann = await this.prisma.$transaction(async (tx) => {
+      const a = await tx.announcement.create({
+        data: { schoolId, authorId: user.id, title: dto.title, body: dto.body, audienceType: dto.audienceType, audienceIds: dto.audienceIds ?? [], channels },
+      });
+      if (parentIds.length > 0) {
+        await tx.announcementRecipient.createMany({ data: parentIds.map((parentId) => ({ schoolId, announcementId: a.id, parentId })) });
+      }
+      return a;
     });
-    if (parentIds.length > 0) {
-      await this.prisma.announcementRecipient.createMany({ data: parentIds.map((parentId) => ({ schoolId, announcementId: ann.id, parentId })) });
-    }
     const wantSms = selected.includes("SMS");
     const wantEmail = selected.includes("EMAIL");
     if ((wantSms || wantEmail) && parentIds.length > 0) {
