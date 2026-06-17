@@ -2,7 +2,9 @@ import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { summarizeInvoices, type SummaryRow } from "../fees/finance-summary.util";
+import { computeInvoiceStatus } from "../fees/invoice-status.util";
 import { attendanceRate, pickTopClass, feePaidRate, type AttendanceCounts, type TopClassRow } from "./dashboard.util";
+import { buildAlerts, type ClassAlertInput } from "./alerts.util";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -214,5 +216,105 @@ export class DashboardService {
     });
 
     return { term: termHeader, classes: rows };
+  }
+
+  async getAlerts(termId?: string) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const now = new Date();
+
+    const term = termId
+      ? await this.prisma.term.findFirst({ where: { id: termId, schoolId }, include: { academicYear: { select: { name: true } } } })
+      : await this.prisma.term.findFirst({ where: { schoolId, isCurrent: true }, include: { academicYear: { select: { name: true } } } });
+    if (termId && !term) throw new NotFoundException("Term not found in this school.");
+    if (!term) return { term: null, alerts: [] };
+    const termHeader = { id: term.id, name: term.academicYear.name, number: term.number };
+
+    const classes = await this.prisma.class.findMany({
+      where: { schoolId, enrollments: { some: { termId: term.id } } },
+      select: { id: true, name: true },
+    });
+    if (classes.length === 0) return { term: termHeader, alerts: [] };
+    const classIds = classes.map((c) => c.id);
+
+    const windowTo = now < term.endDate ? now : term.endDate;
+    const recentFrom = new Date(Math.max(term.startDate.getTime(), windowTo.getTime() - 7 * 24 * 60 * 60 * 1000));
+
+    // Baseline + recent attendance (two cheap groupBy counts)
+    const accumulate = (rows: { classId: string; status: string; _count: { _all: number } }[]) => {
+      const by = new Map<string, { present: number; late: number; absent: number; excused: number }>();
+      for (const r of rows) {
+        const c = by.get(r.classId) ?? { present: 0, late: 0, absent: 0, excused: 0 };
+        const n = r._count._all;
+        if (r.status === "PRESENT") c.present += n;
+        else if (r.status === "LATE") c.late += n;
+        else if (r.status === "ABSENT") c.absent += n;
+        else if (r.status === "EXCUSED") c.excused += n;
+        by.set(r.classId, c);
+      }
+      return by;
+    };
+    const [baselineRows, recentRows] = await Promise.all([
+      this.prisma.attendanceRecord.groupBy({ by: ["classId", "status"], where: { schoolId, classId: { in: classIds }, date: { gte: term.startDate, lte: windowTo } }, _count: { _all: true } }),
+      this.prisma.attendanceRecord.groupBy({ by: ["classId", "status"], where: { schoolId, classId: { in: classIds }, date: { gte: recentFrom, lte: windowTo } }, _count: { _all: true } }),
+    ]);
+    const baselineBy = accumulate(baselineRows);
+    const recentBy = accumulate(recentRows);
+    const rateOf = (c?: { present: number; late: number; absent: number; excused: number }) => {
+      if (!c) return { rate: 0, marks: 0 };
+      const marks = c.present + c.late + c.absent + c.excused;
+      return { rate: marks === 0 ? 0 : (c.present + c.late) / marks, marks };
+    };
+
+    // Fees per class (expected + overdue) via enrollment
+    const enrollments = await this.prisma.enrollment.findMany({ where: { classId: { in: classIds }, termId: term.id }, select: { studentId: true, classId: true } });
+    const classByStudent = new Map(enrollments.map((e) => [e.studentId, e.classId]));
+    const studentIds = enrollments.map((e) => e.studentId);
+    const invoices = studentIds.length
+      ? await this.prisma.invoice.findMany({ where: { schoolId, termId: term.id, studentId: { in: studentIds } }, select: { studentId: true, totalKobo: true, paidKobo: true, dueDate: true } })
+      : [];
+    const feesBy = new Map<string, { expectedKobo: number; overdueKobo: number }>();
+    for (const inv of invoices) {
+      const cid = classByStudent.get(inv.studentId);
+      if (!cid) continue;
+      const f = feesBy.get(cid) ?? { expectedKobo: 0, overdueKobo: 0 };
+      f.expectedKobo += inv.totalKobo;
+      if (computeInvoiceStatus({ totalKobo: inv.totalKobo, paidKobo: inv.paidKobo, dueDate: inv.dueDate, now }) === "OVERDUE") {
+        f.overdueKobo += inv.totalKobo - inv.paidKobo;
+      }
+      feesBy.set(cid, f);
+    }
+
+    // Results: offered ∩ scored + released
+    const offered = await this.prisma.subjectAssignment.findMany({ where: { schoolId, classId: { in: classIds }, academicYearId: term.academicYearId }, select: { classId: true, subjectId: true } });
+    const offeredBy = new Map<string, Set<string>>();
+    for (const o of offered) { const s = offeredBy.get(o.classId) ?? new Set<string>(); s.add(o.subjectId); offeredBy.set(o.classId, s); }
+    const scoredRows = await this.prisma.score.findMany({ where: { schoolId, termId: term.id, classId: { in: classIds } }, distinct: ["classId", "subjectId"], select: { classId: true, subjectId: true } });
+    const scoredBy = new Map<string, Set<string>>();
+    for (const s of scoredRows) { const set = scoredBy.get(s.classId) ?? new Set<string>(); set.add(s.subjectId); scoredBy.set(s.classId, set); }
+    const releases = await this.prisma.release.findMany({ where: { schoolId, termId: term.id, classId: { in: classIds } }, select: { classId: true } });
+    const releasedSet = new Set(releases.map((r) => r.classId));
+
+    const span = term.endDate.getTime() - term.startDate.getTime();
+    const termElapsedFraction = span <= 0 ? 1 : Math.max(0, Math.min(1, (now.getTime() - term.startDate.getTime()) / span));
+
+    const inputs: ClassAlertInput[] = classes.map((c) => {
+      const baseline = rateOf(baselineBy.get(c.id));
+      const recent = rateOf(recentBy.get(c.id));
+      const fee = feesBy.get(c.id) ?? { expectedKobo: 0, overdueKobo: 0 };
+      const offeredSet = offeredBy.get(c.id) ?? new Set<string>();
+      const scoredSet = scoredBy.get(c.id) ?? new Set<string>();
+      let subjectsScored = 0;
+      for (const sid of scoredSet) if (offeredSet.has(sid)) subjectsScored++;
+      return {
+        classId: c.id,
+        className: c.name,
+        attendance: { baselineRate: baseline.rate, recentRate: recent.rate, recentMarks: recent.marks },
+        fees: { expectedKobo: fee.expectedKobo, overdueKobo: fee.overdueKobo },
+        results: { subjectsScored, subjectsOffered: offeredSet.size, released: releasedSet.has(c.id) },
+        termElapsedFraction,
+      };
+    });
+
+    return { term: termHeader, alerts: buildAlerts(inputs) };
   }
 }

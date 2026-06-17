@@ -240,4 +240,97 @@ describe("Dashboard (e2e)", () => {
       expect(r.classes).toEqual([]);
     });
   });
+
+  describe("alerts", () => {
+    let schoolDId: string;
+    let termD: string;
+    let classDip: string;
+    let classLow: string;
+    let classResults: string;
+    let classHealthy: string;
+    const asD = <T>(fn: () => Promise<T>) => TenantContext.run({ schoolId: schoolDId, userId }, fn);
+
+    beforeAll(async () => {
+      const d = await prisma.school.create({ data: { name: `Dash D ${suffix}`, slug: `dash-d-${suffix}` } });
+      schoolDId = d.id;
+      const ay = await prisma.academicYear.create({ data: { schoolId: schoolDId, name: `DashDYr-${suffix}`, startDate: new Date("2025-09-01"), endDate: new Date("2026-07-31") } });
+      // Term ENDED (endDate < now) → windowTo clamps to endDate, termElapsedFraction = 1.
+      const term = await prisma.term.create({ data: { schoolId: schoolDId, academicYearId: ay.id, number: 1, isCurrent: true, startDate: new Date("2025-09-01"), endDate: new Date("2025-12-20") } });
+      termD = term.id;
+      const mkLevel = (n: number) => prisma.classLevel.create({ data: { schoolId: schoolDId, name: `AL${n}-${suffix}`, order: n } });
+      const l1 = await mkLevel(1); const l2 = await mkLevel(2); const l3 = await mkLevel(3); const l4 = await mkLevel(4);
+      const mkClass = (lvlId: string, name: string) => prisma.class.create({ data: { schoolId: schoolDId, classLevelId: lvlId, name: `${name}-${suffix}` } });
+      const cDip = await mkClass(l1.id, "ADip"); const cLow = await mkClass(l2.id, "ALow");
+      const cRes = await mkClass(l3.id, "ARes"); const cOk = await mkClass(l4.id, "AOk");
+      classDip = cDip.id; classLow = cLow.id; classResults = cRes.id; classHealthy = cOk.id;
+
+      const mkStu = (label: string) => prisma.student.create({ data: { schoolId: schoolDId, admissionNo: `${label}-${suffix}`, firstName: label, lastName: "A", gender: "MALE", dateOfBirth: new Date("2011-01-01") } });
+      // Each class needs >=1 enrolled student so it appears in the term's class list.
+      const dip1 = await mkStu("Dip1"); const dip2 = await mkStu("Dip2");
+      const low1 = await mkStu("Low1"); const res1 = await mkStu("Res1"); const ok1 = await mkStu("Ok1");
+      await prisma.enrollment.createMany({ data: [
+        { studentId: dip1.id, classId: classDip, termId: termD },
+        { studentId: dip2.id, classId: classDip, termId: termD },
+        { studentId: low1.id, classId: classLow, termId: termD },
+        { studentId: res1.id, classId: classResults, termId: termD },
+        { studentId: ok1.id, classId: classHealthy, termId: termD },
+      ] });
+
+      // --- classDip: high baseline (Oct PRESENT) + low recent (Dec 14-19 ABSENT, 12 marks) → dip high.
+      const attData: { schoolId: string; studentId: string; classId: string; date: Date; status: "PRESENT" | "ABSENT"; recordedBy: string }[] = [];
+      for (const sid of [dip1.id, dip2.id]) {
+        for (let day = 1; day <= 6; day++) attData.push({ schoolId: schoolDId, studentId: sid, classId: classDip, date: new Date(`2025-10-0${day}`), status: "PRESENT", recordedBy: "x" });
+        for (let day = 14; day <= 19; day++) attData.push({ schoolId: schoolDId, studentId: sid, classId: classDip, date: new Date(`2025-12-${day}`), status: "ABSENT", recordedBy: "x" });
+      }
+      await prisma.attendanceRecord.createMany({ data: attData });
+      // classDip students fully paid (no overdue), no subjects (no results alert).
+      await prisma.invoice.create({ data: { schoolId: schoolDId, studentId: dip1.id, termId: termD, classLevelId: l1.id, totalKobo: 5000000, paidKobo: 5000000 } });
+
+      // --- classLow: an invoice past due, fully unpaid → overdue 100% → LOW_COLLECTION high. No subjects/attendance.
+      await prisma.invoice.create({ data: { schoolId: schoolDId, studentId: low1.id, termId: termD, classLevelId: l2.id, totalKobo: 5000000, paidKobo: 0, dueDate: new Date("2025-10-15") } });
+
+      // --- classResults: 2 offered, 1 scored, not released, term ended → RESULTS_OVERDUE high. Fully paid (no overdue).
+      const at = await prisma.assessmentType.create({ data: { schoolId: schoolDId, name: `CA-${suffix}`, maxScore: 100, order: 1 } });
+      const subjP = await prisma.subject.create({ data: { schoolId: schoolDId, name: "Phy", code: `PHY-${suffix}` } });
+      const subjQ = await prisma.subject.create({ data: { schoolId: schoolDId, name: "Chem", code: `CHM-${suffix}` } });
+      const staff = await prisma.staff.create({ data: { schoolId: schoolDId, staffNo: `S-${suffix}`, firstName: "T", lastName: "R", email: `s-${suffix}@e.test`, phone: `+234902${String(suffix).slice(-7)}` } });
+      await prisma.subjectAssignment.createMany({ data: [
+        { schoolId: schoolDId, subjectId: subjP.id, classId: classResults, staffId: staff.id, academicYearId: ay.id },
+        { schoolId: schoolDId, subjectId: subjQ.id, classId: classResults, staffId: staff.id, academicYearId: ay.id },
+      ] });
+      await prisma.score.create({ data: { schoolId: schoolDId, studentId: res1.id, subjectId: subjP.id, classId: classResults, assessmentTypeId: at.id, termId: termD, value: 50, recordedBy: "x" } });
+      await prisma.invoice.create({ data: { schoolId: schoolDId, studentId: res1.id, termId: termD, classLevelId: l3.id, totalKobo: 5000000, paidKobo: 5000000 } });
+
+      // --- classHealthy: released + full coverage (1 offered, 1 scored), paid invoice → NO alerts.
+      const subjR = await prisma.subject.create({ data: { schoolId: schoolDId, name: "Bio", code: `BIO-${suffix}` } });
+      await prisma.subjectAssignment.create({ data: { schoolId: schoolDId, subjectId: subjR.id, classId: classHealthy, staffId: staff.id, academicYearId: ay.id } });
+      await prisma.score.create({ data: { schoolId: schoolDId, studentId: ok1.id, subjectId: subjR.id, classId: classHealthy, assessmentTypeId: at.id, termId: termD, value: 80, recordedBy: "x" } });
+      const rel = await prisma.release.create({ data: { schoolId: schoolDId, classId: classHealthy, termId: termD, releasedBy: "x" } });
+      await prisma.resultSheet.create({ data: { schoolId: schoolDId, releaseId: rel.id, studentId: ok1.id, classId: classHealthy, termId: termD, average: 80, position: 1 } });
+      await prisma.invoice.create({ data: { schoolId: schoolDId, studentId: ok1.id, termId: termD, classLevelId: l4.id, totalKobo: 5000000, paidKobo: 5000000 } });
+    });
+
+    const byClass = (alerts: { classId: string; type: string; severity: string }[], cid: string) =>
+      alerts.filter((a) => a.classId === cid).map((a) => [a.type, a.severity]);
+
+    it("emits exactly the expected alert per class (no termId → current term)", async () => {
+      const r = await asD(() => dashboard.getAlerts());
+      expect(r.term?.id).toBe(termD);
+      expect(byClass(r.alerts, classDip)).toEqual([["ATTENDANCE_DIP", "high"]]);
+      expect(byClass(r.alerts, classLow)).toEqual([["LOW_COLLECTION", "high"]]);
+      expect(byClass(r.alerts, classResults)).toEqual([["RESULTS_OVERDUE", "high"]]);
+      expect(byClass(r.alerts, classHealthy)).toEqual([]);
+      expect(r.alerts.length).toBe(3);
+    });
+
+    it("rejects a foreign term (404)", async () => {
+      await expect(asB(() => dashboard.getAlerts(termD))).rejects.toThrow(NotFoundException);
+    });
+
+    it("returns term:null + [] when the school has no current term", async () => {
+      const r = await asB(() => dashboard.getAlerts());
+      expect(r.term).toBeNull();
+      expect(r.alerts).toEqual([]);
+    });
+  });
 });

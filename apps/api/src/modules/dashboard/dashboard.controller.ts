@@ -21,4 +21,11 @@ export class DashboardController {
   principal(@Query("termId") termId?: string) {
     return this.service.getPrincipalSummary(termId);
   }
+
+  @Get("alerts")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("reports.view")
+  alerts(@Query("termId") termId?: string) {
+    return this.service.getAlerts(termId);
+  }
 }
