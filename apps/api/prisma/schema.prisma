@@ -224,7 +224,6 @@ model Parent {
   lastName      String
   preferredLang LangCode   @default(EN)
   guardians     Guardian[]
-  announcementRecipients AnnouncementRecipient[]
 
   @@unique([schoolId, phone])
 }
@@ -251,14 +250,14 @@ model AnnouncementRecipient {
   school         School       @relation(fields: [schoolId], references: [id])
   announcementId String
   announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
-  parentId       String
-  parent         Parent       @relation(fields: [parentId], references: [id])
+  recipientType  String
+  recipientId    String
   readAt         DateTime?
   smsSent        Boolean      @default(false)
   emailSent      Boolean      @default(false)
 
-  @@unique([announcementId, parentId])
-  @@index([schoolId, parentId])
+  @@unique([announcementId, recipientType, recipientId], map: "AnnouncementRecipient_ann_type_id_key")
+  @@index([schoolId, recipientType, recipientId], map: "AnnouncementRecipient_school_type_id_idx")
 }
 
 model Guardian {
