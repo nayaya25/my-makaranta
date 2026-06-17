@@ -8,10 +8,12 @@ import { session } from "@/lib/auth";
 import type { AuthUser } from "@/lib/api";
 import { Users, UserSquare2, BookOpen, ArrowRight } from "lucide-react";
 import ProprietorDashboardView from "./proprietor-dashboard";
+import PrincipalDashboardView from "./principal-dashboard";
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [principalDenied, setPrincipalDenied] = useState(false);
 
   useEffect(() => {
     const u = session.user();
@@ -31,6 +33,10 @@ export default function DashboardPage() {
 
   if (user.identityType === "PROPRIETOR" && user.schoolId) {
     return <ProprietorDashboardView />;
+  }
+
+  if (user.schoolId && !principalDenied) {
+    return <PrincipalDashboardView onForbidden={() => setPrincipalDenied(true)} />;
   }
 
   if (!user.schoolId) {

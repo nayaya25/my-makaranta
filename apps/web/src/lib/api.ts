@@ -374,6 +374,19 @@ export interface ProprietorDashboard {
   results: { classesReleased: number; classesTotal: number; topClass: { classId: string; name: string; average: number } | null };
 }
 
+export interface PrincipalClassRow {
+  classId: string;
+  className: string;
+  formTeacher: string | null;
+  attendance: { rate: number; presentDays: number; totalDays: number };
+  results: { subjectsScored: number; subjectsOffered: number; released: boolean };
+  fees: { expectedKobo: number; collectedKobo: number; paidRate: number };
+}
+export interface PrincipalDashboard {
+  term: { id: string; name: string; number: number } | null;
+  classes: PrincipalClassRow[];
+}
+
 export interface BankRow { reference: string; amountKobo: number; narration: string; date?: string }
 export interface MatchCandidateView { invoiceId: string; studentName: string; admissionNo: string; balanceKobo: number; score: number; confidence: "high" | "low" | "none" }
 export interface ProposedMatch { row: BankRow; candidates: MatchCandidateView[]; suggestedInvoiceId: string | null }
@@ -640,6 +653,8 @@ export const api = {
   getFinanceSummary: (termId: string) => authedRequest<FinanceSummary>(`/v1/fees/finance/summary?termId=${termId}`),
   getProprietorDashboard: (termId?: string) =>
     authedRequest<ProprietorDashboard>(`/v1/dashboard/proprietor${termId ? `?termId=${termId}` : ""}`),
+  getPrincipalDashboard: (termId?: string) =>
+    authedRequest<PrincipalDashboard>(`/v1/dashboard/principal${termId ? `?termId=${termId}` : ""}`),
   setDueDate: (termId: string, dueDate: string) =>
     authedRequest<{ updated: number }>("/v1/fees/collections/due-date", { method: "POST", body: JSON.stringify({ termId, dueDate }) }),
   remindInvoice: (invoiceId: string) =>
