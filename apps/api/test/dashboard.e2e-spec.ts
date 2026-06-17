@@ -174,11 +174,14 @@ describe("Dashboard (e2e)", () => {
         { studentId: s3.id, classId: class2, termId: termC },
       ] });
 
-      // class1 scores: subjA + subjB scored (for s1) → 2 distinct subjects. subjC unscored.
+      // class1 scores: subjA + subjB scored (for s1) → 2 distinct OFFERED subjects. subjC unscored.
+      // subjD is NOT offered to class1 (it's a class2 subject); a stray score for it must NOT inflate
+      // class1 coverage above offered (regression guard for the scored>offered edge).
       await prisma.score.createMany({ data: [
         { schoolId: schoolCId, studentId: s1.id, subjectId: subjA.id, classId: class1, assessmentTypeId: at.id, termId: termC, value: 70, recordedBy: "x" },
         { schoolId: schoolCId, studentId: s1.id, subjectId: subjB.id, classId: class1, assessmentTypeId: at.id, termId: termC, value: 60, recordedBy: "x" },
         { schoolId: schoolCId, studentId: s2.id, subjectId: subjA.id, classId: class1, assessmentTypeId: at.id, termId: termC, value: 80, recordedBy: "x" },
+        { schoolId: schoolCId, studentId: s1.id, subjectId: subjD.id, classId: class1, assessmentTypeId: at.id, termId: termC, value: 90, recordedBy: "x" },
       ] });
 
       // class1 released; class2 not.

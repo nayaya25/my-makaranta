@@ -146,22 +146,31 @@ export class DashboardService {
       attBy.set(r.classId, c);
     }
 
-    // Offered subjects per class (subject assignments this academic year)
-    const offered = await this.prisma.subjectAssignment.groupBy({
-      by: ["classId"],
+    // Offered subjects per class (subject assignments this academic year) — keep the
+    // subjectId set so coverage counts only scores for subjects actually offered.
+    const offered = await this.prisma.subjectAssignment.findMany({
       where: { schoolId, classId: { in: classIds }, academicYearId: term.academicYearId },
-      _count: { _all: true },
+      select: { classId: true, subjectId: true },
     });
-    const offeredBy = new Map(offered.map((o) => [o.classId, o._count._all]));
+    const offeredBy = new Map<string, Set<string>>();
+    for (const o of offered) {
+      const set = offeredBy.get(o.classId) ?? new Set<string>();
+      set.add(o.subjectId);
+      offeredBy.set(o.classId, set);
+    }
 
-    // Scored subjects per class (distinct subjectId with >=1 score)
+    // Scored subjects per class (distinct subjectId with >=1 score this term)
     const scoredRows = await this.prisma.score.findMany({
       where: { schoolId, termId: term.id, classId: { in: classIds } },
       distinct: ["classId", "subjectId"],
-      select: { classId: true },
+      select: { classId: true, subjectId: true },
     });
-    const scoredBy = new Map<string, number>();
-    for (const s of scoredRows) scoredBy.set(s.classId, (scoredBy.get(s.classId) ?? 0) + 1);
+    const scoredBy = new Map<string, Set<string>>();
+    for (const s of scoredRows) {
+      const set = scoredBy.get(s.classId) ?? new Set<string>();
+      set.add(s.subjectId);
+      scoredBy.set(s.classId, set);
+    }
 
     // Released set
     const releases = await this.prisma.release.findMany({ where: { schoolId, termId: term.id, classId: { in: classIds } }, select: { classId: true } });
@@ -188,12 +197,18 @@ export class DashboardService {
     const rows = sorted.map((c) => {
       const counts = attBy.get(c.id) ?? { present: 0, late: 0, absent: 0, excused: 0 };
       const fee = feesBy.get(c.id) ?? { expectedKobo: 0, collectedKobo: 0 };
+      const offeredSet = offeredBy.get(c.id) ?? new Set<string>();
+      const scoredSet = scoredBy.get(c.id) ?? new Set<string>();
+      // Coverage = offered subjects that have >=1 score (so a score for a no-longer-offered
+      // subject can never push scored above offered).
+      let subjectsScored = 0;
+      for (const sid of scoredSet) if (offeredSet.has(sid)) subjectsScored++;
       return {
         classId: c.id,
         className: c.name,
         formTeacher: c.formTeacherId ? (teacherBy.get(c.formTeacherId) ?? null) : null,
         attendance: attendanceRate(counts),
-        results: { subjectsScored: scoredBy.get(c.id) ?? 0, subjectsOffered: offeredBy.get(c.id) ?? 0, released: releasedSet.has(c.id) },
+        results: { subjectsScored, subjectsOffered: offeredSet.size, released: releasedSet.has(c.id) },
         fees: { expectedKobo: fee.expectedKobo, collectedKobo: fee.collectedKobo, paidRate: feePaidRate(fee.collectedKobo, fee.expectedKobo) },
       };
     });
