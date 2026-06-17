@@ -21,7 +21,8 @@ export class ParentController {
   constructor(private service: ParentService) {}
 
   @Get("children")
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("fees.pay.own")
   children(@CurrentUser() user: RequestUser) {
     return this.service.getChildren(user);
   }

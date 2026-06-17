@@ -30,7 +30,7 @@ export class ParentService {
     const schoolId = TenantContext.schoolIdOrThrow();
     const parent = await this.prisma.parent.findFirst({ where: { id: user.identityId, schoolId } });
     if (!parent) return [];
-    const guardians = await this.prisma.guardian.findMany({ where: { parentId: parent.id }, select: { studentId: true } });
+    const guardians = await this.prisma.guardian.findMany({ where: { parentId: parent.id, student: { schoolId } }, select: { studentId: true } });
     return guardians.map((g) => g.studentId);
   }
 
