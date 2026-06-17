@@ -55,11 +55,20 @@ export class DashboardService {
       collectedThisWeekKobo: agg._sum.amountKobo ?? 0,
     };
 
-    // --- Attendance (window = term.startDate .. min(now, term.endDate)) ---
+    // The term's classes (classes with an enrolment this term). Used both to scope
+    // attendance to this term and as the classesTotal denominator.
+    const termClasses = await this.prisma.class.findMany({
+      where: { schoolId, enrollments: { some: { termId: term.id } } },
+      select: { id: true },
+    });
+    const termClassIds = termClasses.map((c) => c.id);
+
+    // --- Attendance (window = term.startDate .. min(now, term.endDate), scoped to this
+    // term's classes so prior terms reusing the same class never contaminate the count) ---
     const windowTo = now < term.endDate ? now : term.endDate;
     const grouped = await this.prisma.attendanceRecord.groupBy({
       by: ["status"],
-      where: { schoolId, date: { gte: term.startDate, lte: windowTo } },
+      where: { schoolId, classId: { in: termClassIds }, date: { gte: term.startDate, lte: windowTo } },
       _count: { _all: true },
     });
     const counts: AttendanceCounts = { present: 0, late: 0, absent: 0, excused: 0 };
@@ -74,8 +83,8 @@ export class DashboardService {
     const attendance = { ...att, windowFrom: term.startDate.toISOString(), windowTo: windowTo.toISOString() };
 
     // --- Results ---
-    const [classesTotal, releases, sheetAgg] = await Promise.all([
-      this.prisma.class.count({ where: { schoolId, enrollments: { some: { termId: term.id } } } }),
+    const classesTotal = termClassIds.length;
+    const [releases, sheetAgg] = await Promise.all([
       this.prisma.release.findMany({ where: { schoolId, termId: term.id }, select: { classId: true } }),
       this.prisma.resultSheet.groupBy({ by: ["classId"], where: { schoolId, termId: term.id }, _avg: { average: true } }),
     ]);
