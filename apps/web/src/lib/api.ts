@@ -445,6 +445,16 @@ export interface ParentAnnouncement {
   sentAt: string;
   readAt: string | null;
 }
+export interface AnnouncementReceipts {
+  id: string;
+  title: string;
+  body: string;
+  audienceType: string;
+  channels: string[];
+  sentAt: string;
+  aggregates: { total: number; readCount: number; smsCount: number; emailCount: number };
+  recipients: { recipientType: "PARENT" | "STAFF"; recipientId: string; name: string; smsSent: boolean; emailSent: boolean; readAt: string | null }[];
+}
 
 export const api = {
   requestOtp: (phone: string) =>
@@ -484,9 +494,10 @@ export const api = {
   createClass: (data: { classLevelId: string; name: string }) =>
     authedRequest<Class>("/v1/classes", { method: "POST", body: JSON.stringify(data) }),
 
-  createAnnouncement: (input: { title: string; body: string; audienceType: "ALL" | "LEVEL" | "CLASS"; audienceIds: string[]; channels: ("SMS" | "EMAIL")[] }) =>
+  createAnnouncement: (input: { title: string; body: string; audienceType: "ALL" | "LEVEL" | "CLASS"; audienceIds: string[]; channels: ("SMS" | "EMAIL")[]; roles: ("PARENT" | "STAFF")[] }) =>
     authedRequest<{ id: string; recipientCount: number }>("/v1/announcements", { method: "POST", body: JSON.stringify(input) }),
   listAnnouncements: () => authedRequest<SentAnnouncement[]>("/v1/announcements"),
+  getAnnouncementReceipts: (id: string) => authedRequest<AnnouncementReceipts>(`/v1/announcements/${id}`),
   getParentAnnouncements: () => authedRequest<ParentAnnouncement[]>("/v1/parent/announcements"),
   markAnnouncementRead: (announcementId: string) =>
     authedRequest<{ ok: boolean }>(`/v1/parent/announcements/${announcementId}/read`, { method: "POST" }),
