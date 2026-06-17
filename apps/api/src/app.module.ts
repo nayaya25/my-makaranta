@@ -19,6 +19,7 @@ import { FeesModule } from "./modules/fees/fees.module";
 import { PaymentsModule } from "./modules/payments/payments.module";
 import { PublicModule } from "./modules/public/public.module";
 import { ParentModule } from "./modules/parent/parent.module";
+import { DashboardModule } from "./modules/dashboard/dashboard.module";
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { ParentModule } from "./modules/parent/parent.module";
     PaymentsModule,
     PublicModule,
     ParentModule,
+    DashboardModule,
   ],
   controllers: [AppController],
 })
