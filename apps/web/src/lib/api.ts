@@ -387,6 +387,18 @@ export interface PrincipalDashboard {
   classes: PrincipalClassRow[];
 }
 
+export interface DashboardAlert {
+  type: "ATTENDANCE_DIP" | "LOW_COLLECTION" | "RESULTS_OVERDUE";
+  severity: "high" | "medium";
+  classId: string;
+  className: string;
+  message: string;
+}
+export interface DashboardAlertsResponse {
+  term: { id: string; name: string; number: number } | null;
+  alerts: DashboardAlert[];
+}
+
 export interface BankRow { reference: string; amountKobo: number; narration: string; date?: string }
 export interface MatchCandidateView { invoiceId: string; studentName: string; admissionNo: string; balanceKobo: number; score: number; confidence: "high" | "low" | "none" }
 export interface ProposedMatch { row: BankRow; candidates: MatchCandidateView[]; suggestedInvoiceId: string | null }
@@ -655,6 +667,8 @@ export const api = {
     authedRequest<ProprietorDashboard>(`/v1/dashboard/proprietor${termId ? `?termId=${termId}` : ""}`),
   getPrincipalDashboard: (termId?: string) =>
     authedRequest<PrincipalDashboard>(`/v1/dashboard/principal${termId ? `?termId=${termId}` : ""}`),
+  getDashboardAlerts: (termId?: string) =>
+    authedRequest<DashboardAlertsResponse>(`/v1/dashboard/alerts${termId ? `?termId=${termId}` : ""}`),
   setDueDate: (termId: string, dueDate: string) =>
     authedRequest<{ updated: number }>("/v1/fees/collections/due-date", { method: "POST", body: JSON.stringify({ termId, dueDate }) }),
   remindInvoice: (invoiceId: string) =>

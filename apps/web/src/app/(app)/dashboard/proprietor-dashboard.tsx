@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Card, CardBody, Spinner } from "@mymakaranta/ui";
 import { api, type AcademicYear, type ProprietorDashboard } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
+import AlertsPanel from "./alerts-panel";
 
 interface TermOpt { id: string; label: string; isCurrent: boolean; }
 
@@ -58,6 +59,8 @@ export default function ProprietorDashboardView() {
           </select>
         )}
       </div>
+
+      <AlertsPanel termId={termId || undefined} />
 
       {loading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
