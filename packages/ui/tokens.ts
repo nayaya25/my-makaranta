@@ -1,39 +1,41 @@
 /**
  * Design tokens — single source of truth for myMakaranta's visual language.
- * Base direction: "Bold Ink" (Linear-leaning) — punchy electric indigo, crisp radii,
- * cool canvas, confident elevation. A "Saffron Warmth" layer (warm cream surface +
- * saffron accents + friendlier radius) is applied to the parent/student surfaces.
- * Tailwind consumes this via tailwind-preset.ts; components reference tokens through
- * Tailwind classes, never raw hex.
+ * Direction: a clean, professional SaaS system (Lattice-inspired) — confident
+ * deep teal as the brand (`brand`), a fresh lime as the accent/celebration layer
+ * (`saffron`, kept under its old key so consumers don't break), teal-black ink,
+ * warm sand canvas. Tailwind consumes this via tailwind-preset.ts; components
+ * reference tokens through Tailwind classes, never raw hex.
  */
 
 export const colors = {
   brand: {
-    50: "#EEF0FE",
-    100: "#DADEFB",
-    300: "#8B92F0",
-    500: "#4338CA", // primary — electric indigo
-    700: "#2E2A9E", // pressed / dark-mode primary
-    900: "#181A4E",
+    50: "#DEF6F3",
+    100: "#B1F0E7",
+    300: "#51E0CD", // light accent / dark-mode text
+    500: "#066666", // primary — deep teal
+    700: "#003D3D", // pressed / dark-mode primary
+    900: "#002626",
   },
+  // Lime accent — kept under the `saffron` key so existing `saffron-*` usages
+  // (achievement, celebration, highlight) re-theme without renaming.
   saffron: {
-    100: "#FEF3D9",
-    500: "#E8A33C", // achievement / celebration / parent-surface accent
-    700: "#A06A1A",
+    100: "#EFF5CE",
+    500: "#B3CC18", // lime pop
+    700: "#7B8F00",
   },
   ink: {
-    1000: "#0B0D12", // primary text on light; base canvas (dark)
-    700: "#3C4150",
-    500: "#6B7180",
-    300: "#D9DCE3", // borders
-    100: "#EEF0F4", // subtle fills
+    1000: "#001F1F", // primary text — teal-black
+    700: "#455252",
+    500: "#6A7878",
+    300: "#C4CCCC", // borders
+    100: "#EBF0EF", // subtle fills
   },
   // Surfaces
-  paper: "#F4F5F7", // cool app canvas (admin base)
-  paperWarm: "#FBF7EF", // warm cream canvas (parent/student)
-  paperDark: "#0B0D12", // base canvas (dark) — near-black, not pure
+  paper: "#FAF9F7", // warm sand app canvas
+  paperWarm: "#F7F6F2", // softer sand (parent/student)
+  paperDark: "#05201E", // deep teal-black (dark)
   surface: "#FFFFFF", // card surface (light)
-  surfaceDark: "#15171F", // card surface (dark)
+  surfaceDark: "#0E322E", // card surface (dark)
   // Semantic
   success: "#1F9D55",
   warning: "#D97706",
@@ -43,8 +45,8 @@ export const colors = {
 } as const;
 
 export const fonts = {
-  sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
-  display: ["General Sans", "Inter", "sans-serif"],
+  sans: ["General Sans", "ui-sans-serif", "system-ui", "sans-serif"],
+  display: ["General Sans", "ui-sans-serif", "system-ui", "sans-serif"],
   serif: ["Newsreader", "Georgia", "serif"],
 } as const;
 
@@ -96,7 +98,7 @@ export const shadow = {
   md: "0 4px 14px -3px rgb(11 13 18 / 0.10), 0 2px 6px -3px rgb(11 13 18 / 0.06)",
   lg: "0 8px 24px -8px rgb(11 13 18 / 0.12), 0 6px 12px -8px rgb(11 13 18 / 0.08)",
   xl: "0 24px 48px -12px rgb(11 13 18 / 0.18), 0 12px 24px -12px rgb(11 13 18 / 0.10)",
-  focus: "0 0 0 2px #F4F5F7, 0 0 0 4px #4338CA", // 2px ring + 2px offset
+  focus: "0 0 0 2px #FAF9F7, 0 0 0 4px #066666", // 2px ring + 2px offset
 } as const;
 
 /** Motion — custom ease-out-expo; linear forbidden except indeterminate progress. */
