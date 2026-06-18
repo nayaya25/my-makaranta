@@ -456,6 +456,10 @@ export interface AnnouncementReceipts {
   recipients: { recipientType: "PARENT" | "STAFF"; recipientId: string; name: string; smsSent: boolean; emailSent: boolean; readAt: string | null }[];
 }
 
+export interface Messageable { staffId?: string; staffName?: string; childName?: string; className?: string; parentId?: string; parentName?: string; studentName?: string; }
+export interface ConversationRow { id: string; counterpartName: string; lastMessageAt: string | null; unreadCount: number; }
+export interface ChatMessage { id: string; senderType: "PARENT" | "STAFF"; body: string; sentAt: string; readAt: string | null; }
+
 export const api = {
   requestOtp: (phone: string) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
@@ -739,4 +743,13 @@ export const api = {
     authedRequest<{ reference: string; authorizationUrl: string }>("/v1/parent/pay", { method: "POST", body: JSON.stringify({ invoiceId, amountKobo, email }) }),
   parentPayVerify: (reference: string) =>
     authedRequest<{ applied: boolean; status: string; receiptCode?: string }>("/v1/parent/pay/verify", { method: "POST", body: JSON.stringify({ reference }) }),
+
+  // Direct messaging
+  getMessageable: () => authedRequest<Messageable[]>("/v1/me/messageable"),
+  createConversation: (counterpartId: string) =>
+    authedRequest<{ conversationId: string }>("/v1/me/conversations", { method: "POST", body: JSON.stringify({ counterpartId }) }),
+  getConversations: () => authedRequest<ConversationRow[]>("/v1/me/conversations"),
+  getMessages: (id: string) => authedRequest<ChatMessage[]>(`/v1/me/conversations/${id}/messages`),
+  postMessage: (id: string, body: string) =>
+    authedRequest<{ id: string; sentAt: string }>(`/v1/me/conversations/${id}/messages`, { method: "POST", body: JSON.stringify({ body }) }),
 };

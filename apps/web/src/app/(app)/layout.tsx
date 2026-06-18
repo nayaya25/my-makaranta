@@ -17,6 +17,7 @@ import {
   Lock,
   Megaphone,
   Inbox,
+  MessageSquare,
   Wallet,
   Settings,
   LogOut,
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
   { href: "/release", label: "Release", icon: Lock },
   { href: "/announcements", label: "Announcements", icon: Megaphone },
   { href: "/inbox", label: "Inbox", icon: Inbox },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/fees", label: "Fees", icon: Wallet },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
@@ -42,6 +44,7 @@ const NAV_ITEMS = [
 const PARENT_NAV = [
   { href: "/parent", label: "Fees", icon: Wallet },
   { href: "/parent/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
 ];
 
 function NavLink({
