@@ -221,6 +221,7 @@ model Staff {
 
   @@unique([schoolId, staffNo])
   @@unique([schoolId, email])
+  @@unique([schoolId, phone])
 }
 
 model Student {
