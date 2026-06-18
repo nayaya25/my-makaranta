@@ -5,14 +5,91 @@
 @layer base {
   :root {
     color-scheme: light;
+    /* Semantic, theme-flipping tokens (light). RGB channel triplets so Tailwind's
+       /opacity modifier works (e.g. bg-canvas/85). */
+    --canvas: 255 255 255; /* page background */
+    --surface: 250 249 247; /* subtle section background */
+    --card: 255 255 255; /* raised cards / nav */
+    --content: 0 31 31; /* primary text */
+    --muted: 69 82 82; /* secondary text */
+    --faint: 106 120 120; /* tertiary text */
+    --line: rgba(0, 31, 31, 0.1); /* hairline borders */
   }
   html.dark {
     color-scheme: dark;
+    --canvas: 5 32 30; /* deep teal-black */
+    --surface: 10 42 39;
+    --card: 14 50 46;
+    --content: 234 244 241;
+    --muted: 167 191 187;
+    --faint: 124 152 147;
+    --line: rgba(255, 255, 255, 0.1);
   }
   body {
-    @apply bg-paper text-ink-1000 font-sans antialiased;
+    @apply bg-canvas text-content font-sans antialiased;
   }
-  html.dark body {
-    @apply bg-paper-dark text-ink-100;
+  ::selection {
+    background-color: #b3cc18; /* lime */
+    color: #001f1f;
+  }
+
+  /* Lenis smooth-scroll required styles. */
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+  .lenis.lenis-stopped {
+    overflow: hidden;
+  }
+  .lenis.lenis-smooth iframe {
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Hairline border that flips with the theme. */
+  .ring-hair {
+    border: 1px solid var(--line);
+  }
+  /* Lime-to-teal emphasis gradient (reads on both themes). */
+  .text-pop {
+    background-image: linear-gradient(100deg, #007a7a 0%, #00a3a3 55%, #7b8f00 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  html.dark .text-pop {
+    background-image: linear-gradient(100deg, #51e0cd 0%, #00a3a3 50%, #b3cc18 100%);
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
   }
 }
