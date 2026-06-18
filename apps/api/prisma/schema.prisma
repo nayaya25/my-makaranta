@@ -377,7 +377,8 @@ model UserPermission {
 
 model OtpRequest {
   id        String   @id @default(cuid())
-  phone     String
+  phone     String?
+  email     String?
   codeHash  String
   expiresAt DateTime
   consumed  Boolean  @default(false)
@@ -385,6 +386,7 @@ model OtpRequest {
   createdAt DateTime @default(now())
 
   @@index([phone, createdAt])
+  @@index([email, createdAt])
 }
 
 // === Attendance ===
