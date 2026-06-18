@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Test } from "@nestjs/testing";
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { JwtModule } from "@nestjs/jwt";
 import { PassportModule } from "@nestjs/passport";
@@ -83,5 +83,13 @@ describe("Staff access (e2e)", () => {
   it("keysFor for a non-STAFF identity does not union staff grants", async () => {
     const keys = await asA(() => perms.keysFor({ id: "any", identityType: "PROPRIETOR", identityId: null }));
     expect(keys.has("results.record")).toBe(false); // no UserPermission rows for 'any'
+  });
+
+  it("blocks a STAFF caller from modifying their own permissions (self-escalation)", async () => {
+    const u = await prisma.user.create({ data: { phone: `+234899${String(suffix).slice(-7)}`, identityType: "STAFF", identityId: staffT, schoolId } });
+    await expect(
+      TenantContext.run({ schoolId, userId: u.id }, () => svc.setStaffPermissions(staffT, ["fees.manage"])),
+    ).rejects.toThrow(ForbiddenException);
+    await prisma.user.delete({ where: { id: u.id } });
   });
 });

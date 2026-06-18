@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { ROLE_PRESETS } from "./permission-presets";
@@ -26,6 +26,14 @@ export class StaffAccessService {
 
   async setStaffPermissions(staffId: string, keys: string[]) {
     const schoolId = TenantContext.schoolIdOrThrow();
+    // A staff who holds staff.manage may manage OTHER staff — never elevate their own grant.
+    const callerUserId = TenantContext.current()?.userId;
+    if (callerUserId) {
+      const caller = await this.prisma.user.findFirst({ where: { id: callerUserId }, select: { identityType: true, identityId: true } });
+      if (caller?.identityType === "STAFF" && caller.identityId === staffId) {
+        throw new ForbiddenException("You cannot modify your own permissions.");
+      }
+    }
     await this.assertStaff(staffId, schoolId);
     const unique = [...new Set(keys)];
     const perms = unique.length ? await this.prisma.permission.findMany({ where: { key: { in: unique } }, select: { id: true, key: true } }) : [];
