@@ -1,5 +1,7 @@
 import { Module, RequestMethod, type MiddlewareConsumer, type NestModule } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
 import { JwtModule } from "@nestjs/jwt";
 import { AppController } from "./app.controller";
 import { PrismaModule } from "./core/prisma/prisma.module";
@@ -27,6 +29,7 @@ import { StaffAccessModule } from "./modules/staff-access/staff-access.module";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: process.env.NODE_ENV === "test" ? 100_000 : 120 }]),
     JwtModule.register({
       global: true,
       secret: getJwtSecret(),
@@ -53,6 +56,7 @@ import { StaffAccessModule } from "./modules/staff-access/staff-access.module";
     StaffAccessModule,
   ],
   controllers: [AppController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
