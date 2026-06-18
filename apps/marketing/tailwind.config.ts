@@ -15,6 +15,15 @@ export default {
         sans: ["General Sans", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       colors: {
+        // Semantic, theme-flipping roles (mapped to CSS vars in globals.css).
+        canvas: "rgb(var(--canvas) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        card: "rgb(var(--card) / <alpha-value>)",
+        content: "rgb(var(--content) / <alpha-value>)",
+        muted: "rgb(var(--muted) / <alpha-value>)",
+        faint: "rgb(var(--faint) / <alpha-value>)",
+        line: "var(--line)",
+        // Fixed values — used by the product vignettes (which stay light in both themes).
         ink: "#001F1F", // primary text — teal-black
         graphite: "#455252", // secondary text
         slate: "#6A7878", // tertiary text

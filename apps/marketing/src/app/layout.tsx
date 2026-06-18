@@ -20,6 +20,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
+        {/* Set the theme class before first paint to avoid a flash (FOUC). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
         {/* General Sans — clean geometric sans (our free stand-in for Lattice's Matter). */}
         <link rel="preconnect" href="https://api.fontshare.com" crossOrigin="" />
         <link
