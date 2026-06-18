@@ -5,12 +5,14 @@ import { PrismaService } from "../../prisma/prisma.service";
 export class PermissionsService {
   constructor(private prisma: PrismaService) {}
 
-  /** All permission keys granted to a user, resolved from the DB per request. */
-  async keysFor(userId: string): Promise<Set<string>> {
-    const rows = await this.prisma.userPermission.findMany({
-      where: { userId },
-      include: { permission: true },
-    });
-    return new Set(rows.map((r) => r.permission.key));
+  /** All permission keys for a user: UserPermission rows + (for STAFF) their StaffPermission grants. */
+  async keysFor(user: { id: string; identityType?: string; identityId?: string | null }): Promise<Set<string>> {
+    const rows = await this.prisma.userPermission.findMany({ where: { userId: user.id }, include: { permission: true } });
+    const keys = new Set(rows.map((r) => r.permission.key));
+    if (user.identityType === "STAFF" && user.identityId) {
+      const staffRows = await this.prisma.staffPermission.findMany({ where: { staffId: user.identityId }, include: { permission: true } });
+      for (const r of staffRows) keys.add(r.permission.key);
+    }
+    return keys;
   }
 }

@@ -22,10 +22,10 @@ export class PermissionGuard implements CanActivate {
     ]);
     if (!required || required.length === 0) return true;
 
-    const user = context.switchToHttp().getRequest().user as { id?: string } | undefined;
+    const user = context.switchToHttp().getRequest().user as { id?: string; identityType?: string; identityId?: string | null } | undefined;
     if (!user?.id) throw new ForbiddenException("Not authenticated");
 
-    const granted = await this.permissions.keysFor(user.id);
+    const granted = await this.permissions.keysFor({ id: user.id, identityType: user.identityType, identityId: user.identityId });
     const missing = required.filter((k) => !granted.has(k));
     if (missing.length) {
       throw new ForbiddenException(`Missing permission(s): ${missing.join(", ")}`);

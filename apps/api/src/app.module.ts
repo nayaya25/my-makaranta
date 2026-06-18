@@ -22,6 +22,7 @@ import { ParentModule } from "./modules/parent/parent.module";
 import { AnnouncementsModule } from "./modules/announcements/announcements.module";
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
+import { StaffAccessModule } from "./modules/staff-access/staff-access.module";
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { DashboardModule } from "./modules/dashboard/dashboard.module";
     AnnouncementsModule,
     MessagingModule,
     DashboardModule,
+    StaffAccessModule,
   ],
   controllers: [AppController],
 })
