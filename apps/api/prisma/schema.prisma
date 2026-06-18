@@ -217,6 +217,7 @@ model Staff {
   phone              String
   hiredAt            DateTime            @default(now())
   subjectAssignments SubjectAssignment[]
+  staffPermissions   StaffPermission[]
 
   @@unique([schoolId, staffNo])
   @@unique([schoolId, email])
@@ -347,10 +348,20 @@ model AuditLog {
 }
 
 model Permission {
-  id          String           @id @default(cuid())
-  key         String           @unique
+  id          String            @id @default(cuid())
+  key         String            @unique
   description String
   users       UserPermission[]
+  staffGrants StaffPermission[]
+}
+
+model StaffPermission {
+  staffId      String
+  permissionId String
+  staff        Staff      @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([staffId, permissionId])
 }
 
 model UserPermission {
