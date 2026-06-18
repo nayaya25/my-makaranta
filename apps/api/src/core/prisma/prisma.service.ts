@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { TenantContext } from "../tenant/tenant.context";
 
 /** Models that carry a `schoolId` column and are auto-scoped to the current tenant. */
-const TENANT_MODELS = new Set([
+export const TENANT_MODELS = new Set([
   "AcademicYear",
   "Term",
   "ClassLevel",
