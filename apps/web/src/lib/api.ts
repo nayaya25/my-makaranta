@@ -501,6 +501,9 @@ export const api = {
   getParentAnnouncements: () => authedRequest<ParentAnnouncement[]>("/v1/parent/announcements"),
   markAnnouncementRead: (announcementId: string) =>
     authedRequest<{ ok: boolean }>(`/v1/parent/announcements/${announcementId}/read`, { method: "POST" }),
+  getMyAnnouncements: () => authedRequest<ParentAnnouncement[]>("/v1/me/announcements"),
+  markMyAnnouncementRead: (announcementId: string) =>
+    authedRequest<{ ok: boolean }>(`/v1/me/announcements/${announcementId}/read`, { method: "POST" }),
 
   listSubjects: () => authedRequest<Subject[]>("/v1/subjects"),
   createSubject: (data: { name: string; code: string }) =>

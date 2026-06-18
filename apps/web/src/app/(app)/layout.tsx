@@ -16,6 +16,7 @@ import {
   BarChart3,
   Lock,
   Megaphone,
+  Inbox,
   Wallet,
   Settings,
   LogOut,
@@ -33,6 +34,7 @@ const NAV_ITEMS = [
   { href: "/review", label: "Review", icon: BarChart3 },
   { href: "/release", label: "Release", icon: Lock },
   { href: "/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/fees", label: "Fees", icon: Wallet },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
