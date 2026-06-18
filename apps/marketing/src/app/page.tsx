@@ -1,23 +1,79 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Banknote, Check, GraduationCap, Smartphone, WifiOff } from "lucide-react";
+import {
+  ArrowRight,
+  Banknote,
+  Check,
+  Clock,
+  CreditCard,
+  FileText,
+  Megaphone,
+  Smartphone,
+  WifiOff,
+} from "lucide-react";
 import { CountUp, Reveal } from "../components/motion-primitives";
-import { FeatureShowcase } from "../components/feature-showcase";
 import { Logomark } from "../components/logomark";
+import {
+  AnnouncementsVignette,
+  AttendanceVignette,
+  DashboardVignette,
+  FeesVignette,
+  ResultsVignette,
+} from "../components/vignettes";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.mymakaranta.com";
-
-const HERO_STATS = [
-  { label: "Present today", value: "412" },
-  { label: "Fees collected", value: "₦2.4M" },
-  { label: "Outstanding", value: "₦640K" },
-];
 
 const TRUST = [
   { icon: WifiOff, label: "Works offline" },
   { icon: Banknote, label: "Naira-native" },
   { icon: Smartphone, label: "Runs on a Tecno" },
-  { icon: GraduationCap, label: "Set up in a day" },
+  { icon: Clock, label: "Set up in a day" },
+];
+
+const PLATFORM = [
+  { icon: Clock, title: "Attendance", blurb: "Whole-class roll call in under a minute.", tint: "bg-teal-50", fg: "text-teal-800" },
+  { icon: CreditCard, title: "Fees", blurb: "Collect in Naira; ledgers reconcile themselves.", tint: "bg-lime-50", fg: "text-lime-800" },
+  { icon: FileText, title: "Results", blurb: "Publish result sheets families screenshot.", tint: "bg-lilac-50", fg: "text-lilac-800" },
+  { icon: Megaphone, title: "Parents", blurb: "Announcements and alerts, with read receipts.", tint: "bg-blush-50", fg: "text-blush-800" },
+];
+
+const JOURNEY = [
+  {
+    eyebrow: "Attendance",
+    title: "Take the register in seconds.",
+    body: "Tap once per student; the whole class is marked before assembly ends. Parents of absentees are notified automatically — no calls, no notes home.",
+    bullets: ["Offline-ready roll call", "Automatic absentee alerts", "Termly attendance, per student"],
+    Vignette: AttendanceVignette,
+    tint: "bg-teal-50",
+    reverse: false,
+  },
+  {
+    eyebrow: "Fees",
+    title: "Fees in Naira that reconcile themselves.",
+    body: "Collect by transfer or card. Every payment is matched to the right student, the receipt is written, and the ledger balances itself. Bursary reports stop being a weekend job.",
+    bullets: ["Auto-matched transfers", "Receipts written for you", "Live outstanding-fees view"],
+    Vignette: FeesVignette,
+    tint: "bg-lime-50",
+    reverse: true,
+  },
+  {
+    eyebrow: "Results",
+    title: "Results parents are proud to share.",
+    body: "Enter scores once and publish a polished result sheet in a click. Families see it the same minute — and screenshot it for the group chat.",
+    bullets: ["One-click publishing", "Clean, branded result sheets", "Instant parent access"],
+    Vignette: ResultsVignette,
+    tint: "bg-lilac-50",
+    reverse: false,
+  },
+  {
+    eyebrow: "Parents",
+    title: "Reach every parent, and know they saw it.",
+    body: "Send an announcement to a class or the whole school. It lands where parents already are — and you see exactly who has read it.",
+    bullets: ["Class or school-wide", "WhatsApp-friendly", "Read receipts"],
+    Vignette: AnnouncementsVignette,
+    tint: "bg-blush-50",
+    reverse: true,
+  },
 ];
 
 const SOCIAL_PROOF = [
@@ -28,152 +84,101 @@ const SOCIAL_PROOF = [
 ];
 
 const TIERS = [
-  {
-    name: "Sprout",
-    tagline: "For schools finding their feet",
-    price: "Free",
-    unit: "",
-    limit: "Up to 100 students",
-    highlight: false,
-    features: ["Attendance tracking", "Basic fee management", "Student register", "1 admin user"],
-  },
-  {
-    name: "Grow",
-    tagline: "Small to mid-size schools",
-    price: "₦1,500",
-    unit: "/ student / term",
-    limit: "101 – 300 students",
-    highlight: false,
-    features: ["Everything in Sprout", "Full fee ledger + receipts", "Result-sheet publishing", "5 staff users"],
-  },
-  {
-    name: "Bloom",
-    tagline: "The one most schools pick",
-    price: "₦1,200",
-    unit: "/ student / term",
-    limit: "301 – 600 students",
-    highlight: true,
-    features: ["Everything in Grow", "Parent portal & alerts", "WhatsApp fee reminders", "Unlimited staff users"],
-  },
-  {
-    name: "Flourish",
-    tagline: "Large schools & groups",
-    price: "₦950",
-    unit: "/ student / term",
-    limit: "601+ students",
-    highlight: false,
-    features: ["Everything in Bloom", "Multi-campus support", "Priority support line", "Custom report branding"],
-  },
+  { name: "Sprout", tagline: "Finding your feet", price: "Free", unit: "", limit: "Up to 100 students", highlight: false, features: ["Attendance tracking", "Basic fee management", "Student register", "1 admin user"] },
+  { name: "Grow", tagline: "Small to mid-size", price: "₦1,500", unit: "/ student / term", limit: "101 – 300 students", highlight: false, features: ["Everything in Sprout", "Full fee ledger + receipts", "Result-sheet publishing", "5 staff users"] },
+  { name: "Bloom", tagline: "Most schools pick this", price: "₦1,200", unit: "/ student / term", limit: "301 – 600 students", highlight: true, features: ["Everything in Grow", "Parent portal & alerts", "WhatsApp fee reminders", "Unlimited staff users"] },
+  { name: "Flourish", tagline: "Large schools & groups", price: "₦950", unit: "/ student / term", limit: "601+ students", highlight: false, features: ["Everything in Bloom", "Multi-campus support", "Priority support line", "Custom report branding"] },
 ];
+
+function Eyebrow({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <span className={`text-xs font-600 uppercase tracking-[0.14em] ${className}`}>{children}</span>
+  );
+}
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-cream">
+    <div className="min-h-screen bg-white">
       {/* Nav */}
-      <header className="sticky top-0 z-50 border-b border-bark/10 bg-cream/80 backdrop-blur-md">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+      <header className="sticky top-0 z-50 border-b border-ink/[0.07] bg-white/85 backdrop-blur-md">
+        <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5 sm:px-8">
           <Link href="/" className="flex items-center gap-2.5">
             <Logomark className="h-7 w-7" />
-            <span className="font-display text-xl font-600 tracking-tight text-bark">myMakaranta</span>
+            <span className="text-xl font-700 tracking-tight text-ink">myMakaranta</span>
           </Link>
-          <div className="hidden items-center gap-8 text-small text-stone md:flex">
-            <a href="#features" className="transition-colors hover:text-bark">What it does</a>
-            <a href="#pricing" className="transition-colors hover:text-bark">Pricing</a>
-            <a href="#demo" className="transition-colors hover:text-bark">Demo</a>
+          <div className="hidden items-center gap-8 text-small font-500 text-graphite md:flex">
+            <a href="#platform" className="transition-colors hover:text-ink">Platform</a>
+            <a href="#pricing" className="transition-colors hover:text-ink">Pricing</a>
+            <a href="#demo" className="transition-colors hover:text-ink">Demo</a>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <a href={APP_URL} className="px-3 py-2 text-small font-500 text-bark transition-colors hover:text-forest">
+            <a href={APP_URL} className="px-3 py-2 text-small font-500 text-ink transition-colors hover:text-teal-800">
               Sign in
             </a>
-            <a
-              href={APP_URL}
-              className="rounded-full bg-forest px-5 py-2.5 text-small font-500 text-cream transition-colors duration-300 hover:bg-forest-dark"
-            >
-              Start free
+            <a href="#demo" className="rounded-full bg-teal-800 px-5 py-2.5 text-small font-600 text-white transition-colors duration-300 hover:bg-teal-1000">
+              Request a demo
             </a>
           </div>
         </nav>
       </header>
 
       {/* Hero */}
-      <section className="mx-auto max-w-6xl px-5 pb-10 pt-16 sm:px-8 sm:pt-24">
+      <section className="mx-auto max-w-6xl px-5 pb-12 pt-16 sm:px-8 sm:pt-24">
         <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
           <div>
             <Reveal>
-              <span className="text-caption font-500 uppercase tracking-[0.18em] text-forest">
-                School management, made in Nigeria
+              <span className="inline-flex items-center gap-2 rounded-full bg-teal-50 px-3.5 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-teal-600" />
+                <Eyebrow className="text-teal-800">Made for Nigerian schools</Eyebrow>
               </span>
             </Reveal>
             <Reveal delay={0.08}>
-              <h1 className="mt-5 font-display text-[clamp(2.75rem,6vw,4.5rem)] font-500 leading-[1.04] tracking-tight text-bark">
-                Run a calmer,
-                <br />
-                <span className="italic text-forest">sharper</span> school.
+              <h1 className="mt-5 text-[clamp(2.6rem,6vw,4.25rem)] font-700 leading-[1.03] tracking-[-0.02em] text-ink">
+                Run the <span className="text-pop">whole school</span> from one place.
               </h1>
             </Reveal>
             <Reveal delay={0.16}>
-              <p className="mt-6 max-w-xl text-[1.15rem] leading-relaxed text-stone">
-                myMakaranta takes the register, reconciles the fees, and publishes the results — quietly,
-                in the background — so your teachers can teach and your bursar can finally breathe. Built
-                for Nigerian schools, priced in Naira, fast on the phones your staff already carry.
+              <p className="mt-6 max-w-xl text-[1.15rem] leading-relaxed text-graphite">
+                Attendance, fees in Naira, results, and parent updates — together on one platform built
+                for how Nigerian schools actually run. Your office stops chasing paper, and your teachers
+                get their time back.
               </p>
             </Reveal>
             <Reveal delay={0.24}>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                <a
-                  href={APP_URL}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-forest px-7 py-3.5 text-body font-500 text-cream transition-colors duration-300 hover:bg-forest-dark"
-                >
-                  Start free
+                <a href="#demo" className="inline-flex items-center justify-center gap-2 rounded-full bg-teal-800 px-7 py-3.5 text-body font-600 text-white transition-colors duration-300 hover:bg-teal-1000">
+                  Request a demo
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </a>
-                <a
-                  href="#demo"
-                  className="inline-flex items-center justify-center rounded-full ring-hair bg-transparent px-7 py-3.5 text-body font-500 text-bark transition-colors duration-300 hover:bg-bark/[0.04]"
-                >
-                  See a 15-minute demo
+                <a href={APP_URL} className="inline-flex items-center justify-center rounded-full ring-hair bg-white px-7 py-3.5 text-body font-600 text-ink transition-colors duration-300 hover:bg-sand">
+                  Start free
                 </a>
               </div>
             </Reveal>
             <Reveal delay={0.3}>
-              <p className="mt-4 text-small text-stone">Free under 100 students. No card. No setup fee.</p>
+              <p className="mt-4 text-small text-slate">Free under 100 students. No card. Set up in a day.</p>
             </Reveal>
           </div>
 
-          {/* Hero image + floating stat card */}
+          {/* Hero product panel */}
           <Reveal delay={0.18} y={40}>
-            <div className="relative">
-              <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] ring-hair">
-                <Image
-                  src="/images/students-joy.jpg"
-                  alt="Nigerian schoolchildren in uniform, smiling"
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 45vw"
-                  className="object-cover"
-                />
+            <div className="relative rounded-3xl bg-teal-50 p-5 sm:p-7">
+              <div className="[animation:float-slow_7s_ease-in-out_infinite]">
+                <DashboardVignette />
               </div>
-              <div className="absolute -bottom-6 -left-4 w-[15rem] rounded-2xl bg-cream p-4 shadow-[0_30px_70px_-30px_rgba(26,26,26,0.5)] ring-hair sm:-left-8">
-                <p className="text-caption uppercase tracking-wider text-stone">Today at Unity College</p>
-                <div className="mt-3 space-y-2.5">
-                  {HERO_STATS.map((s) => (
-                    <div key={s.label} className="flex items-center justify-between">
-                      <span className="text-small text-stone">{s.label}</span>
-                      <span className="font-display text-body font-600 tabular-nums text-bark">{s.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <span className="absolute -right-3 -top-3 hidden rounded-full bg-lime-400 px-3 py-1 text-xs font-700 text-ink shadow-md sm:block">
+                Live
+              </span>
             </div>
           </Reveal>
         </div>
 
         {/* Trust pills */}
         <Reveal delay={0.2}>
-          <div className="mt-20 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 border-y border-bark/10 py-6">
+          <div className="mt-16 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 border-y border-ink/[0.08] py-6">
             {TRUST.map((t) => (
-              <span key={t.label} className="inline-flex items-center gap-2 text-small text-stone">
-                <t.icon className="h-4 w-4 text-forest" aria-hidden="true" />
+              <span key={t.label} className="inline-flex items-center gap-2 text-small font-500 text-graphite">
+                <t.icon className="h-4 w-4 text-teal-600" aria-hidden="true" />
                 {t.label}
               </span>
             ))}
@@ -181,62 +186,99 @@ export default function HomePage() {
         </Reveal>
       </section>
 
-      {/* Feature showcase */}
-      <section id="features" className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+      {/* Platform overview grid */}
+      <section id="platform" className="mx-auto max-w-6xl px-5 py-16 sm:px-8 sm:py-20">
         <Reveal>
           <div className="max-w-2xl">
-            <span className="text-caption font-500 uppercase tracking-[0.18em] text-forest">What it does</span>
-            <h2 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] font-500 leading-tight tracking-tight text-bark">
-              The whole school day, handled.
+            <Eyebrow className="text-teal-700">The platform</Eyebrow>
+            <h2 className="mt-3 text-[clamp(1.9rem,4vw,2.75rem)] font-700 leading-tight tracking-[-0.02em] text-ink">
+              Everything the school day needs, in one place.
             </h2>
-            <p className="mt-4 text-body leading-relaxed text-stone">
-              We built myMakaranta in the staff rooms and bursaries of real Nigerian schools. Every feature
-              here earns its place. Tap one to watch it move.
+            <p className="mt-4 text-body leading-relaxed text-graphite">
+              No more juggling notebooks, spreadsheets, and three different WhatsApp groups. One login for
+              your whole school.
             </p>
           </div>
         </Reveal>
-        <Reveal delay={0.1}>
-          <div className="mt-14">
-            <FeatureShowcase />
-          </div>
-        </Reveal>
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {PLATFORM.map((p, i) => (
+            <Reveal key={p.title} delay={i * 0.06}>
+              <div className={`h-full rounded-2xl ${p.tint} p-6`}>
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/70">
+                  <p.icon className={`h-5 w-5 ${p.fg}`} aria-hidden="true" />
+                </span>
+                <h3 className={`mt-4 text-h3 font-700 ${p.fg}`}>{p.title}</h3>
+                <p className="mt-2 text-small leading-relaxed text-graphite">{p.blurb}</p>
+              </div>
+            </Reveal>
+          ))}
+        </div>
       </section>
 
-      {/* Made for Nigeria — editorial image + text */}
-      <section className="bg-cream-deep">
-        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-2">
-          <Reveal y={40}>
-            <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] ring-hair">
-              <Image
-                src="/images/uniform-portrait.jpg"
-                alt="Students in school uniform"
-                fill
-                sizes="(max-width: 1024px) 100vw, 45vw"
-                className="object-cover"
-              />
+      {/* Journey rows */}
+      {JOURNEY.map((row) => {
+        const V = row.Vignette;
+        return (
+          <section key={row.eyebrow} className="mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
+            <div className={`grid items-center gap-10 lg:grid-cols-2 lg:gap-16 ${row.reverse ? "lg:[&>*:first-child]:order-2" : ""}`}>
+              <Reveal>
+                <div>
+                  <Eyebrow className="text-teal-700">{row.eyebrow}</Eyebrow>
+                  <h2 className="mt-3 text-[clamp(1.6rem,3.2vw,2.25rem)] font-700 leading-tight tracking-[-0.02em] text-ink">
+                    {row.title}
+                  </h2>
+                  <p className="mt-4 text-body leading-relaxed text-graphite">{row.body}</p>
+                  <ul className="mt-6 space-y-2.5">
+                    {row.bullets.map((b) => (
+                      <li key={b} className="flex items-center gap-2.5 text-small text-ink">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-mint-50">
+                          <Check className="h-3 w-3 text-mint-800" aria-hidden="true" />
+                        </span>
+                        {b}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </Reveal>
+              <Reveal delay={0.1} y={36}>
+                <div className={`rounded-3xl ${row.tint} p-5 sm:p-8`}>
+                  <V />
+                </div>
+              </Reveal>
+            </div>
+          </section>
+        );
+      })}
+
+      {/* Built for Nigeria — photo + copy */}
+      <section className="bg-sand">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 sm:px-8 sm:py-24 lg:grid-cols-2">
+          <Reveal y={36}>
+            <div className="relative aspect-[4/5] overflow-hidden rounded-3xl ring-hair">
+              <Image src="/images/uniform-portrait.jpg" alt="Students in school uniform" fill sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" />
             </div>
           </Reveal>
           <Reveal delay={0.1}>
             <div>
-              <span className="text-caption font-500 uppercase tracking-[0.18em] text-forest">Why it fits</span>
-              <h2 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] font-500 leading-tight tracking-tight text-bark">
+              <Eyebrow className="text-teal-700">Why it fits</Eyebrow>
+              <h2 className="mt-3 text-[clamp(1.9rem,4vw,2.75rem)] font-700 leading-tight tracking-[-0.02em] text-ink">
                 Built for how Nigerian schools actually run.
               </h2>
-              <p className="mt-5 text-body leading-relaxed text-stone">
-                Software written for somewhere else always shows. So we wrote this one here — for the
-                realities your office knows by heart.
+              <p className="mt-5 text-body leading-relaxed text-graphite">
+                Software written for somewhere else always shows. We built this one here — for the realities
+                your office already knows by heart.
               </p>
               <ul className="mt-7 space-y-4">
                 {[
-                  "The network drops, the work doesn't. Take the register and check the timetable offline; everything syncs the moment you're back.",
-                  "Fees in Naira, by transfer or card, matched to the right student automatically — receipts written, ledger balanced.",
-                  "Light enough for a mid-range Android, and parents get results and reminders where they already are: on WhatsApp.",
+                  "The network drops, the work doesn't — take the register and check the timetable offline; it syncs when you're back.",
+                  "Fees in Naira, by transfer or card, matched to the right student automatically.",
+                  "Light on a mid-range Android, and parents get results and reminders on WhatsApp, where they already are.",
                 ].map((line) => (
                   <li key={line} className="flex gap-3">
-                    <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-forest/10">
-                      <Check className="h-3 w-3 text-forest" aria-hidden="true" />
+                    <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-50">
+                      <Check className="h-3 w-3 text-teal-800" aria-hidden="true" />
                     </span>
-                    <span className="text-small leading-relaxed text-stone">{line}</span>
+                    <span className="text-small leading-relaxed text-graphite">{line}</span>
                   </li>
                 ))}
               </ul>
@@ -245,32 +287,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Community band — assembly image + count-up stats */}
-      <section className="relative overflow-hidden">
-        <Image
-          src="/images/assembly.jpg"
-          alt="Secondary-school assembly"
-          fill
-          sizes="100vw"
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-forest-dark/88" />
+      {/* Stats / testimonial band */}
+      <section className="relative overflow-hidden bg-teal-1000">
+        <Image src="/images/assembly.jpg" alt="" fill sizes="100vw" className="object-cover opacity-15" />
         <div className="relative mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
           <Reveal>
-            <p className="max-w-xl font-display text-[clamp(1.5rem,3vw,2.25rem)] font-400 italic leading-snug text-cream">
-              “The first term it just worked. The bursary stopped chasing paper and started chasing
-              fees.”
+            <p className="max-w-2xl text-[clamp(1.4rem,3vw,2rem)] font-500 leading-snug text-white">
+              “The first term it just worked. The bursary stopped chasing paper and started chasing fees.”
             </p>
-            <p className="mt-4 text-small text-cream/70">— Proprietor, secondary school in Ibadan</p>
+            <p className="mt-4 text-small text-teal-100">— Proprietor, secondary school in Ibadan</p>
           </Reveal>
           <div className="mt-14 grid grid-cols-2 gap-8 sm:grid-cols-4">
             {SOCIAL_PROOF.map((item) => (
               <Reveal key={item.label}>
                 <div>
-                  <p className="font-display text-[clamp(2rem,4vw,2.75rem)] font-600 tabular-nums text-cream">
+                  <p className="text-[clamp(2rem,4vw,2.75rem)] font-700 tabular-nums text-lime-200">
                     <CountUp value={item.value} prefix={item.prefix} suffix={item.suffix} />
                   </p>
-                  <p className="mt-1 text-small text-cream/70">{item.label}</p>
+                  <p className="mt-1 text-small text-teal-100">{item.label}</p>
                 </div>
               </Reveal>
             ))}
@@ -282,68 +316,46 @@ export default function HomePage() {
       <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
         <Reveal>
           <div className="max-w-2xl">
-            <span className="text-caption font-500 uppercase tracking-[0.18em] text-forest">Pricing</span>
-            <h2 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] font-500 leading-tight tracking-tight text-bark">
+            <Eyebrow className="text-teal-700">Pricing</Eyebrow>
+            <h2 className="mt-3 text-[clamp(1.9rem,4vw,2.75rem)] font-700 leading-tight tracking-[-0.02em] text-ink">
               Pay per student, per term. Nothing hidden.
             </h2>
-            <p className="mt-4 text-body leading-relaxed text-stone">
+            <p className="mt-4 text-body leading-relaxed text-graphite">
               Move up or down each term as your school grows. All prices in Naira, exclusive of VAT.
             </p>
           </div>
         </Reveal>
 
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {TIERS.map((tier, i) => (
             <Reveal key={tier.name} delay={i * 0.06}>
-              <div
-                className={`flex h-full flex-col rounded-2xl p-6 transition-transform duration-300 ${
-                  tier.highlight
-                    ? "bg-forest text-cream shadow-[0_30px_70px_-30px_rgba(70,95,92,0.7)]"
-                    : "bg-white ring-hair"
-                }`}
-              >
+              <div className={`flex h-full flex-col rounded-2xl p-6 ${tier.highlight ? "bg-teal-1000 text-white" : "bg-sand ring-hair"}`}>
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className={`font-display text-h3 font-600 ${tier.highlight ? "text-cream" : "text-bark"}`}>
-                      {tier.name}
-                    </p>
-                    <p className={`text-small ${tier.highlight ? "text-cream/70" : "text-stone"}`}>
-                      {tier.tagline}
-                    </p>
+                    <p className={`text-h3 font-700 ${tier.highlight ? "text-white" : "text-ink"}`}>{tier.name}</p>
+                    <p className={`text-small ${tier.highlight ? "text-teal-100" : "text-slate"}`}>{tier.tagline}</p>
                   </div>
                   {tier.highlight && (
-                    <span className="rounded-full bg-cream/15 px-2.5 py-1 text-caption font-500 text-cream">
-                      Popular
-                    </span>
+                    <span className="rounded-full bg-lime-400 px-2.5 py-1 text-caption font-700 text-ink">Popular</span>
                   )}
                 </div>
                 <div className="mt-5">
-                  <span className={`font-display text-h1 font-600 tabular-nums ${tier.highlight ? "text-cream" : "text-bark"}`}>
-                    {tier.price}
-                  </span>
-                  {tier.unit && (
-                    <span className={`ml-1 text-small ${tier.highlight ? "text-cream/70" : "text-stone"}`}>
-                      {tier.unit}
-                    </span>
-                  )}
+                  <span className={`text-h1 font-700 tabular-nums ${tier.highlight ? "text-white" : "text-ink"}`}>{tier.price}</span>
+                  {tier.unit && <span className={`ml-1 text-small ${tier.highlight ? "text-teal-100" : "text-slate"}`}>{tier.unit}</span>}
                 </div>
-                <p className={`mt-1 text-caption ${tier.highlight ? "text-cream/60" : "text-stone"}`}>{tier.limit}</p>
-
+                <p className={`mt-1 text-caption ${tier.highlight ? "text-teal-100/80" : "text-slate"}`}>{tier.limit}</p>
                 <ul className="mt-6 flex-1 space-y-3">
-                  {tier.features.map((feature) => (
-                    <li key={feature} className={`flex items-start gap-2 text-small ${tier.highlight ? "text-cream/90" : "text-stone"}`}>
-                      <Check className={`mt-0.5 h-4 w-4 shrink-0 ${tier.highlight ? "text-cream" : "text-forest"}`} aria-hidden="true" />
-                      {feature}
+                  {tier.features.map((f) => (
+                    <li key={f} className={`flex items-start gap-2 text-small ${tier.highlight ? "text-teal-50" : "text-graphite"}`}>
+                      <Check className={`mt-0.5 h-4 w-4 shrink-0 ${tier.highlight ? "text-lime-200" : "text-teal-600"}`} aria-hidden="true" />
+                      {f}
                     </li>
                   ))}
                 </ul>
-
                 <a
                   href={tier.price === "Free" ? APP_URL : "#demo"}
-                  className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-4 py-2.5 text-small font-500 transition-colors duration-300 ${
-                    tier.highlight
-                      ? "bg-cream text-forest-dark hover:bg-white"
-                      : "ring-hair text-bark hover:bg-bark/[0.04]"
+                  className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-4 py-2.5 text-small font-600 transition-colors duration-300 ${
+                    tier.highlight ? "bg-lime-400 text-ink hover:bg-lime-200" : "ring-hair text-ink hover:bg-white"
                   }`}
                 >
                   {tier.price === "Free" ? "Get started free" : "Book a demo"}
@@ -354,32 +366,24 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Demo CTA — forest band */}
-      <section id="demo" className="bg-forest">
+      {/* CTA */}
+      <section id="demo" className="bg-teal-1000">
         <div className="mx-auto max-w-3xl px-5 py-24 text-center sm:px-8">
           <Reveal>
-            <span className="text-caption font-500 uppercase tracking-[0.18em] text-cream/70">
-              A real walkthrough
-            </span>
-            <h2 className="mt-5 font-display text-[clamp(2rem,4.5vw,3.25rem)] font-500 leading-tight tracking-tight text-cream">
+            <Eyebrow className="text-lime-200">A real walkthrough</Eyebrow>
+            <h2 className="mt-5 text-[clamp(2rem,4.5vw,3rem)] font-700 leading-tight tracking-[-0.02em] text-white">
               See it running your school in fifteen minutes.
             </h2>
-            <p className="mt-5 text-body leading-relaxed text-cream/80">
+            <p className="mt-5 text-body leading-relaxed text-teal-100">
               No slides. No sales pitch. We load your real classes and your real fee structure, then hand
               you the product. Bring your toughest questions.
             </p>
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-              <a
-                href="mailto:demo@mymakaranta.com?subject=Book%20a%20demo"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-cream px-7 py-3.5 text-body font-500 text-forest-dark transition-colors duration-300 hover:bg-white sm:w-auto"
-              >
+              <a href="mailto:demo@mymakaranta.com?subject=Book%20a%20demo" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-lime-400 px-7 py-3.5 text-body font-700 text-ink transition-colors duration-300 hover:bg-lime-200 sm:w-auto">
                 Request a demo
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </a>
-              <a
-                href={APP_URL}
-                className="inline-flex w-full items-center justify-center rounded-full border border-cream/30 px-7 py-3.5 text-body font-500 text-cream transition-colors duration-300 hover:bg-cream/10 sm:w-auto"
-              >
+              <a href={APP_URL} className="inline-flex w-full items-center justify-center rounded-full border border-white/25 px-7 py-3.5 text-body font-600 text-white transition-colors duration-300 hover:bg-white/10 sm:w-auto">
                 Or start free
               </a>
             </div>
@@ -388,24 +392,22 @@ export default function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-bark/10 bg-cream">
+      <footer className="border-t border-ink/[0.07] bg-white">
         <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
             <Link href="/" className="flex items-center gap-2">
               <Logomark className="h-6 w-6" />
-              <span className="font-display text-lg font-600 tracking-tight text-bark">myMakaranta</span>
+              <span className="text-lg font-700 tracking-tight text-ink">myMakaranta</span>
             </Link>
-            <nav aria-label="Footer" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-small text-stone">
-              <a href="#features" className="transition-colors hover:text-bark">What it does</a>
-              <a href="#pricing" className="transition-colors hover:text-bark">Pricing</a>
-              <a href="#demo" className="transition-colors hover:text-bark">Demo</a>
-              <a href={APP_URL} className="transition-colors hover:text-bark">Sign in</a>
-              <a href="mailto:hello@mymakaranta.com" className="transition-colors hover:text-bark">Contact</a>
-              <a href="/privacy" className="transition-colors hover:text-bark">Privacy</a>
+            <nav aria-label="Footer" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-small text-graphite">
+              <a href="#platform" className="transition-colors hover:text-ink">Platform</a>
+              <a href="#pricing" className="transition-colors hover:text-ink">Pricing</a>
+              <a href="#demo" className="transition-colors hover:text-ink">Demo</a>
+              <a href={APP_URL} className="transition-colors hover:text-ink">Sign in</a>
+              <a href="mailto:hello@mymakaranta.com" className="transition-colors hover:text-ink">Contact</a>
+              <a href="/privacy" className="transition-colors hover:text-ink">Privacy</a>
             </nav>
-            <p className="text-caption text-stone">
-              &copy; {new Date().getFullYear()} myMakaranta
-            </p>
+            <p className="text-caption text-slate">&copy; {new Date().getFullYear()} myMakaranta</p>
           </div>
         </div>
       </footer>
