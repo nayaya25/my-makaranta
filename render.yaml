@@ -59,7 +59,12 @@ services:
         value: mock
       - key: EMAIL_PROVIDER
         value: log
-      # Payments fail closed when NODE_ENV=production + PAYMENT_PROVIDER=mock (safety).
-      # To exercise the pay flow, set PAYMENT_PROVIDER=paystack + add Paystack TEST keys.
-      - key: PAYMENT_PROVIDER
-        value: mock
+      # The app REFUSES TO START when NODE_ENV=production unless PAYMENTS_PROVIDER=paystack
+      # (deliberate guard in payments.module.ts). Note the trailing S — the code reads
+      # PAYMENTS_PROVIDER, not PAYMENT_PROVIDER.
+      - key: PAYMENTS_PROVIDER
+        value: paystack
+      # Paystack TEST secret key (sk_test_...). Used for transaction init, verify, and
+      # webhook HMAC. Set in the dashboard; never commit it.
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
