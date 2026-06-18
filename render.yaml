@@ -1,0 +1,65 @@
+# Render Blueprint — myMakaranta NestJS API (free web service)
+#
+# Deploy: Render Dashboard → New + → Blueprint → connect this repo → Apply.
+# Render reads packageManager (pnpm@10.33.2) via corepack automatically.
+#
+# Secrets use `sync: false` → Render prompts for them in the dashboard and never
+# stores values in this committed file. Fill them per the comments below.
+#
+# NOTE: this file + the Upstash-TLS / CI fixes currently live on the `dev` branch.
+# Either merge dev → main before deploying (then `branch: main` below is correct),
+# or change `branch:` to the branch you actually push for deploys.
+
+services:
+  - type: web
+    name: mymakaranta-api
+    runtime: node
+    region: virginia # closest Render region to Neon's aws-us-east-1
+    plan: free
+    branch: main
+    healthCheckPath: /health
+    # Full install (nest + prisma CLIs are devDependencies) → generate client → build.
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @mymakaranta/api exec prisma generate && pnpm --filter @mymakaranta/api build
+    # Apply any pending migrations on each deploy, then start. migrate deploy is
+    # idempotent (no-op when up to date). Uses DATABASE_URL (set to the Neon DIRECT
+    # / unpooled string — see below).
+    startCommand: pnpm --filter @mymakaranta/api exec prisma migrate deploy && pnpm --filter @mymakaranta/api start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: NODE_ENV
+        value: production
+      # Neon UNPOOLED (direct) connection string. The pooled endpoint is PgBouncer
+      # transaction-mode and breaks Prisma prepared statements unless you append
+      # ?pgbouncer=true. A single long-running instance manages its own pool, so use
+      # the direct string. (Find it as DATABASE_URL_UNPOOLED in apps/api/.env.)
+      - key: DATABASE_URL
+        sync: false
+      # Upstash Redis — the rediss:// (TLS) URL, NOT the https:// REST URL.
+      - key: REDIS_URL
+        sync: false
+      # Render generates a strong secret on first deploy.
+      - key: JWT_SECRET
+        generateValue: true
+      # Public URL of the Next.js frontend (Vercel). Set after the FE is deployed.
+      - key: APP_BASE_URL
+        sync: false
+      # This service's own public URL (e.g. https://mymakaranta-api.onrender.com).
+      # Set after the first deploy assigns the hostname.
+      - key: API_BASE_URL
+        sync: false
+      # Comma-separated allowlist of frontend origins for CORS. Set after FE deploy.
+      - key: CORS_ORIGINS
+        sync: false
+      # Free-tier disk is ephemeral (uploads lost on restart/spin-down) — fine for a
+      # test. Switch to s3 + AWS creds for durable storage.
+      - key: STORAGE_PROVIDER
+        value: local
+      - key: SMS_PROVIDER
+        value: mock
+      - key: EMAIL_PROVIDER
+        value: log
+      # Payments fail closed when NODE_ENV=production + PAYMENT_PROVIDER=mock (safety).
+      # To exercise the pay flow, set PAYMENT_PROVIDER=paystack + add Paystack TEST keys.
+      - key: PAYMENT_PROVIDER
+        value: mock
