@@ -86,4 +86,15 @@ describe("Staff link (e2e)", () => {
     const res = await login(phone);
     expect(res.user.identityType).toBe("STAFF");
   });
+
+  it("never relinks an already-claimed identity, even if the phone also matches a Staff", async () => {
+    const phone = `+234817${String(Date.now()).slice(-7)}`;
+    phones.push(phone);
+    // Pre-existing PARENT user (already claimed) whose phone ALSO matches a Staff row.
+    await prisma.user.create({ data: { phone, identityType: "PARENT", identityId: "some-parent-id", schoolId: schoolAId } });
+    await mkStaff(schoolAId, phone, `norelink-${stamp}`);
+    const res = await login(phone);
+    expect(res.user.identityType).toBe("PARENT"); // not downgraded/relinked to STAFF
+    expect(res.user.schoolId).toBe(schoolAId);
+  });
 });
