@@ -79,7 +79,7 @@ export class AuthService {
     }
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
-    user = await this.linkParentIfMatch(user);
+    user = await this.linkIdentityIfMatch(user);
 
     const token = await this.jwt.signAsync({
       sub: user.id,
@@ -101,39 +101,35 @@ export class AuthService {
   }
 
   /**
-   * Auto-claim a freshly auto-provisioned (PENDING) login as a PARENT when their phone matches
-   * exactly one Parent record. A phone that matches Parents across multiple schools is ambiguous
-   * and left PENDING (no tenant assignment) until explicitly invited/claimed.
+   * Auto-claim a freshly auto-provisioned (PENDING) login when their phone matches EXACTLY ONE
+   * identity total — one Parent (xor) one Staff. Zero, multiple, or a cross-type tie (one Parent
+   * AND one Staff) is ambiguous and left PENDING until explicitly claimed.
    */
-  private async linkParentIfMatch<T extends { id: string; phone: string | null; identityType: string }>(
+  private async linkIdentityIfMatch<T extends { id: string; phone: string | null; identityType: string }>(
     user: T,
   ): Promise<T> {
     if (user.identityType !== "PENDING" || !user.phone) return user;
-    const parents = await this.prisma.parent.findMany({
-      where: { phone: user.phone },
-      select: { id: true, schoolId: true },
-    });
-    if (parents.length !== 1) return user;
-    const parent = parents[0]!;
+    const [parents, staff] = await Promise.all([
+      this.prisma.parent.findMany({ where: { phone: user.phone }, select: { id: true, schoolId: true } }),
+      this.prisma.staff.findMany({ where: { phone: user.phone }, select: { id: true, schoolId: true } }),
+    ]);
+    if (parents.length + staff.length !== 1) return user;
+    if (parents.length === 1) return this.linkParent(user, parents[0]!);
+    return this.linkStaff(user, staff[0]!);
+  }
 
+  private async linkParent<T extends { id: string; identityType: string }>(
+    user: T,
+    parent: { id: string; schoolId: string },
+  ): Promise<T> {
     const { linked, fresh } = await this.prisma.$transaction(async (tx) => {
-      // Atomic conditional claim: only one of two concurrent PENDING logins wins the link
-      // (and the single tokenVersion bump). The WHERE re-checks identityType so a row that
-      // was already claimed/changed yields count === 0.
       const claim = await tx.user.updateMany({
         where: { id: user.id, identityType: "PENDING" },
-        data: {
-          identityType: "PARENT",
-          identityId: parent.id,
-          schoolId: parent.schoolId,
-          tokenVersion: { increment: 1 },
-        },
+        data: { identityType: "PARENT", identityId: parent.id, schoolId: parent.schoolId, tokenVersion: { increment: 1 } },
       });
       if (claim.count === 0) {
         return { linked: false, fresh: await tx.user.findFirstOrThrow({ where: { id: user.id } }) };
       }
-      // Resolve permission ids inside the txn so a concurrently-deleted perm cannot leave us
-      // creating a UserPermission against a stale (FK-violating) permissionId.
       const perms = await tx.permission.findMany({
         where: { key: { in: ["fees.pay.own", "results.view.own"] } },
         select: { id: true },
@@ -146,23 +142,37 @@ export class AuthService {
       }
       return { linked: true, fresh: await tx.user.findFirstOrThrow({ where: { id: user.id } }) };
     });
-
     if (linked) {
-      // Best-effort audit of the identity elevation; an audit failure must never break login.
       try {
         await this.prisma.auditLog.create({
-          data: {
-            schoolId: parent.schoolId,
-            actorId: user.id,
-            action: "User.linkParent",
-            resourceType: "User",
-            resourceId: user.id,
-            after: { identityType: "PARENT", identityId: parent.id, schoolId: parent.schoolId },
-          },
+          data: { schoolId: parent.schoolId, actorId: user.id, action: "User.linkParent", resourceType: "User", resourceId: user.id, after: { identityType: "PARENT", identityId: parent.id, schoolId: parent.schoolId } },
         });
-      } catch {
-        // best-effort audit; never break login
+      } catch { /* best-effort audit; never break login */ }
+    }
+    return fresh as unknown as T;
+  }
+
+  private async linkStaff<T extends { id: string; identityType: string }>(
+    user: T,
+    staff: { id: string; schoolId: string },
+  ): Promise<T> {
+    const { linked, fresh } = await this.prisma.$transaction(async (tx) => {
+      const claim = await tx.user.updateMany({
+        where: { id: user.id, identityType: "PENDING" },
+        data: { identityType: "STAFF", identityId: staff.id, schoolId: staff.schoolId, tokenVersion: { increment: 1 } },
+      });
+      if (claim.count === 0) {
+        return { linked: false, fresh: await tx.user.findFirstOrThrow({ where: { id: user.id } }) };
       }
+      // No permission grants — a STAFF identity is not tool access (RBAC assignment is a separate slice).
+      return { linked: true, fresh: await tx.user.findFirstOrThrow({ where: { id: user.id } }) };
+    });
+    if (linked) {
+      try {
+        await this.prisma.auditLog.create({
+          data: { schoolId: staff.schoolId, actorId: user.id, action: "User.linkStaff", resourceType: "User", resourceId: user.id, after: { identityType: "STAFF", identityId: staff.id, schoolId: staff.schoolId } },
+        });
+      } catch { /* best-effort audit; never break login */ }
     }
     return fresh as unknown as T;
   }
