@@ -44,9 +44,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply migrations + seed
+      - name: Generate Prisma client + apply migrations + seed
         working-directory: apps/api
         run: |
+          pnpm exec prisma generate
           pnpm exec prisma migrate deploy
           pnpm exec prisma db seed
 
