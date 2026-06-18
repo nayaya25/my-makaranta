@@ -7,6 +7,11 @@ export function redisConnectionOptions() {
     port: Number(url.port || 6379),
     ...(url.username ? { username: url.username } : {}),
     ...(url.password ? { password: url.password } : {}),
+    // Managed Redis (Upstash, etc.) uses rediss:// (TLS). Because we pass discrete
+    // host/port options rather than the URL string, ioredis won't auto-enable TLS —
+    // set it explicitly when the scheme is rediss:, or the socket stays plaintext
+    // and the provider drops the connection.
+    ...(url.protocol === "rediss:" ? { tls: {} } : {}),
     maxRetriesPerRequest: null as null,
   };
 }

@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@mymakaranta/ui": "workspace:*",
+    "framer-motion": "^11",
+    "lenis": "^1.1",
     "lucide-react": "^0.451.0",
     "next": "^15",
     "react": "^19",
