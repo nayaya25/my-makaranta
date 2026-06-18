@@ -1,16 +1,20 @@
 import { Test } from "@nestjs/testing";
 import type { INestApplication } from "@nestjs/common";
 import { ValidationPipe } from "@nestjs/common";
+import { ConflictException } from "@nestjs/common";
 import { AppModule } from "../src/app.module";
 import { AuthService } from "../src/core/auth/auth.service";
 import { SmsService } from "../src/core/auth/sms.service";
 import { PrismaService } from "../src/core/prisma/prisma.service";
+import { StaffService } from "../src/modules/sis/staff.service";
+import { TenantContext } from "../src/core/tenant/tenant.context";
 
 describe("Staff link (e2e)", () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let auth: AuthService;
   let sms: SmsService;
+  let staffService: StaffService;
   const phones: string[] = [];
 
   beforeAll(async () => {
@@ -18,6 +22,7 @@ describe("Staff link (e2e)", () => {
     prisma = moduleRef.get(PrismaService);
     auth = moduleRef.get(AuthService);
     sms = moduleRef.get(SmsService);
+    staffService = moduleRef.get(StaffService);
     app = moduleRef.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     await app.init();
@@ -69,13 +74,22 @@ describe("Staff link (e2e)", () => {
     expect(res.user.schoolId).toBeNull();
   });
 
-  it("stays PENDING when the phone matches two Staff", async () => {
+  it("stays PENDING when the phone matches staff in two schools", async () => {
     const phone = `+234814${String(Date.now()).slice(-7)}`;
     phones.push(phone);
-    await mkStaff(schoolAId, phone, `two1-${stamp}`);
-    await mkStaff(schoolAId, phone, `two2-${stamp}`);
+    const sb = await prisma.school.create({ data: { name: `SL-B-${stamp}`, slug: `sl-b-${stamp}-${Date.now().toString(36)}` } });
+    await mkStaff(schoolAId, phone, `two-a-${stamp}`);
+    await prisma.staff.create({ data: { schoolId: sb.id, staffNo: `SN-two-b-${stamp}`, firstName: "Staff", lastName: "TwoB", email: `sf-two-b-${stamp}@e.test`, phone } });
     const res = await login(phone);
     expect(res.user.identityType).toBe("PENDING");
+  });
+
+  it("rejects a duplicate (schoolId, phone) staff via the create path (409)", async () => {
+    const phone = `+234818${String(Date.now()).slice(-7)}`;
+    phones.push(phone);
+    const run = <T>(fn: () => Promise<T>) => TenantContext.run({ schoolId: schoolAId, userId: "u" }, fn);
+    await run(() => staffService.create({ staffNo: `D1-${stamp}`, firstName: "Dup", lastName: "One", email: `d1-${stamp}@e.test`, phone } as never));
+    await expect(run(() => staffService.create({ staffNo: `D2-${stamp}`, firstName: "Dup", lastName: "Two", email: `d2-${stamp}@e.test`, phone } as never))).rejects.toThrow(ConflictException);
   });
 
   it("re-login is idempotent — stays STAFF", async () => {
