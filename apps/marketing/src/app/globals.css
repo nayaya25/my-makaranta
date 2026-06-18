@@ -6,13 +6,80 @@
   :root {
     color-scheme: light;
   }
-  html.dark {
-    color-scheme: dark;
-  }
   body {
-    @apply bg-paper text-ink-1000 font-sans antialiased;
+    @apply bg-cream text-stone font-sans antialiased;
   }
-  html.dark body {
-    @apply bg-paper-dark text-ink-100;
+  ::selection {
+    background-color: #465f5c;
+    color: #f0ece6;
+  }
+
+  /* Lenis smooth-scroll required styles. */
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+  .lenis.lenis-stopped {
+    overflow: hidden;
+  }
+  .lenis.lenis-smooth iframe {
+    pointer-events: none;
+  }
+
+  /* Respect reduced-motion (and spare low-end devices). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Hairline divider/border on the cream canvas. */
+  .ring-hair {
+    border: 1px solid rgba(26, 26, 26, 0.1);
+  }
+  /* Forest gradient text for the odd emphasised word. */
+  .text-forest-grad {
+    background-image: linear-gradient(100deg, #465f5c 0%, #5e7b77 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Very subtle paper grain, tuned for a light cream surface. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.03;
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
   }
 }

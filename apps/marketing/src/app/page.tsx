@@ -1,383 +1,410 @@
+import Image from "next/image";
 import Link from "next/link";
-import { Badge, Button, Card, CardBody, CardHeader } from "@mymakaranta/ui";
-import {
-  Clock,
-  CreditCard,
-  FileText,
-  Smartphone,
-  CheckCircle,
-  ArrowRight,
-  GraduationCap,
-} from "lucide-react";
+import { ArrowRight, Banknote, Check, GraduationCap, Smartphone, WifiOff } from "lucide-react";
+import { CountUp, Reveal } from "../components/motion-primitives";
+import { FeatureShowcase } from "../components/feature-showcase";
+import { Logomark } from "../components/logomark";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.mymakaranta.com";
 
+const HERO_STATS = [
+  { label: "Present today", value: "412" },
+  { label: "Fees collected", value: "₦2.4M" },
+  { label: "Outstanding", value: "₦640K" },
+];
+
+const TRUST = [
+  { icon: WifiOff, label: "Works offline" },
+  { icon: Banknote, label: "Naira-native" },
+  { icon: Smartphone, label: "Runs on a Tecno" },
+  { icon: GraduationCap, label: "Set up in a day" },
+];
+
+const SOCIAL_PROOF = [
+  { value: 3200, prefix: "", suffix: "+", label: "Students on the register" },
+  { value: 18, prefix: "₦", suffix: "M+", label: "Fees reconciled" },
+  { value: 98, prefix: "", suffix: "%", label: "Attendance accuracy" },
+  { value: 14, prefix: "", suffix: "", label: "Schools, and counting" },
+];
+
+const TIERS = [
+  {
+    name: "Sprout",
+    tagline: "For schools finding their feet",
+    price: "Free",
+    unit: "",
+    limit: "Up to 100 students",
+    highlight: false,
+    features: ["Attendance tracking", "Basic fee management", "Student register", "1 admin user"],
+  },
+  {
+    name: "Grow",
+    tagline: "Small to mid-size schools",
+    price: "₦1,500",
+    unit: "/ student / term",
+    limit: "101 – 300 students",
+    highlight: false,
+    features: ["Everything in Sprout", "Full fee ledger + receipts", "Result-sheet publishing", "5 staff users"],
+  },
+  {
+    name: "Bloom",
+    tagline: "The one most schools pick",
+    price: "₦1,200",
+    unit: "/ student / term",
+    limit: "301 – 600 students",
+    highlight: true,
+    features: ["Everything in Grow", "Parent portal & alerts", "WhatsApp fee reminders", "Unlimited staff users"],
+  },
+  {
+    name: "Flourish",
+    tagline: "Large schools & groups",
+    price: "₦950",
+    unit: "/ student / term",
+    limit: "601+ students",
+    highlight: false,
+    features: ["Everything in Bloom", "Multi-campus support", "Priority support line", "Custom report branding"],
+  },
+];
+
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-paper dark:bg-paper-dark">
+    <div className="min-h-screen bg-cream">
       {/* Nav */}
-      <header className="sticky top-0 z-50 border-b border-ink-300/50 bg-paper/90 backdrop-blur-sm dark:border-white/10 dark:bg-paper-dark/90">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 font-display text-xl font-700 text-brand-500">
-            <GraduationCap className="h-6 w-6" aria-hidden="true" />
-            <span>myMakaranta</span>
+      <header className="sticky top-0 z-50 border-b border-bark/10 bg-cream/80 backdrop-blur-md">
+        <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+          <Link href="/" className="flex items-center gap-2.5">
+            <Logomark className="h-7 w-7" />
+            <span className="font-display text-xl font-600 tracking-tight text-bark">myMakaranta</span>
           </Link>
+          <div className="hidden items-center gap-8 text-small text-stone md:flex">
+            <a href="#features" className="transition-colors hover:text-bark">What it does</a>
+            <a href="#pricing" className="transition-colors hover:text-bark">Pricing</a>
+            <a href="#demo" className="transition-colors hover:text-bark">Demo</a>
+          </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <a href={APP_URL}>
-              <Button variant="ghost" size="sm">
-                Sign in
-              </Button>
+            <a href={APP_URL} className="px-3 py-2 text-small font-500 text-bark transition-colors hover:text-forest">
+              Sign in
             </a>
-            <a href="#demo">
-              <Button variant="primary" size="sm">
-                Book a demo
-              </Button>
+            <a
+              href={APP_URL}
+              className="rounded-full bg-forest px-5 py-2.5 text-small font-500 text-cream transition-colors duration-300 hover:bg-forest-dark"
+            >
+              Start free
             </a>
           </div>
         </nav>
       </header>
 
       {/* Hero */}
-      <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24 lg:py-32">
-        <div className="mx-auto max-w-3xl text-center">
-          <Badge tone="warning" className="mb-6 inline-flex">
-            Built for Nigerian secondary schools
-          </Badge>
-
-          <h1 className="font-display text-display font-700 leading-[1.05] tracking-tight text-ink-1000 dark:text-ink-100">
-            The school platform Nigerian schools actually want to use.
-          </h1>
-
-          <p className="mt-6 text-h3 font-400 leading-relaxed text-ink-700 dark:text-ink-300">
-            myMakaranta brings consumer-grade craft to school administration — attendance in seconds,
-            fees in Naira that reconcile themselves, and report cards parents screenshot and share.
-            Works on a Tecno. Works offline.
-          </p>
-
-          <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <a href="#demo">
-              <Button variant="primary" size="lg" className="w-full sm:w-auto">
-                Book a free demo
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </a>
-            <a href={APP_URL}>
-              <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                Start free — no card needed
-              </Button>
-            </a>
+      <section className="mx-auto max-w-6xl px-5 pb-10 pt-16 sm:px-8 sm:pt-24">
+        <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+          <div>
+            <Reveal>
+              <span className="text-caption font-500 uppercase tracking-[0.18em] text-forest">
+                School management, made in Nigeria
+              </span>
+            </Reveal>
+            <Reveal delay={0.08}>
+              <h1 className="mt-5 font-display text-[clamp(2.75rem,6vw,4.5rem)] font-500 leading-[1.04] tracking-tight text-bark">
+                Run a calmer,
+                <br />
+                <span className="italic text-forest">sharper</span> school.
+              </h1>
+            </Reveal>
+            <Reveal delay={0.16}>
+              <p className="mt-6 max-w-xl text-[1.15rem] leading-relaxed text-stone">
+                myMakaranta takes the register, reconciles the fees, and publishes the results — quietly,
+                in the background — so your teachers can teach and your bursar can finally breathe. Built
+                for Nigerian schools, priced in Naira, fast on the phones your staff already carry.
+              </p>
+            </Reveal>
+            <Reveal delay={0.24}>
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={APP_URL}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-forest px-7 py-3.5 text-body font-500 text-cream transition-colors duration-300 hover:bg-forest-dark"
+                >
+                  Start free
+                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                </a>
+                <a
+                  href="#demo"
+                  className="inline-flex items-center justify-center rounded-full ring-hair bg-transparent px-7 py-3.5 text-body font-500 text-bark transition-colors duration-300 hover:bg-bark/[0.04]"
+                >
+                  See a 15-minute demo
+                </a>
+              </div>
+            </Reveal>
+            <Reveal delay={0.3}>
+              <p className="mt-4 text-small text-stone">Free under 100 students. No card. No setup fee.</p>
+            </Reveal>
           </div>
 
-          <p className="mt-4 text-small text-ink-500">
-            Free for schools under 100 students. No setup fee. Cancel anytime.
-          </p>
+          {/* Hero image + floating stat card */}
+          <Reveal delay={0.18} y={40}>
+            <div className="relative">
+              <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] ring-hair">
+                <Image
+                  src="/images/students-joy.jpg"
+                  alt="Nigerian schoolchildren in uniform, smiling"
+                  fill
+                  priority
+                  sizes="(max-width: 1024px) 100vw, 45vw"
+                  className="object-cover"
+                />
+              </div>
+              <div className="absolute -bottom-6 -left-4 w-[15rem] rounded-2xl bg-cream p-4 shadow-[0_30px_70px_-30px_rgba(26,26,26,0.5)] ring-hair sm:-left-8">
+                <p className="text-caption uppercase tracking-wider text-stone">Today at Unity College</p>
+                <div className="mt-3 space-y-2.5">
+                  {HERO_STATS.map((s) => (
+                    <div key={s.label} className="flex items-center justify-between">
+                      <span className="text-small text-stone">{s.label}</span>
+                      <span className="font-display text-body font-600 tabular-nums text-bark">{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Reveal>
         </div>
 
-        {/* Hero visual placeholder */}
-        <div className="mt-16 overflow-hidden rounded-sheet border border-ink-300/50 bg-surface shadow-xl dark:border-white/10 dark:bg-surface-dark">
-          <div className="flex items-center gap-1.5 border-b border-ink-100 px-4 py-3 dark:border-white/10">
-            <div className="h-3 w-3 rounded-full bg-error/60" />
-            <div className="h-3 w-3 rounded-full bg-warning/60" />
-            <div className="h-3 w-3 rounded-full bg-success/60" />
-            <span className="ml-3 text-caption text-ink-500">myMakaranta — Dashboard</span>
-          </div>
-          <div className="grid grid-cols-2 gap-4 p-6 sm:grid-cols-4">
-            {[
-              { label: "Present today", value: "412", tone: "text-success" },
-              { label: "Fees collected", value: "₦2.4M", tone: "text-brand-500" },
-              { label: "Outstanding", value: "₦640K", tone: "text-warning" },
-              { label: "Classes active", value: "18", tone: "text-ink-1000 dark:text-ink-100" },
-            ].map((stat) => (
-              <div key={stat.label} className="rounded-card border border-ink-100 bg-paper p-4 dark:border-white/10 dark:bg-surface-dark">
-                <p className="text-caption text-ink-500">{stat.label}</p>
-                <p className={`mt-1 font-display text-h2 font-700 tabular-nums ${stat.tone}`}>
-                  {stat.value}
-                </p>
-              </div>
+        {/* Trust pills */}
+        <Reveal delay={0.2}>
+          <div className="mt-20 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 border-y border-bark/10 py-6">
+            {TRUST.map((t) => (
+              <span key={t.label} className="inline-flex items-center gap-2 text-small text-stone">
+                <t.icon className="h-4 w-4 text-forest" aria-hidden="true" />
+                {t.label}
+              </span>
             ))}
           </div>
-        </div>
+        </Reveal>
       </section>
 
-      {/* Value Props */}
-      <section className="bg-surface py-16 dark:bg-surface-dark sm:py-24">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <h2 className="font-display text-h1 font-700 text-ink-1000 dark:text-ink-100">
-              Everything your school needs. Nothing it doesn&apos;t.
+      {/* Feature showcase */}
+      <section id="features" className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+        <Reveal>
+          <div className="max-w-2xl">
+            <span className="text-caption font-500 uppercase tracking-[0.18em] text-forest">What it does</span>
+            <h2 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] font-500 leading-tight tracking-tight text-bark">
+              The whole school day, handled.
             </h2>
-            <p className="mt-4 text-body text-ink-700 dark:text-ink-300">
-              Built from real conversations with proprietors, principals, and bursars across Nigeria.
+            <p className="mt-4 text-body leading-relaxed text-stone">
+              We built myMakaranta in the staff rooms and bursaries of real Nigerian schools. Every feature
+              here earns its place. Tap one to watch it move.
             </p>
           </div>
-
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                icon: Clock,
-                title: "Attendance in 30 seconds",
-                description:
-                  "Tap once per student. Mark the whole class in under a minute. Absent notes land in parents' inboxes automatically.",
-                accent: "bg-brand-50 text-brand-500 dark:bg-brand-500/20 dark:text-brand-300",
-              },
-              {
-                icon: CreditCard,
-                title: "Fees that reconcile themselves",
-                description:
-                  "Collect school fees in Naira via bank transfer or card. Ledgers update instantly. Bursar reports write themselves.",
-                accent: "bg-success/10 text-success",
-              },
-              {
-                icon: FileText,
-                title: "Report cards parents screenshot",
-                description:
-                  "Publish polished result sheets with one click. Parents see them immediately, share on WhatsApp, and thank you for it.",
-                accent: "bg-saffron-100 text-saffron-700",
-              },
-              {
-                icon: Smartphone,
-                title: "Works on a Tecno",
-                description:
-                  "Optimised for mid-range Android. Loads fast on 4G or 3G. Core features keep working offline — attendance, roll call, timetable.",
-                accent: "bg-info/10 text-info",
-              },
-            ].map((prop) => (
-              <Card key={prop.title} tone="base" elevation="sm" className="flex flex-col">
-                <CardHeader>
-                  <div className={`flex h-11 w-11 items-center justify-center rounded-card ${prop.accent}`}>
-                    <prop.icon className="h-5 w-5" aria-hidden="true" />
-                  </div>
-                  <h3 className="mt-4 text-h3 font-600 text-ink-1000 dark:text-ink-100">
-                    {prop.title}
-                  </h3>
-                </CardHeader>
-                <CardBody>
-                  <p className="text-small text-ink-700 dark:text-ink-300">{prop.description}</p>
-                </CardBody>
-              </Card>
-            ))}
+        </Reveal>
+        <Reveal delay={0.1}>
+          <div className="mt-14">
+            <FeatureShowcase />
           </div>
+        </Reveal>
+      </section>
+
+      {/* Made for Nigeria — editorial image + text */}
+      <section className="bg-cream-deep">
+        <div className="mx-auto grid max-w-6xl items-center gap-12 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-2">
+          <Reveal y={40}>
+            <div className="relative aspect-[4/5] overflow-hidden rounded-[1.75rem] ring-hair">
+              <Image
+                src="/images/uniform-portrait.jpg"
+                alt="Students in school uniform"
+                fill
+                sizes="(max-width: 1024px) 100vw, 45vw"
+                className="object-cover"
+              />
+            </div>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <div>
+              <span className="text-caption font-500 uppercase tracking-[0.18em] text-forest">Why it fits</span>
+              <h2 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] font-500 leading-tight tracking-tight text-bark">
+                Built for how Nigerian schools actually run.
+              </h2>
+              <p className="mt-5 text-body leading-relaxed text-stone">
+                Software written for somewhere else always shows. So we wrote this one here — for the
+                realities your office knows by heart.
+              </p>
+              <ul className="mt-7 space-y-4">
+                {[
+                  "The network drops, the work doesn't. Take the register and check the timetable offline; everything syncs the moment you're back.",
+                  "Fees in Naira, by transfer or card, matched to the right student automatically — receipts written, ledger balanced.",
+                  "Light enough for a mid-range Android, and parents get results and reminders where they already are: on WhatsApp.",
+                ].map((line) => (
+                  <li key={line} className="flex gap-3">
+                    <span className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-forest/10">
+                      <Check className="h-3 w-3 text-forest" aria-hidden="true" />
+                    </span>
+                    <span className="text-small leading-relaxed text-stone">{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* Social proof strip */}
-      <section className="border-y border-ink-300/50 bg-paper py-10 dark:border-white/10 dark:bg-paper-dark">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-center gap-8 text-center">
-            {[
-              { stat: "3,200+", label: "Students managed" },
-              { stat: "₦18M+", label: "Fees processed" },
-              { stat: "98%", label: "Attendance accuracy" },
-              { stat: "14", label: "Schools onboarded" },
-            ].map((item) => (
-              <div key={item.label} className="min-w-[120px]">
-                <p className="font-display text-h1 font-700 tabular-nums text-brand-500">
-                  {item.stat}
-                </p>
-                <p className="mt-1 text-small text-ink-700 dark:text-ink-300">{item.label}</p>
-              </div>
+      {/* Community band — assembly image + count-up stats */}
+      <section className="relative overflow-hidden">
+        <Image
+          src="/images/assembly.jpg"
+          alt="Secondary-school assembly"
+          fill
+          sizes="100vw"
+          className="object-cover"
+        />
+        <div className="absolute inset-0 bg-forest-dark/88" />
+        <div className="relative mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
+          <Reveal>
+            <p className="max-w-xl font-display text-[clamp(1.5rem,3vw,2.25rem)] font-400 italic leading-snug text-cream">
+              “The first term it just worked. The bursary stopped chasing paper and started chasing
+              fees.”
+            </p>
+            <p className="mt-4 text-small text-cream/70">— Proprietor, secondary school in Ibadan</p>
+          </Reveal>
+          <div className="mt-14 grid grid-cols-2 gap-8 sm:grid-cols-4">
+            {SOCIAL_PROOF.map((item) => (
+              <Reveal key={item.label}>
+                <div>
+                  <p className="font-display text-[clamp(2rem,4vw,2.75rem)] font-600 tabular-nums text-cream">
+                    <CountUp value={item.value} prefix={item.prefix} suffix={item.suffix} />
+                  </p>
+                  <p className="mt-1 text-small text-cream/70">{item.label}</p>
+                </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="bg-surface py-16 dark:bg-surface-dark sm:py-24">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <Badge tone="brand" className="mb-4 inline-flex">
-              Simple, honest pricing
-            </Badge>
-            <h2 className="font-display text-h1 font-700 text-ink-1000 dark:text-ink-100">
-              Pay per student, per term.
+      <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+        <Reveal>
+          <div className="max-w-2xl">
+            <span className="text-caption font-500 uppercase tracking-[0.18em] text-forest">Pricing</span>
+            <h2 className="mt-4 font-display text-[clamp(2rem,4vw,3rem)] font-500 leading-tight tracking-tight text-bark">
+              Pay per student, per term. Nothing hidden.
             </h2>
-            <p className="mt-4 text-body text-ink-700 dark:text-ink-300">
-              No hidden fees. No annual lock-in. Upgrade or downgrade each term as your school grows.
+            <p className="mt-4 text-body leading-relaxed text-stone">
+              Move up or down each term as your school grows. All prices in Naira, exclusive of VAT.
             </p>
           </div>
+        </Reveal>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                name: "Sprout",
-                tagline: "Perfect for starting out",
-                price: "Free",
-                unit: "",
-                limit: "Up to 100 students",
-                highlight: false,
-                features: [
-                  "Attendance tracking",
-                  "Basic fee management",
-                  "Student register",
-                  "1 admin user",
-                ],
-              },
-              {
-                name: "Grow",
-                tagline: "Small to mid-size schools",
-                price: "₦1,500",
-                unit: "/ student / term",
-                limit: "101 – 300 students",
-                highlight: false,
-                features: [
-                  "Everything in Sprout",
-                  "Full fee ledger + receipts",
-                  "Result sheet publishing",
-                  "5 staff users",
-                ],
-              },
-              {
-                name: "Bloom",
-                tagline: "Most popular",
-                price: "₦1,200",
-                unit: "/ student / term",
-                limit: "301 – 600 students",
-                highlight: true,
-                features: [
-                  "Everything in Grow",
-                  "Parent portal & notifications",
-                  "WhatsApp fee reminders",
-                  "Unlimited staff users",
-                ],
-              },
-              {
-                name: "Flourish",
-                tagline: "Large schools & groups",
-                price: "₦950",
-                unit: "/ student / term",
-                limit: "601+ students",
-                highlight: false,
-                features: [
-                  "Everything in Bloom",
-                  "Multi-campus support",
-                  "Priority support line",
-                  "Custom report branding",
-                ],
-              },
-            ].map((tier) => (
-              <Card
-                key={tier.name}
-                tone="base"
-                elevation={tier.highlight ? "md" : "sm"}
-                className={`flex flex-col ${
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {TIERS.map((tier, i) => (
+            <Reveal key={tier.name} delay={i * 0.06}>
+              <div
+                className={`flex h-full flex-col rounded-2xl p-6 transition-transform duration-300 ${
                   tier.highlight
-                    ? "border-brand-500 ring-2 ring-brand-500"
-                    : ""
+                    ? "bg-forest text-cream shadow-[0_30px_70px_-30px_rgba(70,95,92,0.7)]"
+                    : "bg-white ring-hair"
                 }`}
               >
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-h3 font-700 text-ink-1000 dark:text-ink-100">{tier.name}</p>
-                      <p className="text-small text-ink-500">{tier.tagline}</p>
-                    </div>
-                    {tier.highlight && (
-                      <Badge tone="brand">Popular</Badge>
-                    )}
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className={`font-display text-h3 font-600 ${tier.highlight ? "text-cream" : "text-bark"}`}>
+                      {tier.name}
+                    </p>
+                    <p className={`text-small ${tier.highlight ? "text-cream/70" : "text-stone"}`}>
+                      {tier.tagline}
+                    </p>
                   </div>
-                  <div className="mt-4">
-                    <span className="font-display text-h1 font-700 tabular-nums text-ink-1000 dark:text-ink-100">
-                      {tier.price}
+                  {tier.highlight && (
+                    <span className="rounded-full bg-cream/15 px-2.5 py-1 text-caption font-500 text-cream">
+                      Popular
                     </span>
-                    {tier.unit && (
-                      <span className="ml-1 text-small text-ink-500">{tier.unit}</span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-caption text-ink-500">{tier.limit}</p>
-                </CardHeader>
-                <CardBody className="flex flex-1 flex-col">
-                  <ul className="flex-1 space-y-2.5">
-                    {tier.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2 text-small text-ink-700 dark:text-ink-300">
-                        <CheckCircle
-                          className="mt-0.5 h-4 w-4 shrink-0 text-success"
-                          aria-hidden="true"
-                        />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-6">
-                    <a href="#demo" className="block">
-                      <Button
-                        variant={tier.highlight ? "primary" : "outline"}
-                        size="md"
-                        className="w-full"
-                      >
-                        {tier.price === "Free" ? "Get started free" : "Book a demo"}
-                      </Button>
-                    </a>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
-          </div>
+                  )}
+                </div>
+                <div className="mt-5">
+                  <span className={`font-display text-h1 font-600 tabular-nums ${tier.highlight ? "text-cream" : "text-bark"}`}>
+                    {tier.price}
+                  </span>
+                  {tier.unit && (
+                    <span className={`ml-1 text-small ${tier.highlight ? "text-cream/70" : "text-stone"}`}>
+                      {tier.unit}
+                    </span>
+                  )}
+                </div>
+                <p className={`mt-1 text-caption ${tier.highlight ? "text-cream/60" : "text-stone"}`}>{tier.limit}</p>
 
-          <p className="mt-8 text-center text-small text-ink-500">
-            All prices in Nigerian Naira (₦) and exclusive of VAT. Billing is per academic term.
-          </p>
+                <ul className="mt-6 flex-1 space-y-3">
+                  {tier.features.map((feature) => (
+                    <li key={feature} className={`flex items-start gap-2 text-small ${tier.highlight ? "text-cream/90" : "text-stone"}`}>
+                      <Check className={`mt-0.5 h-4 w-4 shrink-0 ${tier.highlight ? "text-cream" : "text-forest"}`} aria-hidden="true" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
+
+                <a
+                  href={tier.price === "Free" ? APP_URL : "#demo"}
+                  className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-4 py-2.5 text-small font-500 transition-colors duration-300 ${
+                    tier.highlight
+                      ? "bg-cream text-forest-dark hover:bg-white"
+                      : "ring-hair text-bark hover:bg-bark/[0.04]"
+                  }`}
+                >
+                  {tier.price === "Free" ? "Get started free" : "Book a demo"}
+                </a>
+              </div>
+            </Reveal>
+          ))}
         </div>
       </section>
 
-      {/* Demo CTA */}
-      <section
-        id="demo"
-        className="bg-brand-900 py-16 sm:py-24"
-      >
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-          <Badge tone="brand" className="mb-6 inline-flex bg-brand-700 text-brand-100">
-            15-minute demo
-          </Badge>
-          <h2 className="font-display text-h1 font-700 text-white">
-            See myMakaranta running your school in 15 minutes.
-          </h2>
-          <p className="mt-4 text-body text-brand-300">
-            We&apos;ll set up a live walkthrough with your real school data — fee structure, class lists,
-            term dates. No slides, no sales pitch. Just the product.
-          </p>
-          <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-            <a href="mailto:demo@mymakaranta.com?subject=Book%20a%20demo">
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full bg-saffron-500 text-ink-1000 hover:bg-saffron-700 hover:text-white sm:w-auto"
+      {/* Demo CTA — forest band */}
+      <section id="demo" className="bg-forest">
+        <div className="mx-auto max-w-3xl px-5 py-24 text-center sm:px-8">
+          <Reveal>
+            <span className="text-caption font-500 uppercase tracking-[0.18em] text-cream/70">
+              A real walkthrough
+            </span>
+            <h2 className="mt-5 font-display text-[clamp(2rem,4.5vw,3.25rem)] font-500 leading-tight tracking-tight text-cream">
+              See it running your school in fifteen minutes.
+            </h2>
+            <p className="mt-5 text-body leading-relaxed text-cream/80">
+              No slides. No sales pitch. We load your real classes and your real fee structure, then hand
+              you the product. Bring your toughest questions.
+            </p>
+            <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <a
+                href="mailto:demo@mymakaranta.com?subject=Book%20a%20demo"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-cream px-7 py-3.5 text-body font-500 text-forest-dark transition-colors duration-300 hover:bg-white sm:w-auto"
               >
                 Request a demo
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </a>
-            <a href={APP_URL}>
-              <Button
-                variant="outline"
-                size="lg"
-                className="w-full border-brand-700 text-white hover:bg-brand-700 sm:w-auto"
+              </a>
+              <a
+                href={APP_URL}
+                className="inline-flex w-full items-center justify-center rounded-full border border-cream/30 px-7 py-3.5 text-body font-500 text-cream transition-colors duration-300 hover:bg-cream/10 sm:w-auto"
               >
-                Or sign up free
-              </Button>
-            </a>
-          </div>
+                Or start free
+              </a>
+            </div>
+          </Reveal>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-ink-300/50 bg-paper py-10 dark:border-white/10 dark:bg-paper-dark">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <footer className="border-t border-bark/10 bg-cream">
+        <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8">
           <div className="flex flex-col items-center justify-between gap-6 sm:flex-row">
-            <Link href="/" className="flex items-center gap-2 font-display text-lg font-700 text-brand-500">
-              <GraduationCap className="h-5 w-5" aria-hidden="true" />
-              <span>myMakaranta</span>
+            <Link href="/" className="flex items-center gap-2">
+              <Logomark className="h-6 w-6" />
+              <span className="font-display text-lg font-600 tracking-tight text-bark">myMakaranta</span>
             </Link>
-
-            <nav aria-label="Footer" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-small text-ink-700 dark:text-ink-300">
-              <a href="#pricing" className="hover:text-ink-1000 dark:hover:text-ink-100">Pricing</a>
-              <a href="#demo" className="hover:text-ink-1000 dark:hover:text-ink-100">Book a demo</a>
-              <a href={APP_URL} className="hover:text-ink-1000 dark:hover:text-ink-100">Sign in</a>
-              <a href="mailto:hello@mymakaranta.com" className="hover:text-ink-1000 dark:hover:text-ink-100">Contact</a>
-              <a href="/privacy" className="hover:text-ink-1000 dark:hover:text-ink-100">Privacy</a>
+            <nav aria-label="Footer" className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-small text-stone">
+              <a href="#features" className="transition-colors hover:text-bark">What it does</a>
+              <a href="#pricing" className="transition-colors hover:text-bark">Pricing</a>
+              <a href="#demo" className="transition-colors hover:text-bark">Demo</a>
+              <a href={APP_URL} className="transition-colors hover:text-bark">Sign in</a>
+              <a href="mailto:hello@mymakaranta.com" className="transition-colors hover:text-bark">Contact</a>
+              <a href="/privacy" className="transition-colors hover:text-bark">Privacy</a>
             </nav>
-
-            <p className="text-caption text-ink-500">
-              &copy; {new Date().getFullYear()} myMakaranta. All rights reserved.
+            <p className="text-caption text-stone">
+              &copy; {new Date().getFullYear()} myMakaranta
             </p>
           </div>
         </div>
