@@ -15,6 +15,11 @@ export class MessagingService {
   private async canConverse(parentId: string, staffId: string, schoolId: string): Promise<boolean> {
     const termId = await this.currentTermId(schoolId);
     if (!termId) return false;
+    // The counterpart id is request-supplied — validate it's a Parent of THIS school before the
+    // guardian traversal (Guardian has no schoolId, so a cross-school guardian link must not let a
+    // foreign parentId seed an orphaned conversation). [[tenant-idor-rule]]
+    const parentInSchool = await this.prisma.parent.findFirst({ where: { id: parentId, schoolId }, select: { id: true } });
+    if (!parentInSchool) return false;
     const cls = await this.prisma.class.findFirst({
       where: {
         schoolId,
@@ -122,9 +127,10 @@ export class MessagingService {
     // Counterpart names: the OTHER party per conversation.
     const parentIds = [...new Set(convos.map((c) => c.parentId))];
     const staffIds = [...new Set(convos.map((c) => c.staffId))];
+    // Only resolve the counterpart side's names (a PARENT's counterpart is staff, and vice-versa).
     const [parents, staff] = await Promise.all([
-      parentIds.length ? this.prisma.parent.findMany({ where: { schoolId, id: { in: parentIds } }, select: { id: true, firstName: true, lastName: true } }) : Promise.resolve([]),
-      staffIds.length ? this.prisma.staff.findMany({ where: { schoolId, id: { in: staffIds } }, select: { id: true, firstName: true, lastName: true } }) : Promise.resolve([]),
+      user.identityType === "STAFF" && parentIds.length ? this.prisma.parent.findMany({ where: { schoolId, id: { in: parentIds } }, select: { id: true, firstName: true, lastName: true } }) : Promise.resolve([]),
+      user.identityType === "PARENT" && staffIds.length ? this.prisma.staff.findMany({ where: { schoolId, id: { in: staffIds } }, select: { id: true, firstName: true, lastName: true } }) : Promise.resolve([]),
     ]);
     const parentName = new Map(parents.map((p) => [p.id, `${p.firstName} ${p.lastName}`]));
     const staffName = new Map(staff.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));

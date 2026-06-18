@@ -22,6 +22,7 @@ describe("Messaging (e2e)", () => {
 
   let parentP: string; // P: child in class C (form teacher S)
   let parentQ: string; // Q: child NOT in C
+  let parentB: string; // a parent in school B (cross-tenant)
   let staffS: string;  // S: form teacher of C
   let staffU: string;  // U: not C's form teacher
   const asA = <T>(fn: () => Promise<T>) => TenantContext.run({ schoolId, userId }, fn);
@@ -62,6 +63,8 @@ describe("Messaging (e2e)", () => {
     await prisma.guardian.create({ data: { studentId: stuQ.id, parentId: q.id, relationship: "FATHER" } });
     await prisma.enrollment.create({ data: { studentId: stuP.id, classId: c.id, termId: term.id } });   // P's kid in C (form teacher S)
     await prisma.enrollment.create({ data: { studentId: stuQ.id, classId: cOther.id, termId: term.id } }); // Q's kid in cOther (no S)
+    const pb = await prisma.parent.create({ data: { schoolId: schoolBId, phone: `+234882${String(suffix).slice(-7)}`, firstName: "For", lastName: "Eign" } });
+    parentB = pb.id; // a parent in school B — no relationship to school A
   });
   afterAll(async () => { await prisma.onModuleDestroy(); });
 
@@ -81,6 +84,8 @@ describe("Messaging (e2e)", () => {
     expect(again.conversationId).toBe(convo.conversationId);
     await expect(asA(() => svc.createConversation(parent(parentP), staffU))).rejects.toThrow(ForbiddenException);
     await expect(asA(() => svc.createConversation(parent(parentQ), staffS))).rejects.toThrow(ForbiddenException);
+    // staff S supplying a school-B parent id as counterpart → rejected (counterpart must be a parent of THIS school)
+    await expect(asA(() => svc.createConversation(staff(staffS), parentB))).rejects.toThrow(ForbiddenException);
   });
 
   it("message round-trip: post, unread, read, reply", async () => {
