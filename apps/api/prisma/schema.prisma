@@ -95,6 +95,38 @@ model School {
   feeReminders       FeeReminder[]
   announcements          Announcement[]
   announcementRecipients AnnouncementRecipient[]
+  conversations          Conversation[]
+  messages               Message[]
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  schoolId      String
+  school        School    @relation(fields: [schoolId], references: [id])
+  parentId      String
+  staffId       String
+  lastMessageAt DateTime?
+  createdAt     DateTime  @default(now())
+  messages      Message[]
+
+  @@unique([schoolId, parentId, staffId])
+  @@index([schoolId, parentId])
+  @@index([schoolId, staffId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  schoolId       String
+  school         School       @relation(fields: [schoolId], references: [id])
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderType     String
+  senderId       String
+  body           String
+  readAt         DateTime?
+  sentAt         DateTime     @default(now())
+
+  @@index([schoolId, conversationId, sentAt])
 }
 
 model AcademicYear {

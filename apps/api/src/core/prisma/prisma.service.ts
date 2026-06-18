@@ -28,6 +28,8 @@ const TENANT_MODELS = new Set([
   "FeeReminder",
   "Announcement",
   "AnnouncementRecipient",
+  "Conversation",
+  "Message",
 ]);
 
 @Injectable()
