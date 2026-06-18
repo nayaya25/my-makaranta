@@ -160,11 +160,12 @@ export class AnnouncementsService {
     };
   }
 
-  async getForParent(user: RequestUser) {
-    if (user.identityType !== "PARENT" || !user.identityId) return [];
+  async getInbox(user: RequestUser) {
+    const type = user.identityType;
+    if ((type !== "PARENT" && type !== "STAFF") || !user.identityId) return [];
     const schoolId = TenantContext.schoolIdOrThrow();
     const rows = await this.prisma.announcementRecipient.findMany({
-      where: { schoolId, recipientType: "PARENT", recipientId: user.identityId },
+      where: { schoolId, recipientType: type, recipientId: user.identityId },
       include: { announcement: { select: { title: true, body: true, sentAt: true } } },
       orderBy: { announcement: { sentAt: "desc" } },
     });
@@ -178,11 +179,12 @@ export class AnnouncementsService {
     }));
   }
 
-  async markRead(announcementId: string, user: RequestUser) {
-    if (user.identityType !== "PARENT" || !user.identityId) throw new NotFoundException("Announcement not found.");
+  async markReadForUser(announcementId: string, user: RequestUser) {
+    const type = user.identityType;
+    if ((type !== "PARENT" && type !== "STAFF") || !user.identityId) throw new NotFoundException("Announcement not found.");
     const schoolId = TenantContext.schoolIdOrThrow();
     const res = await this.prisma.announcementRecipient.updateMany({
-      where: { schoolId, announcementId, recipientType: "PARENT", recipientId: user.identityId },
+      where: { schoolId, announcementId, recipientType: type, recipientId: user.identityId },
       data: { readAt: new Date() },
     });
     if (res.count === 0) throw new NotFoundException("Announcement not found.");

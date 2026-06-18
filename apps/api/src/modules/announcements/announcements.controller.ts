@@ -35,13 +35,26 @@ export class AnnouncementsController {
   @Get("parent/announcements")
   @UseGuards(JwtAuthGuard)
   parentInbox(@CurrentUser() user: RequestUser) {
-    return this.service.getForParent(user);
+    return this.service.getInbox(user);
   }
 
   @Post("parent/announcements/:announcementId/read")
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
-  markRead(@Param("announcementId") announcementId: string, @CurrentUser() user: RequestUser) {
-    return this.service.markRead(announcementId, user);
+  parentMarkRead(@Param("announcementId") announcementId: string, @CurrentUser() user: RequestUser) {
+    return this.service.markReadForUser(announcementId, user);
+  }
+
+  @Get("me/announcements")
+  @UseGuards(JwtAuthGuard)
+  myInbox(@CurrentUser() user: RequestUser) {
+    return this.service.getInbox(user);
+  }
+
+  @Post("me/announcements/:announcementId/read")
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  myMarkRead(@Param("announcementId") announcementId: string, @CurrentUser() user: RequestUser) {
+    return this.service.markReadForUser(announcementId, user);
   }
 }

@@ -111,15 +111,15 @@ describe("Announcements (e2e)", () => {
 
     it("parent inbox returns only the parent's own rows; mark-read sets readAt; bumps readCount", async () => {
       const parentUser = (pid: string) => ({ id: "pu", phone: "+2348094000001", schoolId, identityType: "PARENT" as const, identityId: pid });
-      const inbox = await asA(() => svc.getForParent(parentUser(parentTwoKidsId)));
+      const inbox = await asA(() => svc.getInbox(parentUser(parentTwoKidsId)));
       expect(inbox.length).toBe(1);
       expect(inbox[0]!.readAt).toBeNull();
       const annId = inbox[0]!.announcementId;
       // a DIFFERENT parent (not a recipient) → mark-read 404
-      await expect(asA(() => svc.markRead(annId, parentUser(parentOtherId)))).rejects.toThrow(NotFoundException);
+      await expect(asA(() => svc.markReadForUser(annId, parentUser(parentOtherId)))).rejects.toThrow(NotFoundException);
       // the real recipient → ok, readAt set
-      await asA(() => svc.markRead(annId, parentUser(parentTwoKidsId)));
-      const after = await asA(() => svc.getForParent(parentUser(parentTwoKidsId)));
+      await asA(() => svc.markReadForUser(annId, parentUser(parentTwoKidsId)));
+      const after = await asA(() => svc.getInbox(parentUser(parentTwoKidsId)));
       expect(after[0]!.readAt).not.toBeNull();
       const list = await asA(() => svc.list());
       expect(list.find((a) => a.id === annId)!.readCount).toBe(1);
@@ -146,6 +146,21 @@ describe("Announcements (e2e)", () => {
       expect(rows.every((x) => x.recipientType === "STAFF")).toBe(true);
     });
 
+    it("a STAFF recipient reads via getInbox; receipts readCount reflects it", async () => {
+      const created = await asA(() => svc.create({ title: "StaffRead", body: "Read me.", audienceType: "ALL", audienceIds: [], channels: [], roles: ["STAFF"] }, author()));
+      // find a staff recipient id
+      const staffRow = await prisma.announcementRecipient.findFirstOrThrow({ where: { schoolId, announcementId: created.id, recipientType: "STAFF" } });
+      const staffUser = { id: "su", phone: "+2340000000009", schoolId, identityType: "STAFF" as const, identityId: staffRow.recipientId };
+      const inbox = await asA(() => svc.getInbox(staffUser));
+      expect(inbox.some((x) => x.announcementId === created.id)).toBe(true);
+      expect(inbox.find((x) => x.announcementId === created.id)!.readAt).toBeNull();
+      await asA(() => svc.markReadForUser(created.id, staffUser));
+      const rec = await asA(() => svc.getRecipients(created.id));
+      expect(rec.aggregates.readCount).toBe(1);
+      // a non-recipient staff id → mark-read 404
+      await expect(asA(() => svc.markReadForUser(created.id, { ...staffUser, identityId: "no-such-staff" }))).rejects.toThrow(NotFoundException);
+    });
+
     it("getRecipients returns the per-recipient breakdown + aggregates; foreign id 404", async () => {
       const created = await asA(() => svc.create({ title: "Receipts", body: "Check.", audienceType: "CLASS", audienceIds: [classId], channels: ["SMS", "EMAIL"], roles: ["PARENT", "STAFF"] }, author()));
       const rec = await asA(() => svc.getRecipients(created.id));
@@ -157,7 +172,7 @@ describe("Announcements (e2e)", () => {
       await expect(asB(() => svc.getRecipients(created.id))).rejects.toThrow(NotFoundException);
       // a parent reads → readCount bumps, that row's readAt set; staff rows stay null
       const parentUser = { id: "pu", phone: "+2348094000001", schoolId, identityType: "PARENT" as const, identityId: parentTwoKidsId };
-      await asA(() => svc.markRead(created.id, parentUser));
+      await asA(() => svc.markReadForUser(created.id, parentUser));
       const rec2 = await asA(() => svc.getRecipients(created.id));
       expect(rec2.aggregates.readCount).toBe(1);
       expect(rec2.recipients.find((x) => x.recipientType === "STAFF")!.readAt).toBeNull();
