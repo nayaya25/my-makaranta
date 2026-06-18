@@ -48,6 +48,16 @@ export default function SettingsPage() {
             </CardBody>
           </Card>
         </Link>
+        <Link href="/settings/permissions" className="block">
+          <Card elevation="sm" interactive>
+            <CardHeader>
+              <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">Staff permissions</h2>
+            </CardHeader>
+            <CardBody>
+              <p className="text-small text-ink-500">Grant staff their roles and tool access.</p>
+            </CardBody>
+          </Card>
+        </Link>
       </div>
     </div>
   );

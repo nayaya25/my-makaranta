@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@mymakaranta/ui";
 import { session } from "@/lib/auth";
-import type { AuthUser } from "@/lib/api";
+import { api, type AuthUser } from "@/lib/api";
 import {
   LayoutDashboard,
   Users,
@@ -25,20 +25,20 @@ import {
   X,
 } from "lucide-react";
 
-const NAV_ITEMS = [
+const NAV_ITEMS: { href: string; label: string; icon: React.ElementType; perm?: string }[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/students", label: "Students", icon: Users },
-  { href: "/staff", label: "Staff", icon: UserSquare2 },
-  { href: "/classes", label: "Classes", icon: BookOpen },
-  { href: "/attendance", label: "Attendance", icon: CalendarCheck },
-  { href: "/gradebook", label: "Gradebook", icon: ClipboardList },
-  { href: "/review", label: "Review", icon: BarChart3 },
-  { href: "/release", label: "Release", icon: Lock },
-  { href: "/announcements", label: "Announcements", icon: Megaphone },
+  { href: "/students", label: "Students", icon: Users, perm: "students.view" },
+  { href: "/staff", label: "Staff", icon: UserSquare2, perm: "staff.view" },
+  { href: "/classes", label: "Classes", icon: BookOpen, perm: "classes.view" },
+  { href: "/attendance", label: "Attendance", icon: CalendarCheck, perm: "attendance.view" },
+  { href: "/gradebook", label: "Gradebook", icon: ClipboardList, perm: "results.record" },
+  { href: "/review", label: "Review", icon: BarChart3, perm: "results.review" },
+  { href: "/release", label: "Release", icon: Lock, perm: "results.release" },
+  { href: "/announcements", label: "Announcements", icon: Megaphone, perm: "announcements.create" },
   { href: "/inbox", label: "Inbox", icon: Inbox },
   { href: "/messages", label: "Messages", icon: MessageSquare },
-  { href: "/fees", label: "Fees", icon: Wallet },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/fees", label: "Fees", icon: Wallet, perm: "fees.view" },
+  { href: "/settings", label: "Settings", icon: Settings, perm: "school.manage" },
 ];
 
 const PARENT_NAV = [
@@ -83,6 +83,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [perms, setPerms] = useState<Set<string> | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -95,9 +96,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setReady(true);
   }, [router]);
 
+  useEffect(() => {
+    if (!session.token()) return;
+    api
+      .getMyPermissions()
+      .then((r) => setPerms(new Set(r.keys)))
+      .catch(() => setPerms(new Set()));
+  }, []);
+
   if (!ready) return null;
 
-  const navItems = user?.identityType === "PARENT" ? PARENT_NAV : NAV_ITEMS;
+  const staffNav = NAV_ITEMS.filter((i) => !i.perm || (perms?.has(i.perm) ?? false));
+  const navItems = user?.identityType === "PARENT" ? PARENT_NAV : staffNav;
 
   function signOut() {
     session.clear();
