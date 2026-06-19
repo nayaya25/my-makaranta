@@ -6,7 +6,7 @@ const card = cva("transition-all duration-standard ease-expo", {
   variants: {
     tone: {
       // Crisp hairline-bordered surface (admin/proprietor) — Linear/Vercel-style.
-      base: "rounded-[14px] border border-ink-1000/[0.08] bg-surface dark:border-white/10 dark:bg-surface-dark",
+      base: "rounded-card border border-ink-1000/[0.08] bg-surface dark:border-white/10 dark:bg-surface-dark",
       // Friendlier radius, softer (parent/student surfaces).
       warm: "rounded-warm border border-ink-1000/[0.06] bg-surface dark:border-white/10 dark:bg-surface-dark",
     },
