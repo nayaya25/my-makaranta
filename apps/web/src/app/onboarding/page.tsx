@@ -365,7 +365,7 @@ function DoneStep({ onFinish }: { onFinish: () => void }) {
           Your school is ready!
         </h1>
         <p className="max-w-sm text-small text-ink-500">
-          Everything's set up. Add your first students to start enrolling, recording results, and collecting fees.
+          Everything&apos;s set up. Add your first students to start enrolling, recording results, and collecting fees.
         </p>
       </div>
       <Button onClick={onFinish} size="lg" className="w-full sm:w-auto">
