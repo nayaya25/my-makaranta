@@ -3,7 +3,7 @@ import { IsString, Matches, Length, IsOptional, IsEmail } from "class-validator"
 export class RequestOtpDto {
   @IsOptional()
   @IsString()
-  @Matches(/^\+?[0-9]{10,15}$/, { message: "phone must be 10-15 digits, optionally with +" })
+  @Matches(/^\+?[\d\s().-]{10,20}$/, { message: "phone must be 10-15 digits, optionally with +" })
   phone?: string;
 
   @IsOptional()
@@ -14,7 +14,7 @@ export class RequestOtpDto {
 export class VerifyOtpDto {
   @IsOptional()
   @IsString()
-  @Matches(/^\+?[0-9]{10,15}$/)
+  @Matches(/^\+?[\d\s().-]{10,20}$/)
   phone?: string;
 
   @IsOptional()
