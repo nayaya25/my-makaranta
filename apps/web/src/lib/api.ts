@@ -493,7 +493,7 @@ export const api = {
   createClassLevels: (data: { name: string; order: number }[]) =>
     authedRequest<ClassLevel[]>("/v1/class-levels", {
       method: "POST",
-      body: JSON.stringify(data),
+      body: JSON.stringify({ items: data }),
     }),
   listClassLevels: () => authedRequest<ClassLevel[]>("/v1/class-levels"),
 
