@@ -46,6 +46,30 @@ async function authedRequest<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
+/** POST a single image file as multipart/form-data (field "file") to an authed endpoint. */
+async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const token = session.token();
+  if (!token) {
+    if (typeof window !== "undefined") {
+      session.clear();
+      window.location.replace("/login");
+    }
+    throw new ApiError(401, "Not authenticated");
+  }
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body,
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(res.status, data.message ?? `Upload failed (${res.status})`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export interface AuthUser {
   id: string;
   phone: string | null;
@@ -60,6 +84,19 @@ export interface School {
   slug: string | null;
   country: string | null;
   currency: string | null;
+  logoUrl?: string | null;
+}
+
+export interface MyProfile {
+  identityType: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phone: string | null;
+  photoUrl: string | null;
+  staffNo: string | null;
+  preferredLang: string | null;
+  photoSupported: boolean;
 }
 
 export interface AcademicYear {
@@ -130,6 +167,7 @@ export interface Staff {
   lastName: string;
   email: string;
   phone: string;
+  photoUrl?: string | null;
 }
 
 export interface Parent {
@@ -478,6 +516,9 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getMySchool: () => authedRequest<School>("/v1/schools/me"),
+  updateSchool: (data: { name?: string; country?: string; currency?: string }) =>
+    authedRequest<School>("/v1/schools/me", { method: "PATCH", body: JSON.stringify(data) }),
+  uploadSchoolLogo: (file: File) => uploadFile<{ logoUrl: string }>("/v1/schools/me/logo", file),
 
   createAcademicYear: (data: {
     name: string;
@@ -574,6 +615,24 @@ export const api = {
     phone: string;
   }) =>
     authedRequest<Staff>("/v1/staff", { method: "POST", body: JSON.stringify(data) }),
+  getStaff: (id: string) => authedRequest<Staff>(`/v1/staff/${id}`),
+  updateStaff: (
+    id: string,
+    data: { staffNo?: string; firstName?: string; lastName?: string; email?: string; phone?: string },
+  ) => authedRequest<Staff>(`/v1/staff/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  uploadStaffPhoto: (id: string, file: File) =>
+    uploadFile<{ photoUrl: string }>(`/v1/staff/${id}/photo`, file),
+
+  // Current-user profile (polymorphic by identity)
+  getMyProfile: () => authedRequest<MyProfile>("/v1/profile/me"),
+  updateMyProfile: (data: {
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+    email?: string;
+    preferredLang?: string;
+  }) => authedRequest<MyProfile>("/v1/profile/me", { method: "PATCH", body: JSON.stringify(data) }),
+  uploadMyPhoto: (file: File) => uploadFile<{ photoUrl: string }>("/v1/profile/me/photo", file),
 
   createParent: (data: { phone: string; firstName: string; lastName: string; email?: string }) =>
     authedRequest<Parent>("/v1/parents", { method: "POST", body: JSON.stringify(data) }),

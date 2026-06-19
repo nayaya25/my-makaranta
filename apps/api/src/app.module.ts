@@ -25,6 +25,7 @@ import { AnnouncementsModule } from "./modules/announcements/announcements.modul
 import { MessagingModule } from "./modules/messaging/messaging.module";
 import { DashboardModule } from "./modules/dashboard/dashboard.module";
 import { StaffAccessModule } from "./modules/staff-access/staff-access.module";
+import { ProfileModule } from "./modules/profile/profile.module";
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { StaffAccessModule } from "./modules/staff-access/staff-access.module";
     MessagingModule,
     DashboardModule,
     StaffAccessModule,
+    ProfileModule,
   ],
   controllers: [AppController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

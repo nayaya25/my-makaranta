@@ -1,11 +1,32 @@
-import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
+import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
 import { CreateStaffDto, UpdateStaffDto } from "./dto/staff.dto";
+
+const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 @Injectable()
 export class StaffService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(STORAGE_SERVICE) private storage: StorageService,
+  ) {}
+
+  /** Resolve a stored photo KEY to a fresh signed URL on read (external URLs pass through). */
+  private async signPhoto<T extends { photoUrl?: string | null }>(s: T): Promise<T> {
+    if (s.photoUrl && !/^https?:\/\//.test(s.photoUrl)) {
+      return { ...s, photoUrl: await this.storage.getSignedUrl(s.photoUrl) };
+    }
+    return s;
+  }
 
   async create(dto: CreateStaffDto) {
     try {
@@ -29,18 +50,19 @@ export class StaffService {
   }
 
   async findAll() {
-    return this.prisma.staff.findMany();
+    const list = await this.prisma.staff.findMany();
+    return Promise.all(list.map((s) => this.signPhoto(s)));
   }
 
   async findOne(id: string) {
     const staff = await this.prisma.staff.findUnique({ where: { id } });
     if (!staff) throw new NotFoundException("Staff not found");
-    return staff;
+    return this.signPhoto(staff);
   }
 
   async update(id: string, dto: UpdateStaffDto) {
     await this.findOne(id);
-    return this.prisma.staff.update({
+    const updated = await this.prisma.staff.update({
       where: { id },
       data: {
         ...(dto.staffNo !== undefined ? { staffNo: dto.staffNo } : {}),
@@ -52,5 +74,23 @@ export class StaffService {
         ...(dto.hiredAt !== undefined ? { hiredAt: new Date(dto.hiredAt) } : {}),
       },
     });
+    return this.signPhoto(updated);
+  }
+
+  async setPhoto(id: string, file?: { buffer: Buffer; mimetype: string; size: number }) {
+    if (!file) throw new BadRequestException("No file uploaded.");
+    if (!ALLOWED_PHOTO_TYPES.has(file.mimetype)) {
+      throw new BadRequestException("Photo must be JPEG, PNG, or WebP.");
+    }
+    if (file.size > MAX_PHOTO_BYTES) throw new BadRequestException("Photo must be 5MB or smaller.");
+
+    const staff = await this.prisma.staff.findUnique({ where: { id } });
+    if (!staff) throw new NotFoundException("Staff not found");
+
+    const ext = file.mimetype === "image/png" ? "png" : file.mimetype === "image/webp" ? "webp" : "jpg";
+    const key = `photos/staff/${staff.schoolId}/${id}.${ext}`;
+    await this.storage.put(key, file.buffer, { contentType: file.mimetype });
+    await this.prisma.staff.update({ where: { id }, data: { photoUrl: key } });
+    return { photoUrl: await this.storage.getSignedUrl(key) };
   }
 }

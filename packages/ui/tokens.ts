@@ -30,6 +30,19 @@ export const colors = {
     300: "#C4CCCC", // borders
     100: "#EBF0EF", // subtle fills
   },
+  // Sidebar — dark teal-ink ground (worknation-style shell), constant across
+  // light/dark. Active item fills with brand teal; the accent bar + active
+  // icon use bright mint (brand-300) so they read on the dark ground.
+  sidebar: {
+    bg: "#07241F", // deep teal-ink ground
+    border: "#143A34", // hairline dividers
+    text: "#8FA8A1", // resting nav text
+    "text-active": "#EAF2EF", // active / hovered text
+    section: "#5E7872", // section labels, chevrons
+    "item-hover": "#102E29", // hover surface
+    "item-active": "#066666", // active item fill (brand-500)
+    accent: "#51E0CD", // active bar + icon (brand-300 mint)
+  },
   // Surfaces
   paper: "#FAF9F7", // warm sand app canvas
   paperWarm: "#F7F6F2", // softer sand (parent/student)
@@ -82,9 +95,9 @@ export const spacing = {
 export const radius = {
   none: "0",
   sm: "0.375rem", // 6
-  input: "0.5rem", // 8
-  button: "0.5rem", // 8
-  card: "0.75rem", // 12
+  input: "0.625rem", // 10 — softer inputs (worknation md/lg feel)
+  button: "9999px", // pill buttons (worknation signature)
+  card: "1rem", // 16 — cards/panels (worknation lg)
   warm: "1rem", // 16 — parent/student cards
   sheet: "1.25rem", // 20
   pill: "9999px",

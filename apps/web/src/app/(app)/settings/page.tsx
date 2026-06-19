@@ -1,10 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { Badge, Card, CardBody, CardHeader, PageContainer, PageHeader } from "@mymakaranta/ui";
-import { ClipboardList, Wallet, ShieldCheck, Building2, ArrowRight } from "lucide-react";
+import { Card, CardBody, CardHeader, PageContainer, PageHeader } from "@mymakaranta/ui";
+import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight } from "lucide-react";
 
 const ITEMS = [
+  {
+    href: "/profile",
+    title: "My profile",
+    description: "Your personal details, contact, and photo.",
+    icon: UserCircle,
+  },
+  {
+    href: "/settings/school",
+    title: "School profile",
+    description: "School name, region, currency, and logo.",
+    icon: Building2,
+  },
   {
     href: "/settings/assessment",
     title: "Assessment & Grading",
@@ -49,23 +61,6 @@ export default function SettingsPage() {
             </Card>
           </Link>
         ))}
-
-        <Card elevation="xs" className="h-full">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-ink-1000/[0.05] text-ink-500 dark:bg-white/[0.06]">
-                <Building2 size={20} aria-hidden />
-              </span>
-              <Badge tone="neutral">Soon</Badge>
-            </div>
-          </CardHeader>
-          <CardBody>
-            <p className="text-body font-semibold text-ink-1000 dark:text-ink-100">School settings</p>
-            <p className="mt-0.5 text-small text-ink-500">
-              School profile and advanced configuration are coming in a later release.
-            </p>
-          </CardBody>
-        </Card>
       </div>
     </PageContainer>
   );
