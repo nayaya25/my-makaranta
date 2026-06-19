@@ -9,6 +9,8 @@ import {
   CardHeader,
   EmptyState,
   ErrorState,
+  PageContainer,
+  PageHeader,
   Spinner,
   cn,
 } from "@mymakaranta/ui";
@@ -64,17 +66,8 @@ export default function AttendanceOverviewPage() {
 
   const anomalies = summary?.anomalies.filter((a) => a.absences >= 3) ?? [];
 
-  return (
-    <div className="px-4 py-8 mx-auto max-w-4xl">
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
-            Attendance Overview
-          </h1>
-          <p className="text-small text-ink-500">Class-level summary across the selected period.</p>
-        </div>
-
-        <div className="flex items-end gap-2 flex-wrap">
+  const dateControls = (
+    <div className="flex flex-wrap items-end gap-2">
           <div>
             <label className="mb-1 block text-caption font-medium text-ink-700 dark:text-ink-300">
               From
@@ -117,7 +110,15 @@ export default function AttendanceOverviewPage() {
             <RefreshCw size={15} aria-hidden />
           </Button>
         </div>
-      </div>
+  );
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Attendance Overview"
+        description="Class-level summary across the selected period."
+        actions={dateControls}
+      />
 
       {loading && (
         <div className="flex items-center justify-center py-16">
@@ -206,13 +207,13 @@ export default function AttendanceOverviewPage() {
                   ({anomalies.length} student{anomalies.length !== 1 ? "s" : ""} with ≥3 absences)
                 </span>
               </div>
-              <div className="rounded-card border border-ink-200 dark:border-white/10 overflow-hidden">
+              <Card className="overflow-hidden">
                 {anomalies.map((a, i) => (
                   <div
                     key={a.studentId}
                     className={cn(
                       "flex items-center justify-between gap-4 px-4 py-3",
-                      i < anomalies.length - 1 && "border-b border-ink-200 dark:border-white/10",
+                      i < anomalies.length - 1 && "border-b border-ink-1000/[0.06] dark:border-white/[0.06]",
                     )}
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -227,18 +228,18 @@ export default function AttendanceOverviewPage() {
                       </span>
                       <Link
                         href={`/students/${a.studentId}`}
-                        className="text-caption font-medium text-brand-500 hover:underline"
+                        className="text-caption font-semibold text-brand-700 hover:underline dark:text-brand-300"
                       >
                         View
                       </Link>
                     </div>
                   </div>
                 ))}
-              </div>
+              </Card>
             </div>
           )}
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

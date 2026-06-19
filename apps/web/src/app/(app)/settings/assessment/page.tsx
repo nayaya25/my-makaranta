@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, CardBody, CardHeader, Spinner, cn } from "@mymakaranta/ui";
+import { Button, Card, CardBody, CardHeader, PageContainer, PageHeader, Spinner, cn } from "@mymakaranta/ui";
 import {
   api,
   ApiError,
@@ -12,20 +12,18 @@ import { resolveGrade } from "@/lib/grade";
 
 export default function AssessmentSettingsPage() {
   return (
-    <div className="px-4 py-8 mx-auto max-w-4xl flex flex-col gap-8">
-      <header>
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
-          Assessment &amp; Grading
-        </h1>
-        <p className="text-small text-ink-500">
-          Configure score components, grade boundaries, and teacher–subject assignments.
-        </p>
-      </header>
-      <GradeBoundariesPanel />
-      <AssessmentTypesPanel />
-      <CorrectionsPanel />
-      <SubjectAssignmentsPanel />
-    </div>
+    <PageContainer>
+      <PageHeader
+        title="Assessment & Grading"
+        description="Configure score components, grade boundaries, and teacher–subject assignments."
+      />
+      <div className="flex flex-col gap-6">
+        <GradeBoundariesPanel />
+        <AssessmentTypesPanel />
+        <CorrectionsPanel />
+        <SubjectAssignmentsPanel />
+      </div>
+    </PageContainer>
   );
 }
 
