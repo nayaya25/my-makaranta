@@ -1,9 +1,10 @@
-import { Injectable, BadRequestException } from "@nestjs/common";
+import { Injectable, BadRequestException, Inject } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { randomInt } from "node:crypto";
 import * as bcrypt from "bcrypt";
 import { PrismaService } from "../prisma/prisma.service";
 import { SmsService } from "./sms.service";
+import { EMAIL_SERVICE, type EmailService } from "../email/email.types";
 
 const OTP_TTL_MINUTES = 10;
 const OTP_RATE_LIMIT_PER_HOUR = 5;
@@ -14,9 +15,25 @@ function generateCode(): string {
   return randomInt(100000, 1000000).toString();
 }
 
+/** A login target is exactly one of phone or email. */
+export interface OtpTarget {
+  phone?: string;
+  email?: string;
+}
+
+type NormalizedTarget =
+  | { channel: "phone"; phone: string }
+  | { channel: "email"; email: string };
+
 export interface AuthResult {
   token: string;
-  user: { id: string; phone: string; schoolId: string | null; identityType: string };
+  user: {
+    id: string;
+    phone: string | null;
+    email: string | null;
+    schoolId: string | null;
+    identityType: string;
+  };
 }
 
 @Injectable()
@@ -25,12 +42,31 @@ export class AuthService {
     private prisma: PrismaService,
     private sms: SmsService,
     private jwt: JwtService,
+    @Inject(EMAIL_SERVICE) private email: EmailService,
   ) {}
 
-  async requestOtp(phone: string): Promise<void> {
+  /** Exactly one of phone/email must be present. Accepts a bare phone string (legacy
+   *  callers) or a { phone | email } target. Returns the channel + value. */
+  private normalize(target: string | OtpTarget): NormalizedTarget {
+    const obj: OtpTarget = typeof target === "string" ? { phone: target } : target;
+    const phone = obj.phone?.trim();
+    const email = obj.email?.trim().toLowerCase();
+    if (phone && email) throw new BadRequestException("Provide either a phone or an email, not both.");
+    if (phone) return { channel: "phone", phone };
+    if (email) return { channel: "email", email };
+    throw new BadRequestException("A phone number or email is required.");
+  }
+
+  private whereFor(t: NormalizedTarget): { phone: string } | { email: string } {
+    return t.channel === "email" ? { email: t.email } : { phone: t.phone };
+  }
+
+  async requestOtp(target: string | OtpTarget): Promise<void> {
+    const t = this.normalize(target);
+    const where = this.whereFor(t);
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const recent = await this.prisma.otpRequest.count({
-      where: { phone, createdAt: { gte: oneHourAgo } },
+      where: { ...where, createdAt: { gte: oneHourAgo } },
     });
     if (recent >= OTP_RATE_LIMIT_PER_HOUR) {
       throw new BadRequestException("Too many OTP requests. Try again in an hour.");
@@ -40,22 +76,29 @@ export class AuthService {
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60 * 1000);
 
-    // Invalidate any prior live OTPs so only the newest can be verified (defeats per-row
-    // lockout bypass; the per-hour rate limit caps the number of fresh codes).
-    await this.prisma.otpRequest.updateMany({
-      where: { phone, consumed: false },
-      data: { consumed: true },
-    });
-    await this.prisma.otpRequest.create({ data: { phone, codeHash, expiresAt } });
-    await this.sms.send(
-      phone,
-      `Your myMakaranta code is ${code}. Expires in ${OTP_TTL_MINUTES} minutes.`,
-    );
+    // Invalidate any prior live OTPs for this target so only the newest verifies.
+    await this.prisma.otpRequest.updateMany({ where: { ...where, consumed: false }, data: { consumed: true } });
+    await this.prisma.otpRequest.create({ data: { ...where, codeHash, expiresAt } });
+
+    const text = `Your myMakaranta code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`;
+    if (t.channel === "email") {
+      await this.email.send({
+        to: t.email,
+        subject: "Your myMakaranta sign-in code",
+        text,
+        html: `<p>Your myMakaranta sign-in code is <strong>${code}</strong>.</p><p>It expires in ${OTP_TTL_MINUTES} minutes. If you didn't request it, you can ignore this email.</p>`,
+      });
+    } else {
+      await this.sms.send(t.phone, text);
+    }
   }
 
-  async verifyOtp(phone: string, code: string): Promise<AuthResult> {
+  async verifyOtp(target: string | OtpTarget, code: string): Promise<AuthResult> {
+    const t = this.normalize(target);
+    const where = this.whereFor(t);
+
     const otp = await this.prisma.otpRequest.findFirst({
-      where: { phone, consumed: false },
+      where: { ...where, consumed: false },
       orderBy: { createdAt: "desc" },
     });
     if (!otp || otp.expiresAt < new Date()) throw new BadRequestException("Invalid or expired code.");
@@ -68,14 +111,12 @@ export class AuthService {
     });
     if (!ok) throw new BadRequestException("Invalid or expired code.");
 
-    // Auto-provisioned accounts are PENDING (no school, no identity link) until Sprint 1's
-    // invite/identity-linking claims them. A PENDING user's null schoolId means tenant-scoped
-    // queries return nothing, so an unclaimed token cannot read any school's data.
-    let user = await this.prisma.user.findFirst({ where: { phone } });
+    // Auto-provisioned accounts are PENDING (no school, no identity) until they match an
+    // invited Parent/Staff. A PENDING user's null schoolId means tenant-scoped queries
+    // return nothing, so an unclaimed token cannot read any school's data.
+    let user = await this.prisma.user.findFirst({ where });
     if (!user) {
-      user = await this.prisma.user.create({
-        data: { phone, identityType: "PENDING", identityId: "" },
-      });
+      user = await this.prisma.user.create({ data: { ...where, identityType: "PENDING", identityId: "" } });
     }
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
 
@@ -84,6 +125,7 @@ export class AuthService {
     const token = await this.jwt.signAsync({
       sub: user.id,
       phone: user.phone,
+      email: user.email,
       schoolId: user.schoolId,
       identityType: user.identityType,
       identityId: user.identityId,
@@ -93,7 +135,8 @@ export class AuthService {
       token,
       user: {
         id: user.id,
-        phone: user.phone!,
+        phone: user.phone,
+        email: user.email,
         schoolId: user.schoolId,
         identityType: user.identityType,
       },
@@ -101,17 +144,22 @@ export class AuthService {
   }
 
   /**
-   * Auto-claim a freshly auto-provisioned (PENDING) login when their phone matches EXACTLY ONE
-   * identity total — one Parent (xor) one Staff. Zero, multiple, or a cross-type tie (one Parent
-   * AND one Staff) is ambiguous and left PENDING until explicitly claimed.
+   * Auto-claim a freshly auto-provisioned (PENDING) login when their phone OR email matches
+   * EXACTLY ONE identity total — one Parent (xor) one Staff. Zero, multiple, or a cross-type
+   * tie is ambiguous and left PENDING until explicitly claimed.
    */
-  private async linkIdentityIfMatch<T extends { id: string; phone: string | null; identityType: string }>(
-    user: T,
-  ): Promise<T> {
-    if (user.identityType !== "PENDING" || !user.phone) return user;
+  private async linkIdentityIfMatch<
+    T extends { id: string; phone: string | null; email: string | null; identityType: string },
+  >(user: T): Promise<T> {
+    if (user.identityType !== "PENDING") return user;
+    const or: Array<{ phone: string } | { email: string }> = [];
+    if (user.phone) or.push({ phone: user.phone });
+    if (user.email) or.push({ email: user.email });
+    if (or.length === 0) return user;
+
     const [parents, staff] = await Promise.all([
-      this.prisma.parent.findMany({ where: { phone: user.phone }, select: { id: true, schoolId: true } }),
-      this.prisma.staff.findMany({ where: { phone: user.phone }, select: { id: true, schoolId: true } }),
+      this.prisma.parent.findMany({ where: { OR: or }, select: { id: true, schoolId: true } }),
+      this.prisma.staff.findMany({ where: { OR: or }, select: { id: true, schoolId: true } }),
     ]);
     if (parents.length + staff.length !== 1) return user;
     if (parents.length === 1) return this.linkParent(user, parents[0]!);
@@ -164,7 +212,7 @@ export class AuthService {
       if (claim.count === 0) {
         return { linked: false, fresh: await tx.user.findFirstOrThrow({ where: { id: user.id } }) };
       }
-      // No permission grants — a STAFF identity is not tool access (RBAC assignment is a separate slice).
+      // No permission grants — a STAFF identity is not tool access (RBAC is a separate slice).
       return { linked: true, fresh: await tx.user.findFirstOrThrow({ where: { id: user.id } }) };
     });
     if (linked) {
@@ -177,7 +225,7 @@ export class AuthService {
     return fresh as unknown as T;
   }
 
-  /** Step-up re-verification: validate a fresh OTP for an already-authenticated user. No JWT issued; single-use. */
+  /** Step-up re-verification: validate a fresh phone OTP for an already-authenticated user. */
   async assertOtp(phone: string, code: string): Promise<void> {
     const otp = await this.prisma.otpRequest.findFirst({
       where: { phone, consumed: false },

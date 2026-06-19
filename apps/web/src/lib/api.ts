@@ -48,7 +48,8 @@ async function authedRequest<T>(path: string, init?: RequestInit): Promise<T> {
 
 export interface AuthUser {
   id: string;
-  phone: string;
+  phone: string | null;
+  email: string | null;
   schoolId: string | null;
   identityType: string;
 }
@@ -463,12 +464,12 @@ export interface ConversationRow { id: string; counterpartName: string; lastMess
 export interface ChatMessage { id: string; senderType: "PARENT" | "STAFF"; body: string; sentAt: string; readAt: string | null; }
 
 export const api = {
-  requestOtp: (phone: string) =>
-    request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify({ phone }) }),
-  verifyOtp: (phone: string, code: string) =>
+  requestOtp: (target: { phone?: string; email?: string }) =>
+    request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify(target) }),
+  verifyOtp: (target: { phone?: string; email?: string }, code: string) =>
     request<{ token: string; user: AuthUser }>("/auth/otp/verify", {
       method: "POST",
-      body: JSON.stringify({ phone, code }),
+      body: JSON.stringify({ ...target, code }),
     }),
 
   createSchool: (data: { name: string; slug?: string; country?: string; currency?: string }) =>
