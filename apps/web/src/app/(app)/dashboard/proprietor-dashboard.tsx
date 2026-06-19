@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardBody, Spinner } from "@mymakaranta/ui";
+import { Card, PageContainer, PageHeader, Spinner, StatCard } from "@mymakaranta/ui";
 import { api, type AcademicYear, type ProprietorDashboard } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
+import { BarChart3, CalendarCheck } from "lucide-react";
 import AlertsPanel from "./alerts-panel";
 
 interface TermOpt { id: string; label: string; isCurrent: boolean; }
@@ -43,92 +44,75 @@ export default function ProprietorDashboardView() {
 
   const pct = data ? Math.round(data.attendance.rate * 100) : 0;
 
+  const termSelect =
+    terms.length > 0 ? (
+      <select
+        value={termId}
+        onChange={(e) => setTermId(e.target.value)}
+        className="rounded-[10px] border border-ink-1000/10 bg-surface px-3.5 py-2 text-small font-medium text-ink-1000 transition-colors hover:border-ink-1000/20 focus-visible:shadow-focus focus-visible:outline-none dark:border-white/15 dark:bg-surface-dark dark:text-ink-100"
+      >
+        {terms.map((t) => (
+          <option key={t.id} value={t.id}>{t.label}</option>
+        ))}
+      </select>
+    ) : null;
+
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Dashboard</h1>
-        {terms.length > 0 && (
-          <select
-            value={termId}
-            onChange={(e) => setTermId(e.target.value)}
-            className="rounded-input border border-ink-200 dark:border-white/10 bg-surface dark:bg-surface-dark px-3 py-2 text-small text-ink-1000 dark:text-ink-100"
-          >
-            {terms.map((t) => (
-              <option key={t.id} value={t.id}>{t.label}</option>
-            ))}
-          </select>
-        )}
-      </div>
+    <PageContainer>
+      <PageHeader title="Dashboard" description="Your school at a glance this term." actions={termSelect} />
 
       <AlertsPanel termId={termId || undefined} />
 
       {loading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
-      ) : error ? (
-        <div className="rounded-card border border-error/40 bg-error/10 p-4 text-small text-error">{error}</div>
-      ) : !data || data.term === null ? (
-        <div className="rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-8 text-center">
-          <p className="text-body font-semibold text-ink-1000 dark:text-ink-100">No active term yet</p>
-          <p className="text-small text-ink-500 mt-1">Set a current term to see your school at a glance.</p>
+        <div className="flex justify-center py-20">
+          <Spinner size="lg" />
         </div>
+      ) : error ? (
+        <div className="rounded-[14px] border border-error/40 bg-error/10 p-4 text-small text-error">{error}</div>
+      ) : !data || data.term === null ? (
+        <Card className="p-10 text-center">
+          <p className="text-body font-semibold text-ink-1000 dark:text-ink-100">No active term yet</p>
+          <p className="mt-1 text-small text-ink-500">Set a current term to see your school at a glance.</p>
+        </Card>
       ) : (
-        <div className="flex flex-col gap-6">
-          {/* Hero: collected this week */}
-          <Card elevation="sm">
-            <CardBody>
-              <p className="text-caption text-ink-500">Collected this week</p>
-              <p className="text-h1 font-display font-semibold text-ink-1000 dark:text-ink-100 tabular-nums">
-                {formatMoney(data.fees.collectedThisWeekKobo, "NGN")}
-              </p>
-            </CardBody>
+        <div className="mt-2 flex flex-col gap-5">
+          {/* Featured: collected this week */}
+          <Card elevation="xs" className="p-6">
+            <p className="text-small font-medium text-ink-500">Collected this week</p>
+            <p className="mt-2 font-display text-h1 font-bold tabular-nums text-brand-700 dark:text-brand-300">
+              {formatMoney(data.fees.collectedThisWeekKobo, "NGN")}
+            </p>
           </Card>
 
-          {/* Fees row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            {[
-              { label: "Expected", kobo: data.fees.expectedKobo },
-              { label: "Collected", kobo: data.fees.collectedKobo },
-              { label: "Outstanding", kobo: data.fees.outstandingKobo },
-              { label: "Overdue", kobo: data.fees.overdueKobo, tone: "text-error" },
-            ].map((k) => (
-              <Card key={k.label} elevation="sm">
-                <CardBody>
-                  <p className="text-caption text-ink-500">{k.label}</p>
-                  <p className={`text-body font-semibold tabular-nums ${k.tone ?? "text-ink-1000 dark:text-ink-100"}`}>
-                    {formatMoney(k.kobo, "NGN")}
-                  </p>
-                </CardBody>
-              </Card>
-            ))}
+          {/* Fee KPIs */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard label="Expected" value={formatMoney(data.fees.expectedKobo, "NGN")} />
+            <StatCard label="Collected" value={formatMoney(data.fees.collectedKobo, "NGN")} tone="success" />
+            <StatCard label="Outstanding" value={formatMoney(data.fees.outstandingKobo, "NGN")} tone="warning" />
+            <StatCard label="Overdue" value={formatMoney(data.fees.overdueKobo, "NGN")} tone="error" />
           </div>
 
           {/* Attendance + Results */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card elevation="sm">
-              <CardBody>
-                <p className="text-caption text-ink-500">Attendance rate</p>
-                <p className="text-h2 font-display font-semibold text-ink-1000 dark:text-ink-100 tabular-nums">{pct}%</p>
-                <p className="text-caption text-ink-500 mt-1">
-                  {data.attendance.presentDays} of {data.attendance.totalDays} marks (term to date)
-                </p>
-              </CardBody>
-            </Card>
-            <Card elevation="sm">
-              <CardBody>
-                <p className="text-caption text-ink-500">Results released</p>
-                <p className="text-h2 font-display font-semibold text-ink-1000 dark:text-ink-100 tabular-nums">
-                  {data.results.classesReleased} of {data.results.classesTotal}
-                </p>
-                <p className="text-caption text-ink-500 mt-1">
-                  {data.results.topClass
-                    ? `Top class: ${data.results.topClass.name} (${data.results.topClass.average}%)`
-                    : "No classes released yet"}
-                </p>
-              </CardBody>
-            </Card>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <StatCard
+              label="Attendance rate"
+              value={`${pct}%`}
+              icon={<CalendarCheck size={16} aria-hidden />}
+              hint={`${data.attendance.presentDays} of ${data.attendance.totalDays} marks (term to date)`}
+            />
+            <StatCard
+              label="Results released"
+              value={`${data.results.classesReleased} of ${data.results.classesTotal}`}
+              icon={<BarChart3 size={16} aria-hidden />}
+              hint={
+                data.results.topClass
+                  ? `Top class: ${data.results.topClass.name} (${data.results.topClass.average}%)`
+                  : "No classes released yet"
+              }
+            />
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
