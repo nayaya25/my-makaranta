@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Button, Input, Spinner } from "@mymakaranta/ui";
+import { Badge, Button, Card, CardBody, Input, PageContainer, PageHeader, Spinner } from "@mymakaranta/ui";
 import { api, type ParentInvoice } from "@/lib/api";
 import { session } from "@/lib/auth";
 import { formatMoney } from "@/lib/money";
@@ -133,36 +133,31 @@ export default function ParentPortalPage() {
   const hasOutstanding = (invoices ?? []).some((i) => i.balanceKobo > 0);
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8">
-      <header className="mb-6">
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Fees</h1>
-        <p className="text-small text-ink-500">Your children&apos;s invoices and balances. Pay in one tap.</p>
-      </header>
+    <PageContainer className="max-w-2xl">
+      <PageHeader title="Fees" description="Your children's invoices and balances. Pay in one tap." />
 
       {loading ? (
-        <div className="flex justify-center py-16">
+        <div className="flex justify-center py-20">
           <Spinner size="lg" />
         </div>
       ) : error ? (
-        <div className="rounded-card border border-error/40 bg-error/10 p-4 text-small text-error">{error}</div>
+        <div className="rounded-[14px] border border-error/40 bg-error/10 p-4 text-small text-error">{error}</div>
       ) : grouped.length === 0 || !hasOutstanding ? (
-        <div className="rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-8 text-center">
+        <Card className="p-10 text-center">
           <p className="text-body font-semibold text-ink-1000 dark:text-ink-100">No outstanding fees 🎉</p>
-          <p className="text-small text-ink-500 mt-1">Everything is paid up. Thank you.</p>
-        </div>
+          <p className="mt-1 text-small text-ink-500">Everything is paid up. Thank you.</p>
+        </Card>
       ) : (
         <div className="flex flex-col gap-6">
           {grouped.map(([studentName, list]) => (
             <section key={studentName} className="flex flex-col gap-3">
-              <h2 className="text-small font-semibold text-ink-700 dark:text-ink-300">{studentName}</h2>
+              <h2 className="text-caption font-semibold uppercase tracking-wide text-ink-500">{studentName}</h2>
               {list.map((inv) => {
                 const st = pay[inv.invoiceId];
                 const paid = inv.balanceKobo <= 0;
                 return (
-                  <div
-                    key={inv.invoiceId}
-                    className="rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-4"
-                  >
+                  <Card key={inv.invoiceId} elevation="xs">
+                    <CardBody>
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-body font-medium text-ink-1000 dark:text-ink-100">{inv.termLabel}</p>
@@ -186,7 +181,7 @@ export default function ParentPortalPage() {
                     </div>
 
                     {!paid && st && (
-                      <div className="mt-3 border-t border-ink-100 dark:border-white/10 pt-3">
+                      <div className="mt-3 border-t border-ink-1000/[0.08] pt-3 dark:border-white/10">
                         {st.receiptCode ? (
                           <a
                             href={`/receipt/${st.receiptCode}`}
@@ -240,13 +235,14 @@ export default function ParentPortalPage() {
                         {st.error && <p className="mt-2 text-caption text-error">{st.error}</p>}
                       </div>
                     )}
-                  </div>
+                    </CardBody>
+                  </Card>
                 );
               })}
             </section>
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }
