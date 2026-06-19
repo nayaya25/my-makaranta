@@ -292,15 +292,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        {/* Identity lockup */}
+        {/* Identity lockup → My profile */}
         <div className="shrink-0 px-3 pb-2 pt-3">
-          <div className="flex w-full items-center gap-2.5 rounded-xl bg-sidebar-item-hover px-3 py-2.5">
+          <Link
+            href="/profile"
+            onClick={() => setMobileOpen(false)}
+            className="flex w-full items-center gap-2.5 rounded-xl bg-sidebar-item-hover px-3 py-2.5 transition-colors hover:bg-sidebar-item-active"
+          >
             <span className="h-2 w-2 shrink-0 rounded-full bg-sidebar-accent" />
             <div className="min-w-0 flex-1 text-left">
               <p className="truncate text-[12px] font-semibold leading-none text-sidebar-text-active">{roleLabel}</p>
               {contact && <p className="mt-0.5 truncate text-[10px] leading-none text-sidebar-text">{contact}</p>}
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* Nav */}

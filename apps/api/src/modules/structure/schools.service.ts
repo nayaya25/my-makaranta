@@ -1,19 +1,35 @@
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../../core/prisma/prisma.service";
-import { CreateSchoolDto } from "./dto/schools.dto";
+import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
+import { CreateSchoolDto, UpdateSchoolDto } from "./dto/schools.dto";
+
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+type SchoolRecord = { logoUrl?: string | null };
 
 @Injectable()
 export class SchoolsService {
   constructor(
     private prisma: PrismaService,
     private jwt: JwtService,
+    @Inject(STORAGE_SERVICE) private storage: StorageService,
   ) {}
+
+  /** Resolve a stored logo KEY to a fresh signed URL on read (external URLs pass through). */
+  private async signLogo<T extends SchoolRecord>(school: T): Promise<T> {
+    if (school.logoUrl && !/^https?:\/\//.test(school.logoUrl)) {
+      return { ...school, logoUrl: await this.storage.getSignedUrl(school.logoUrl) };
+    }
+    return school;
+  }
 
   async createSchool(dto: CreateSchoolDto, userId: string) {
     // Onboarding only: a user may bootstrap a school exactly once, while still PENDING.
@@ -71,6 +87,44 @@ export class SchoolsService {
     if (!schoolId) throw new NotFoundException("No school associated with this account.");
     const school = await this.prisma.school.findUnique({ where: { id: schoolId } });
     if (!school) throw new NotFoundException("School not found.");
-    return school;
+    return this.signLogo(school);
+  }
+
+  async updateMySchool(schoolId: string | null, dto: UpdateSchoolDto) {
+    if (!schoolId) throw new NotFoundException("No school associated with this account.");
+    const school = await this.prisma.school.update({
+      where: { id: schoolId },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.country !== undefined ? { country: dto.country as never } : {}),
+        ...(dto.currency !== undefined ? { currency: dto.currency } : {}),
+      },
+    });
+    return this.signLogo(school);
+  }
+
+  async setLogo(
+    schoolId: string | null,
+    file?: { buffer: Buffer; mimetype: string; size: number },
+  ) {
+    if (!schoolId) throw new NotFoundException("No school associated with this account.");
+    if (!file) throw new BadRequestException("No file uploaded.");
+    if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
+      throw new BadRequestException("Logo must be JPEG, PNG, WebP, or SVG.");
+    }
+    if (file.size > MAX_IMAGE_BYTES) throw new BadRequestException("Logo must be 5MB or smaller.");
+
+    const ext =
+      file.mimetype === "image/png"
+        ? "png"
+        : file.mimetype === "image/webp"
+          ? "webp"
+          : file.mimetype === "image/svg+xml"
+            ? "svg"
+            : "jpg";
+    const key = `logos/${schoolId}.${ext}`;
+    await this.storage.put(key, file.buffer, { contentType: file.mimetype });
+    await this.prisma.school.update({ where: { id: schoolId }, data: { logoUrl: key } });
+    return { logoUrl: await this.storage.getSignedUrl(key) };
   }
 }

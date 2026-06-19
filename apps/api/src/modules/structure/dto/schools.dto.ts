@@ -2,6 +2,22 @@ import { IsIn, IsOptional, IsString, Matches, MaxLength } from "class-validator"
 
 const COUNTRY_CODES = ["NG", "GH", "KE"] as const;
 
+export class UpdateSchoolDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  name?: string;
+
+  @IsOptional()
+  @IsIn(COUNTRY_CODES, { message: "country must be one of NG, GH, KE" })
+  country?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  currency?: string;
+}
+
 export class CreateSchoolDto {
   @IsString()
   @MaxLength(200)
