@@ -5,6 +5,8 @@ export class MailgunEmailAdapter implements EmailService {
   private readonly domain = process.env.MAILGUN_DOMAIN!;
   private readonly apiKey = process.env.MAILGUN_API_KEY!;
   private readonly from = process.env.MAILGUN_FROM ?? "noreply@mymakaranta.com";
+  // US by default; set https://api.eu.mailgun.net for EU-region Mailgun domains.
+  private readonly base = (process.env.MAILGUN_BASE_URL ?? "https://api.mailgun.net").replace(/\/$/, "");
 
   async send(message: EmailMessage): Promise<void> {
     const form = new URLSearchParams({
@@ -15,7 +17,7 @@ export class MailgunEmailAdapter implements EmailService {
     });
     if (message.text) form.set("text", message.text);
 
-    const res = await fetch(`https://api.mailgun.net/v3/${this.domain}/messages`, {
+    const res = await fetch(`${this.base}/v3/${this.domain}/messages`, {
       method: "POST",
       headers: {
         Authorization: `Basic ${Buffer.from(`api:${this.apiKey}`).toString("base64")}`,
