@@ -5,6 +5,7 @@ import * as bcrypt from "bcrypt";
 import { PrismaService } from "../prisma/prisma.service";
 import { SmsService } from "./sms.service";
 import { EMAIL_SERVICE, type EmailService } from "../email/email.types";
+import { normalizePhone, phoneMatchVariants } from "./phone";
 
 const OTP_TTL_MINUTES = 10;
 const OTP_RATE_LIMIT_PER_HOUR = 5;
@@ -49,7 +50,7 @@ export class AuthService {
    *  callers) or a { phone | email } target. Returns the channel + value. */
   private normalize(target: string | OtpTarget): NormalizedTarget {
     const obj: OtpTarget = typeof target === "string" ? { phone: target } : target;
-    const phone = obj.phone?.trim();
+    const phone = obj.phone ? normalizePhone(obj.phone) : undefined;
     const email = obj.email?.trim().toLowerCase();
     if (phone && email) throw new BadRequestException("Provide either a phone or an email, not both.");
     if (phone) return { channel: "phone", phone };
@@ -152,8 +153,8 @@ export class AuthService {
     T extends { id: string; phone: string | null; email: string | null; identityType: string },
   >(user: T): Promise<T> {
     if (user.identityType !== "PENDING") return user;
-    const or: Array<{ phone: string } | { email: string }> = [];
-    if (user.phone) or.push({ phone: user.phone });
+    const or: Array<{ phone: { in: string[] } } | { email: string }> = [];
+    if (user.phone) or.push({ phone: { in: phoneMatchVariants(user.phone) } });
     if (user.email) or.push({ email: user.email });
     if (or.length === 0) return user;
 
