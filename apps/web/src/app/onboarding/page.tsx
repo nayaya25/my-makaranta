@@ -2,29 +2,34 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Button,
-  Card,
-  CardBody,
-  CardFooter,
-  CardHeader,
-  Field,
-  Input,
-  Select,
-} from "@mymakaranta/ui";
+import { Button, Field, Input, Select, cn } from "@mymakaranta/ui";
 import { api, ApiError } from "@/lib/api";
 import { session } from "@/lib/auth";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, GraduationCap } from "lucide-react";
 
 type Step = "school" | "academic-year" | "class-levels" | "done";
 
 const STEPS: Step[] = ["school", "academic-year", "class-levels", "done"];
 
 const STEP_LABELS: Record<Step, string> = {
-  school: "Your School",
-  "academic-year": "Academic Year",
-  "class-levels": "Class Levels",
-  done: "All Set",
+  school: "Your school",
+  "academic-year": "Academic year",
+  "class-levels": "Class levels",
+  done: "All set",
+};
+
+const STEP_TITLES: Record<Step, string> = {
+  school: "Set up your school",
+  "academic-year": "Current academic year",
+  "class-levels": "Class levels",
+  done: "All set!",
+};
+
+const STEP_DESC: Record<Step, string> = {
+  school: "Tell us about your school. You can change any of this later.",
+  "academic-year": "Set the current session and its three terms.",
+  "class-levels": "Add the levels your school runs — e.g. JSS 1 through SS 3.",
+  done: "",
 };
 
 const CURRENCIES = ["NGN", "USD", "GBP", "EUR"];
@@ -44,50 +49,49 @@ const DEFAULT_CLASS_LEVELS = [
   { name: "SS 3", order: 6 },
 ];
 
-function StepIndicator({ current }: { current: Step }) {
+const FORM_STEPS = STEPS.filter((s) => s !== "done");
+
+/** Vertical stepper shown in the brand panel (desktop only). */
+function VerticalSteps({ current }: { current: Step }) {
   const idx = STEPS.indexOf(current);
   return (
-    <div className="flex items-center gap-2 mb-6">
-      {STEPS.filter((s) => s !== "done").map((step, i) => {
+    <ol className="mt-10 flex flex-col gap-1.5">
+      {FORM_STEPS.map((step, i) => {
         const stepIdx = STEPS.indexOf(step);
         const done = stepIdx < idx;
         const active = stepIdx === idx;
         return (
-          <div key={step} className="flex items-center gap-2">
-            <div
-              className={[
-                "flex h-6 w-6 items-center justify-center rounded-pill text-caption font-semibold",
-                done
-                  ? "bg-brand-500 text-white"
-                  : active
-                    ? "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300"
-                    : "bg-ink-100 text-ink-500 dark:bg-white/8",
-              ].join(" ")}
-            >
-              {done ? <CheckCircle2 size={14} /> : i + 1}
-            </div>
+          <li
+            key={step}
+            className={cn(
+              "flex items-center gap-3 rounded-[10px] px-3 py-2.5 transition-colors",
+              active && "bg-white/10",
+            )}
+          >
             <span
-              className={[
-                "text-caption hidden sm:block",
-                active
-                  ? "text-ink-1000 dark:text-ink-100 font-medium"
-                  : "text-ink-500",
-              ].join(" ")}
+              className={cn(
+                "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-caption font-semibold",
+                done
+                  ? "bg-white text-brand-700"
+                  : active
+                    ? "bg-white/20 text-white ring-1 ring-white/40"
+                    : "bg-white/10 text-white/50",
+              )}
+            >
+              {done ? <CheckCircle2 size={15} aria-hidden /> : i + 1}
+            </span>
+            <span
+              className={cn(
+                "text-small",
+                active ? "font-semibold text-white" : done ? "text-white/80" : "text-white/50",
+              )}
             >
               {STEP_LABELS[step]}
             </span>
-            {i < STEPS.filter((s) => s !== "done").length - 1 && (
-              <div
-                className={[
-                  "h-px w-6 sm:w-10",
-                  done ? "bg-brand-500" : "bg-ink-200 dark:bg-white/10",
-                ].join(" ")}
-              />
-            )}
-          </div>
+          </li>
         );
       })}
-    </div>
+    </ol>
   );
 }
 
@@ -107,11 +111,7 @@ function SchoolStep({ onNext }: { onNext: () => void }) {
       const { school, token } = await api.createSchool({ name, currency, country });
       const currentUser = session.user();
       if (currentUser) {
-        session.save(token, {
-          ...currentUser,
-          schoolId: school.id,
-          identityType: "PROPRIETOR",
-        });
+        session.save(token, { ...currentUser, schoolId: school.id, identityType: "PROPRIETOR" });
       }
       onNext();
     } catch (err) {
@@ -133,35 +133,37 @@ function SchoolStep({ onNext }: { onNext: () => void }) {
           required
         />
       </Field>
-      <Field label="Country" htmlFor="country">
-        <Select.Root value={country} onValueChange={setCountry}>
-          <Select.Trigger id="country">
-            <Select.Value />
-          </Select.Trigger>
-          <Select.Content>
-            {COUNTRIES.map((c) => (
-              <Select.Item key={c.code} value={c.code}>
-                {c.label}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
-      </Field>
-      <Field label="Currency" htmlFor="currency">
-        <Select.Root value={currency} onValueChange={setCurrency}>
-          <Select.Trigger id="currency">
-            <Select.Value />
-          </Select.Trigger>
-          <Select.Content>
-            {CURRENCIES.map((c) => (
-              <Select.Item key={c} value={c}>
-                {c}
-              </Select.Item>
-            ))}
-          </Select.Content>
-        </Select.Root>
-      </Field>
-      <Button type="submit" disabled={busy || !name.trim()}>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Country" htmlFor="country">
+          <Select.Root value={country} onValueChange={setCountry}>
+            <Select.Trigger id="country">
+              <Select.Value />
+            </Select.Trigger>
+            <Select.Content>
+              {COUNTRIES.map((c) => (
+                <Select.Item key={c.code} value={c.code}>
+                  {c.label}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </Field>
+        <Field label="Currency" htmlFor="currency">
+          <Select.Root value={currency} onValueChange={setCurrency}>
+            <Select.Trigger id="currency">
+              <Select.Value />
+            </Select.Trigger>
+            <Select.Content>
+              {CURRENCIES.map((c) => (
+                <Select.Item key={c} value={c}>
+                  {c}
+                </Select.Item>
+              ))}
+            </Select.Content>
+          </Select.Root>
+        </Field>
+      </div>
+      <Button type="submit" size="lg" disabled={busy || !name.trim()} className="mt-1 w-full">
         {busy ? "Creating…" : "Continue"}
       </Button>
     </form>
@@ -182,14 +184,8 @@ function AcademicYearStep({ onNext }: { onNext: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function updateTerm(
-    i: number,
-    field: "startDate" | "endDate",
-    value: string,
-  ) {
-    setTerms((prev) =>
-      prev.map((t, idx) => (idx === i ? { ...t, [field]: value } : t)),
-    );
+  function updateTerm(i: number, field: "startDate" | "endDate", value: string) {
+    setTerms((prev) => prev.map((t, idx) => (idx === i ? { ...t, [field]: value } : t)));
   }
 
   async function submit(e: React.FormEvent) {
@@ -214,31 +210,14 @@ function AcademicYearStep({ onNext }: { onNext: () => void }) {
         </p>
       )}
       <Field label="Academic year name" htmlFor="year-name">
-        <Input
-          id="year-name"
-          value={yearName}
-          onChange={(e) => setYearName(e.target.value)}
-          required
-        />
+        <Input id="year-name" value={yearName} onChange={(e) => setYearName(e.target.value)} required />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Start date" htmlFor="year-start">
-          <Input
-            id="year-start"
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            required
-          />
+          <Input id="year-start" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
         </Field>
         <Field label="End date" htmlFor="year-end">
-          <Input
-            id="year-end"
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            required
-          />
+          <Input id="year-end" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
         </Field>
       </div>
 
@@ -247,9 +226,9 @@ function AcademicYearStep({ onNext }: { onNext: () => void }) {
         {terms.map((term, i) => (
           <div
             key={term.number}
-            className="rounded-input border border-ink-200 dark:border-white/10 p-3 flex flex-col gap-3"
+            className="flex flex-col gap-3 rounded-[12px] border border-ink-1000/[0.08] p-3.5 dark:border-white/10"
           >
-            <p className="text-caption font-semibold text-ink-500">Term {term.number}</p>
+            <p className="text-caption font-semibold uppercase tracking-wide text-ink-500">Term {term.number}</p>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Start" htmlFor={`term-${i}-start`}>
                 <Input
@@ -274,7 +253,7 @@ function AcademicYearStep({ onNext }: { onNext: () => void }) {
         ))}
       </div>
 
-      <Button type="submit" disabled={busy}>
+      <Button type="submit" size="lg" disabled={busy} className="mt-1 w-full">
         {busy ? "Saving…" : "Continue"}
       </Button>
     </form>
@@ -325,6 +304,11 @@ function ClassLevelsStep({ onNext }: { onNext: () => void }) {
         </p>
       )}
       <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2 px-1 text-caption font-semibold uppercase tracking-wide text-ink-500">
+          <span className="flex-1">Level name</span>
+          <span className="w-16 text-center">Order</span>
+          <span className="w-9" />
+        </div>
         {levels.map((level, i) => (
           <div key={i} className="flex items-center gap-2">
             <Input
@@ -347,17 +331,22 @@ function ClassLevelsStep({ onNext }: { onNext: () => void }) {
               variant="ghost"
               size="sm"
               onClick={() => removeLevel(i)}
-              aria-label={`Remove ${level.name}`}
+              aria-label={`Remove ${level.name || `level ${i + 1}`}`}
             >
               ✕
             </Button>
           </div>
         ))}
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={addLevel}>
+      <Button type="button" variant="outline" size="sm" onClick={addLevel} className="self-start">
         + Add level
       </Button>
-      <Button type="submit" disabled={busy || levels.filter((l) => l.name.trim()).length === 0}>
+      <Button
+        type="submit"
+        size="lg"
+        disabled={busy || levels.filter((l) => l.name.trim()).length === 0}
+        className="mt-1 w-full"
+      >
         {busy ? "Saving…" : "Continue"}
       </Button>
     </form>
@@ -367,21 +356,21 @@ function ClassLevelsStep({ onNext }: { onNext: () => void }) {
 // ---------- Done ----------
 function DoneStep({ onFinish }: { onFinish: () => void }) {
   return (
-    <div className="flex flex-col items-center gap-6 py-4 text-center">
-      <div className="bg-success/10 text-success rounded-pill p-4">
-        <CheckCircle2 size={40} />
+    <div className="flex flex-col items-center gap-6 py-6 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10 text-success">
+        <CheckCircle2 size={36} aria-hidden />
       </div>
       <div className="flex flex-col gap-2">
-        <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">
+        <h1 className="font-display text-h2 font-bold tracking-tight text-ink-1000 dark:text-ink-100">
           Your school is ready!
-        </h2>
-        <p className="text-small text-ink-500">
-          Now add your first students to get started.
+        </h1>
+        <p className="max-w-sm text-small text-ink-500">
+          Everything's set up. Add your first students to start enrolling, recording results, and collecting fees.
         </p>
       </div>
-      <div className="flex flex-col sm:flex-row gap-3">
-        <Button onClick={onFinish}>Go to Students</Button>
-      </div>
+      <Button onClick={onFinish} size="lg" className="w-full sm:w-auto">
+        Go to Students
+      </Button>
     </div>
   );
 }
@@ -390,53 +379,101 @@ function DoneStep({ onFinish }: { onFinish: () => void }) {
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("school");
+  const idx = STEPS.indexOf(step);
 
   function next() {
-    const idx = STEPS.indexOf(step);
     const nextStep = STEPS[idx + 1];
     if (nextStep) setStep(nextStep);
   }
 
-  const STEP_TITLES: Record<Step, string> = {
-    school: "Set up your school",
-    "academic-year": "Current academic year",
-    "class-levels": "Class levels",
-    done: "All set!",
-  };
+  function back() {
+    const prevStep = STEPS[idx - 1];
+    if (prevStep) setStep(prevStep);
+  }
 
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-12 bg-paper dark:bg-paper-dark">
-      <div className="w-full max-w-lg">
-        {step !== "done" && <StepIndicator current={step} />}
-        <Card elevation="md">
-          <CardHeader>
-            <h1 className="font-display text-h3 font-semibold text-ink-1000 dark:text-ink-100">
-              {STEP_TITLES[step]}
-            </h1>
-          </CardHeader>
-          <CardBody>
-            {step === "school" && <SchoolStep onNext={next} />}
-            {step === "academic-year" && <AcademicYearStep onNext={next} />}
-            {step === "class-levels" && <ClassLevelsStep onNext={next} />}
-            {step === "done" && <DoneStep onFinish={() => router.push("/students")} />}
-          </CardBody>
-          {step !== "done" && step !== "school" && (
-            <CardFooter>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const idx = STEPS.indexOf(step);
-                  const prevStep = STEPS[idx - 1];
-                  if (prevStep) setStep(prevStep);
-                }}
-              >
-                Back
-              </Button>
-            </CardFooter>
+    <main className="flex min-h-screen bg-paper dark:bg-paper-dark">
+      {/* Brand panel — desktop only */}
+      <aside className="relative hidden w-[42%] max-w-md flex-col justify-between overflow-hidden bg-brand-700 p-10 text-white lg:flex">
+        <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-brand-500/30 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-28 -left-20 h-72 w-72 rounded-full bg-brand-300/20 blur-3xl" />
+
+        <div className="relative flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white/15">
+            <GraduationCap size={20} aria-hidden />
+          </span>
+          <span className="font-display text-lg font-bold tracking-tight">myMakaranta</span>
+        </div>
+
+        <div className="relative">
+          <h2 className="max-w-sm font-display text-h2 font-bold leading-tight">
+            Let&apos;s get your school running.
+          </h2>
+          <p className="mt-3 max-w-xs text-small leading-relaxed text-white/70">
+            A few quick steps and you&apos;ll be ready to enroll students, record results, and collect fees.
+          </p>
+          <VerticalSteps current={step} />
+        </div>
+
+        <p className="relative text-caption text-white/50">Built for schools across Nigeria.</p>
+      </aside>
+
+      {/* Form side */}
+      <section className="flex flex-1 items-center justify-center px-4 py-10 sm:px-8">
+        <div className="w-full max-w-md">
+          {/* Mobile brand mark */}
+          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
+            <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-brand-500 text-white">
+              <GraduationCap size={18} aria-hidden />
+            </span>
+            <span className="font-display text-lg font-bold tracking-tight text-ink-1000 dark:text-ink-100">
+              myMakaranta
+            </span>
+          </div>
+
+          {/* Mobile progress bar */}
+          {step !== "done" && (
+            <div className="mb-7 flex gap-1.5 lg:hidden">
+              {FORM_STEPS.map((s) => (
+                <div
+                  key={s}
+                  className={cn(
+                    "h-1 flex-1 rounded-full",
+                    STEPS.indexOf(s) <= idx ? "bg-brand-500" : "bg-ink-1000/10 dark:bg-white/10",
+                  )}
+                />
+              ))}
+            </div>
           )}
-        </Card>
-      </div>
+
+          {step !== "done" && (
+            <div className="mb-6">
+              <p className="text-caption font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-300">
+                Step {idx + 1} of {FORM_STEPS.length}
+              </p>
+              <h1 className="mt-1.5 font-display text-h2 font-bold tracking-tight text-ink-1000 dark:text-ink-100">
+                {STEP_TITLES[step]}
+              </h1>
+              <p className="mt-1.5 text-small leading-relaxed text-ink-500">{STEP_DESC[step]}</p>
+            </div>
+          )}
+
+          {step === "school" && <SchoolStep onNext={next} />}
+          {step === "academic-year" && <AcademicYearStep onNext={next} />}
+          {step === "class-levels" && <ClassLevelsStep onNext={next} />}
+          {step === "done" && <DoneStep onFinish={() => router.push("/students")} />}
+
+          {step !== "done" && step !== "school" && (
+            <button
+              type="button"
+              onClick={back}
+              className="mt-5 text-small font-medium text-ink-500 transition-colors hover:text-ink-1000 dark:hover:text-ink-100"
+            >
+              ← Back
+            </button>
+          )}
+        </div>
+      </section>
     </main>
   );
 }

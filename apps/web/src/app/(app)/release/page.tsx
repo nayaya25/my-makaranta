@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Button, Spinner, EmptyState } from "@mymakaranta/ui";
+import { Badge, Button, Card, PageContainer, PageHeader, Spinner, EmptyState } from "@mymakaranta/ui";
 import {
   api,
   ApiError,
@@ -171,32 +171,35 @@ export default function ReleasePage() {
 
   const cls = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small";
 
-  return (
-    <div className="px-4 py-8 mx-auto max-w-4xl">
-      <div className="mb-6">
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Release</h1>
-        <p className="text-small text-ink-500">Freeze and release a class&apos;s results. Released scores are locked.</p>
-      </div>
+  const termSelect = (
+    <select
+      value={termId}
+      onChange={(e) => setTermId(e.target.value)}
+      className="rounded-[10px] border border-ink-1000/10 bg-surface px-3.5 py-2 text-small font-medium text-ink-1000 transition-colors hover:border-ink-1000/20 focus-visible:shadow-focus focus-visible:outline-none dark:border-white/15 dark:bg-surface-dark dark:text-ink-100"
+    >
+      {terms.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+    </select>
+  );
 
-      <div className="mb-6 flex items-end gap-3">
-        <label className="text-small text-ink-500 flex flex-col gap-1">Term
-          <select value={termId} onChange={(e) => setTermId(e.target.value)} className={cls}>
-            {terms.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-        </label>
-      </div>
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Release"
+        description="Freeze and release a class's results. Released scores are locked."
+        actions={termSelect}
+      />
 
       {error && <p className="mb-4 text-small text-error">{error}</p>}
 
       {loading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-20"><Spinner size="lg" /></div>
       ) : rows.length === 0 ? (
-        <EmptyState icon={<Lock size={28} />} title="No classes" description="No classes have enrolments for this term." />
+        <EmptyState icon={<Lock size={26} />} title="No classes" description="No classes have enrolments for this term." />
       ) : (
-        <div className="flex flex-col gap-2 mb-8">
+        <Card className="mb-8 divide-y divide-ink-1000/[0.06] dark:divide-white/[0.06]">
           {rows.map((r) => (
-            <div key={r.classId} className="flex items-center justify-between gap-3 border-b border-ink-100 dark:border-white/10 pb-2">
-              <span className="text-body text-ink-1000 dark:text-ink-100">{r.name}</span>
+            <div key={r.classId} className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-body font-medium text-ink-1000 dark:text-ink-100">{r.name}</span>
               <div className="flex items-center gap-3">
                 {r.released ? (
                   <>
@@ -211,58 +214,62 @@ export default function ReleasePage() {
               </div>
             </div>
           ))}
-        </div>
+        </Card>
       )}
 
       {sheet && (
         <div>
-          <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100 mb-3">Released sheet</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-small border-collapse">
-              <thead><tr className="text-left text-ink-500">
-                <th className="py-2 pr-3 font-medium">Pos</th>
-                <th className="py-2 pr-3 font-medium">Student</th>
-                <th className="py-2 px-2 font-medium text-center">Average</th>
-                <th className="py-2 pl-3 font-medium">Subjects</th>
-                <th className="py-2 pl-3 font-medium text-right">Action</th>
-              </tr></thead>
-              <tbody>
-                {sheet.data.students.map((st) => (
-                  <tr key={st.studentId} className="border-t border-ink-100 dark:border-white/10 align-top">
-                    <td className="py-1.5 pr-3 tabular-nums font-medium">{st.position}</td>
-                    <td className="py-1.5 pr-3 whitespace-nowrap text-ink-1000 dark:text-ink-100">{st.name}</td>
-                    <td className="py-1.5 px-2 text-center tabular-nums">{st.average}</td>
-                    <td className="py-1.5 pl-3 text-ink-700 dark:text-ink-300">
-                      {st.entries.map((e) => `${e.subjectName} ${e.total}${e.grade ? ` (${e.grade})` : ""}`).join(" · ") || "—"}
-                    </td>
-                    <td className="py-1.5 pl-3 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-3">
-                        <a
-                          href={`/report-card/${st.studentId}?termId=${termId}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-small text-brand-500 hover:underline"
-                        >
-                          Report card
-                        </a>
-                        <Button variant="outline" size="sm" onClick={() => openCorrect(st.studentId, st.name)}>Correct</Button>
-                      </div>
-                    </td>
+          <h2 className="mb-3 font-display text-h3 font-semibold text-ink-1000 dark:text-ink-100">Released sheet</h2>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-small">
+                <thead>
+                  <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] text-left dark:border-white/10 dark:bg-white/[0.03]">
+                    <th className="px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-ink-500">Pos</th>
+                    <th className="px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-ink-500">Student</th>
+                    <th className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">Average</th>
+                    <th className="px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-ink-500">Subjects</th>
+                    <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {sheet.data.students.map((st) => (
+                    <tr key={st.studentId} className="border-t border-ink-1000/[0.06] align-top dark:border-white/[0.06]">
+                      <td className="px-4 py-2.5 font-semibold tabular-nums text-ink-1000 dark:text-ink-100">{st.position}</td>
+                      <td className="whitespace-nowrap px-4 py-2.5 font-medium text-ink-1000 dark:text-ink-100">{st.name}</td>
+                      <td className="px-2 py-2.5 text-center tabular-nums text-ink-700 dark:text-ink-300">{st.average}</td>
+                      <td className="px-4 py-2.5 text-ink-700 dark:text-ink-300">
+                        {st.entries.map((e) => `${e.subjectName} ${e.total}${e.grade ? ` (${e.grade})` : ""}`).join(" · ") || "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-3">
+                          <a
+                            href={`/report-card/${st.studentId}?termId=${termId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-small font-medium text-brand-700 hover:underline dark:text-brand-300"
+                          >
+                            Report card
+                          </a>
+                          <Button variant="outline" size="sm" onClick={() => openCorrect(st.studentId, st.name)}>Correct</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         </div>
       )}
 
       {correcting && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-1000/40 p-4" onClick={closeCorrect}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-1000/40 p-4 backdrop-blur-sm" onClick={closeCorrect}>
           <div
-            className="w-full max-w-md rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-5 shadow-lg"
+            className="w-full max-w-md rounded-[16px] border border-ink-1000/10 bg-surface p-5 shadow-xl dark:border-white/10 dark:bg-surface-dark"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100 mb-1">Correct result</h2>
+            <h2 className="mb-1 font-display text-h3 font-semibold text-ink-1000 dark:text-ink-100">Correct result</h2>
             <p className="text-small text-ink-500 mb-4">{correcting.name}</p>
 
             <div className="flex flex-col gap-3">
@@ -313,6 +320,6 @@ export default function ReleasePage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

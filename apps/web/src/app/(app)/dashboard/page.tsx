@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Button, Card, CardBody, CardHeader, Badge } from "@mymakaranta/ui";
+import { Button, Card, CardBody, CardHeader, Badge, PageContainer, PageHeader } from "@mymakaranta/ui";
 import { session } from "@/lib/auth";
 import type { AuthUser } from "@/lib/api";
-import { Users, UserSquare2, BookOpen, ArrowRight } from "lucide-react";
+import { Users, UserSquare2, BookOpen, ArrowRight, GraduationCap } from "lucide-react";
 import ProprietorDashboardView from "./proprietor-dashboard";
 import PrincipalDashboardView from "./principal-dashboard";
 
@@ -41,13 +41,16 @@ export default function DashboardPage() {
 
   if (!user.schoolId) {
     return (
-      <div className="mx-auto max-w-lg px-4 py-16 flex flex-col items-center gap-6 text-center">
+      <div className="mx-auto flex max-w-md flex-col items-center gap-6 px-4 py-24 text-center">
+        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-300">
+          <GraduationCap size={30} aria-hidden />
+        </span>
         <div className="flex flex-col gap-2">
-          <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
+          <h1 className="font-display text-h2 font-bold tracking-tight text-ink-1000 dark:text-ink-100">
             Welcome to myMakaranta
           </h1>
-          <p className="text-body text-ink-700 dark:text-ink-300">
-            Set up your school to get started. It only takes a few minutes.
+          <p className="text-body leading-relaxed text-ink-700 dark:text-ink-300">
+            Set up your school to get started — it only takes a few minutes.
           </p>
         </div>
         <Link href="/onboarding">
@@ -64,31 +67,25 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
-            Dashboard
-          </h1>
-          <p className="text-small text-ink-500 tabular-nums">
-            Signed in as {user.phone}
-          </p>
-        </div>
-        <Badge tone="brand">{user.identityType}</Badge>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Dashboard"
+        description={user.phone ? `Signed in as ${user.phone}` : undefined}
+        actions={<Badge tone="brand">{user.identityType}</Badge>}
+      />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {quickLinks.map(({ href, label, icon: Icon, description }) => (
           <Link key={href} href={href} className="group">
-            <Card elevation="sm" className="h-full hover:shadow-md transition-shadow duration-micro">
+            <Card interactive elevation="xs" className="h-full">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <div className="bg-brand-50 dark:bg-brand-500/20 rounded-input p-2 text-brand-500">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-300">
                     <Icon size={20} aria-hidden />
-                  </div>
+                  </span>
                   <ArrowRight
                     size={16}
-                    className="text-ink-300 group-hover:text-brand-500 transition-colors duration-micro"
+                    className="text-ink-300 transition-colors duration-micro group-hover:text-brand-500"
                   />
                 </div>
               </CardHeader>
@@ -100,6 +97,6 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
-    </div>
+    </PageContainer>
   );
 }

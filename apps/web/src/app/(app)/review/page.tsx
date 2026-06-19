@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Spinner, EmptyState, cn } from "@mymakaranta/ui";
+import { Badge, Card, PageContainer, PageHeader, Spinner, EmptyState, cn } from "@mymakaranta/ui";
 import {
   api,
   ApiError,
@@ -86,11 +86,8 @@ export default function ReviewPage() {
   const cls = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small";
 
   return (
-    <div className="px-4 py-8 mx-auto max-w-5xl">
-      <div className="mb-6">
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Review</h1>
-        <p className="text-small text-ink-500">Class-master and subject-master sheets with anomaly flags.</p>
-      </div>
+    <PageContainer>
+      <PageHeader title="Review" description="Class-master and subject-master sheets with anomaly flags." />
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div className="flex rounded-input border border-ink-300 dark:border-white/15 overflow-hidden">
@@ -126,31 +123,35 @@ export default function ReviewPage() {
         !classSheet || classSheet.students.length === 0 ? (
           <EmptyState icon={<BarChart3 size={28} />} title="Nothing to review" description="No students or scores for this class and term." />
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-small border-collapse">
-              <thead><tr className="text-left text-ink-500">
-                <th className="py-2 pr-3 font-medium">Student</th>
-                {classSheet.subjects.map((s) => <th key={s.id} className="py-2 px-2 font-medium text-center">{s.name}</th>)}
-                <th className="py-2 px-2 font-medium text-center">Avg</th>
-              </tr></thead>
-              <tbody>
-                {classSheet.students.map((st) => (
-                  <tr key={st.studentId} className="border-t border-ink-100 dark:border-white/10">
-                    <td className="py-1.5 pr-3 whitespace-nowrap text-ink-1000 dark:text-ink-100">{st.name}</td>
-                    {classSheet.subjects.map((s) => {
-                      const cell = st.perSubject[s.id];
-                      return (
-                        <td key={s.id} className={cn("py-1.5 px-2 text-center", cell?.anomaly && "bg-warning/15 rounded")}>
-                          {cell ? <span className="tabular-nums">{cell.total}{cell.grade ? ` (${cell.grade})` : ""}</span> : <span className="text-ink-400">—</span>}
-                        </td>
-                      );
-                    })}
-                    <td className="py-1.5 px-2 text-center tabular-nums font-medium">{st.average}</td>
+          <Card className="overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-small">
+                <thead>
+                  <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] text-left dark:border-white/10 dark:bg-white/[0.03]">
+                    <th className="px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-ink-500">Student</th>
+                    {classSheet.subjects.map((s) => <th key={s.id} className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">{s.name}</th>)}
+                    <th className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">Avg</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {classSheet.students.map((st) => (
+                    <tr key={st.studentId} className="border-t border-ink-1000/[0.06] dark:border-white/[0.06]">
+                      <td className="whitespace-nowrap px-4 py-2 font-medium text-ink-1000 dark:text-ink-100">{st.name}</td>
+                      {classSheet.subjects.map((s) => {
+                        const cell = st.perSubject[s.id];
+                        return (
+                          <td key={s.id} className={cn("px-2 py-2 text-center", cell?.anomaly && "bg-warning/15")}>
+                            {cell ? <span className="tabular-nums text-ink-700 dark:text-ink-300">{cell.total}{cell.grade ? ` (${cell.grade})` : ""}</span> : <span className="text-ink-500">—</span>}
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-2 text-center font-semibold tabular-nums text-ink-1000 dark:text-ink-100">{st.average}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         )
       ) : (
         !subjectSheet || subjectSheet.classes.length === 0 ? (
@@ -172,7 +173,7 @@ export default function ReviewPage() {
                       <tr key={s.studentId} className={cn("border-t border-ink-100 dark:border-white/10", s.anomaly && "bg-warning/15")}>
                         <td className="py-1.5 pr-3 whitespace-nowrap text-ink-1000 dark:text-ink-100">{s.name}</td>
                         <td className="py-1.5 px-2 text-center tabular-nums">{s.total}</td>
-                        <td className="py-1.5 px-2 text-center">{s.grade ? <Badge tone="info">{s.grade}</Badge> : <span className="text-ink-400">—</span>}</td>
+                        <td className="py-1.5 px-2 text-center">{s.grade ? <Badge tone="info">{s.grade}</Badge> : <span className="text-ink-500">—</span>}</td>
                         <td className="py-1.5 px-2 text-center tabular-nums">{s.z.toFixed(1)}</td>
                       </tr>
                     ))}
@@ -183,6 +184,6 @@ export default function ReviewPage() {
           </div>
         )
       )}
-    </div>
+    </PageContainer>
   );
 }

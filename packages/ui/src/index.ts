@@ -34,3 +34,7 @@ export * from "./components/accordion";
 export * from "./components/breadcrumb";
 export * from "./components/empty-state";
 export * from "./components/error-state";
+
+// Layout & data display
+export * from "./components/page-header";
+export * from "./components/stat";

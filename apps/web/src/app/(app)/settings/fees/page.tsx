@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, CardBody, CardHeader, Spinner, cn } from "@mymakaranta/ui";
+import { Button, Card, CardBody, CardHeader, PageContainer, PageHeader, Spinner, cn } from "@mymakaranta/ui";
 import { api, ApiError, type ClassLevel } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
 
@@ -97,13 +97,11 @@ export default function FeesSettingsPage() {
   const ready = !!classLevelId && !!termId;
 
   return (
-    <div className="px-4 py-8 mx-auto max-w-4xl flex flex-col gap-8">
-      <header>
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Fees</h1>
-        <p className="text-small text-ink-500">
-          Set the fee structure for a class level in a given term. Invoices are generated from this structure.
-        </p>
-      </header>
+    <PageContainer>
+      <PageHeader
+        title="Fee structure"
+        description="Set the fee structure for a class level in a given term. Invoices are generated from this structure."
+      />
 
       <Card>
         <CardHeader>
@@ -167,6 +165,6 @@ export default function FeesSettingsPage() {
           </div>
         </CardBody>
       </Card>
-    </div>
+    </PageContainer>
   );
 }

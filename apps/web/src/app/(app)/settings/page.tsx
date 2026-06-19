@@ -1,64 +1,72 @@
 "use client";
 
 import Link from "next/link";
-import { Card, CardBody, CardHeader } from "@mymakaranta/ui";
+import { Badge, Card, CardBody, CardHeader, PageContainer, PageHeader } from "@mymakaranta/ui";
+import { ClipboardList, Wallet, ShieldCheck, Building2, ArrowRight } from "lucide-react";
+
+const ITEMS = [
+  {
+    href: "/settings/assessment",
+    title: "Assessment & Grading",
+    description: "Score components, grade boundaries, and teacher–subject assignments.",
+    icon: ClipboardList,
+  },
+  {
+    href: "/settings/fees",
+    title: "Fees",
+    description: "Per-class-level fee structure for each term.",
+    icon: Wallet,
+  },
+  {
+    href: "/settings/permissions",
+    title: "Staff permissions",
+    description: "Grant staff their roles and tool access.",
+    icon: ShieldCheck,
+  },
+];
 
 export default function SettingsPage() {
   return (
-    <div className="px-4 py-8 mx-auto max-w-2xl">
-      <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100 mb-6">
-        Settings
-      </h1>
-      <div className="flex flex-col gap-4">
-        <Card elevation="sm">
+    <PageContainer className="max-w-3xl">
+      <PageHeader title="Settings" description="Configure how your school runs on myMakaranta." />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {ITEMS.map(({ href, title, description, icon: Icon }) => (
+          <Link key={href} href={href} className="group">
+            <Card interactive elevation="xs" className="h-full">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-brand-50 text-brand-500 dark:bg-brand-500/15 dark:text-brand-300">
+                    <Icon size={20} aria-hidden />
+                  </span>
+                  <ArrowRight size={16} className="text-ink-300 transition-colors duration-micro group-hover:text-brand-500" />
+                </div>
+              </CardHeader>
+              <CardBody>
+                <p className="text-body font-semibold text-ink-1000 dark:text-ink-100">{title}</p>
+                <p className="mt-0.5 text-small text-ink-500">{description}</p>
+              </CardBody>
+            </Card>
+          </Link>
+        ))}
+
+        <Card elevation="xs" className="h-full">
           <CardHeader>
-            <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">School settings</h2>
+            <div className="flex items-center justify-between">
+              <span className="flex h-10 w-10 items-center justify-center rounded-[10px] bg-ink-1000/[0.05] text-ink-500 dark:bg-white/[0.06]">
+                <Building2 size={20} aria-hidden />
+              </span>
+              <Badge tone="neutral">Soon</Badge>
+            </div>
           </CardHeader>
           <CardBody>
-            <p className="text-small text-ink-500">
-              School configuration and advanced settings coming in a later sprint.
+            <p className="text-body font-semibold text-ink-1000 dark:text-ink-100">School settings</p>
+            <p className="mt-0.5 text-small text-ink-500">
+              School profile and advanced configuration are coming in a later release.
             </p>
           </CardBody>
         </Card>
-        <Link href="/settings/assessment" className="block">
-          <Card elevation="sm" interactive>
-            <CardHeader>
-              <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">
-                Assessment &amp; Grading
-              </h2>
-            </CardHeader>
-            <CardBody>
-              <p className="text-small text-ink-500">
-                Score components, grade boundaries, and teacher–subject assignments.
-              </p>
-            </CardBody>
-          </Card>
-        </Link>
-        <Link href="/settings/fees" className="block">
-          <Card elevation="sm" interactive>
-            <CardHeader>
-              <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">
-                Fees
-              </h2>
-            </CardHeader>
-            <CardBody>
-              <p className="text-small text-ink-500">
-                Per-class-level fee structure for each term.
-              </p>
-            </CardBody>
-          </Card>
-        </Link>
-        <Link href="/settings/permissions" className="block">
-          <Card elevation="sm" interactive>
-            <CardHeader>
-              <h2 className="text-h3 font-semibold text-ink-1000 dark:text-ink-100">Staff permissions</h2>
-            </CardHeader>
-            <CardBody>
-              <p className="text-small text-ink-500">Grant staff their roles and tool access.</p>
-            </CardBody>
-          </Card>
-        </Link>
       </div>
-    </div>
+    </PageContainer>
   );
 }
