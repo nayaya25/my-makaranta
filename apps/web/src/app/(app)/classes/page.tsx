@@ -3,11 +3,14 @@
 import { useEffect, useState } from "react";
 import {
   Button,
+  Card,
   Dialog,
   EmptyState,
   ErrorState,
   Field,
   Input,
+  PageContainer,
+  PageHeader,
   Select,
   Spinner,
   Badge,
@@ -69,9 +72,7 @@ function AddClassDialog({
           )}
           <Field label="Class level" htmlFor="cl-level">
             {classLevels.length === 0 ? (
-              <p className="text-small text-ink-500">
-                No class levels found. Complete onboarding first.
-              </p>
+              <p className="text-small text-ink-500">No class levels found. Complete onboarding first.</p>
             ) : (
               <Select.Root value={classLevelId} onValueChange={setClassLevelId}>
                 <Select.Trigger id="cl-level">
@@ -102,10 +103,7 @@ function AddClassDialog({
                 Cancel
               </Button>
             </Dialog.Close>
-            <Button
-              type="submit"
-              disabled={busy || !name.trim() || !classLevelId || classLevels.length === 0}
-            >
+            <Button type="submit" disabled={busy || !name.trim() || !classLevelId || classLevels.length === 0}>
               {busy ? "Adding…" : "Add class"}
             </Button>
           </Dialog.Footer>
@@ -145,32 +143,24 @@ export default function ClassesPage() {
   }
 
   return (
-    <div className="px-4 py-8 mx-auto max-w-5xl">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
-            Classes
-          </h1>
-          <p className="text-small text-ink-500 tabular-nums">
-            {loading ? "" : `${classes.length} total`}
-          </p>
-        </div>
-        <Button onClick={() => setDialogOpen(true)}>Add class</Button>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Classes"
+        description={loading ? undefined : `${classes.length} ${classes.length === 1 ? "class" : "classes"} configured`}
+        actions={<Button onClick={() => setDialogOpen(true)}>Add class</Button>}
+      />
 
       {loading && (
-        <div className="flex items-center justify-center py-16">
+        <div className="flex items-center justify-center py-20">
           <Spinner size="lg" />
         </div>
       )}
 
-      {!loading && loadError && (
-        <ErrorState description={loadError} onRetry={load} />
-      )}
+      {!loading && loadError && <ErrorState description={loadError} onRetry={load} />}
 
       {!loading && !loadError && classes.length === 0 && (
         <EmptyState
-          icon={<BookOpen size={28} />}
+          icon={<BookOpen size={26} />}
           title="No classes yet"
           description="Add your first class to get started."
           action={<Button onClick={() => setDialogOpen(true)}>Add class</Button>}
@@ -178,16 +168,12 @@ export default function ClassesPage() {
       )}
 
       {!loading && !loadError && classes.length > 0 && (
-        <div className="rounded-card border border-ink-200 dark:border-white/10 overflow-hidden">
+        <Card className="overflow-hidden">
           <table className="w-full text-small">
             <thead>
-              <tr className="border-b border-ink-200 dark:border-white/10 bg-ink-100/50 dark:bg-white/4">
-                <th className="text-left px-4 py-3 font-semibold text-ink-700 dark:text-ink-300">
-                  Level
-                </th>
-                <th className="text-left px-4 py-3 font-semibold text-ink-700 dark:text-ink-300">
-                  Class name
-                </th>
+              <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] dark:border-white/10 dark:bg-white/[0.03]">
+                <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Level</th>
+                <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Class name</th>
               </tr>
             </thead>
             <tbody>
@@ -195,23 +181,19 @@ export default function ClassesPage() {
                 <tr
                   key={c.id}
                   className={[
-                    "hover:bg-ink-100/40 dark:hover:bg-white/4 transition-colors duration-micro",
-                    i < classes.length - 1
-                      ? "border-b border-ink-200 dark:border-white/10"
-                      : "",
+                    "transition-colors duration-micro hover:bg-ink-1000/[0.02] dark:hover:bg-white/[0.03]",
+                    i < classes.length - 1 ? "border-b border-ink-1000/[0.06] dark:border-white/[0.06]" : "",
                   ].join(" ")}
                 >
                   <td className="px-4 py-3">
                     <Badge tone="brand">{levelName(c.classLevelId)}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-ink-1000 dark:text-ink-100 font-medium">
-                    {c.name}
-                  </td>
+                  <td className="px-4 py-3 font-medium text-ink-1000 dark:text-ink-100">{c.name}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       <AddClassDialog
@@ -220,6 +202,6 @@ export default function ClassesPage() {
         classLevels={classLevels}
         onAdded={(c) => setClasses((prev) => [...prev, c])}
       />
-    </div>
+    </PageContainer>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Spinner } from "@mymakaranta/ui";
+import { Card, CardBody, PageContainer, PageHeader, Spinner } from "@mymakaranta/ui";
 import { api, type ParentAnnouncement } from "@/lib/api";
 
 export default function ParentAnnouncementsPage() {
@@ -25,36 +25,36 @@ export default function ParentAnnouncementsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8">
-      <header className="mb-6">
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Announcements</h1>
-        <p className="text-small text-ink-500">Messages from your school.</p>
-      </header>
+    <PageContainer className="max-w-2xl">
+      <PageHeader title="Announcements" description="Messages from your school." />
 
       {loading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
+        <div className="flex justify-center py-20"><Spinner size="lg" /></div>
       ) : items.length === 0 ? (
-        <div className="rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-8 text-center">
+        <Card className="p-10 text-center">
           <p className="text-body font-semibold text-ink-1000 dark:text-ink-100">No announcements yet</p>
-        </div>
+          <p className="mt-1 text-small text-ink-500">New messages from your school will appear here.</p>
+        </Card>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2.5">
           {items.map((a) => (
-            <button
-              key={a.announcementId}
-              onClick={() => open(a)}
-              className="rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-4 text-left"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-body font-medium text-ink-1000 dark:text-ink-100">{a.title}</p>
-                {!a.readAt && <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" aria-label="unread" />}
-              </div>
-              <p className="text-caption text-ink-300 mt-0.5">{new Date(a.sentAt).toLocaleString()}</p>
-              {openId === a.announcementId && <p className="text-small text-ink-700 dark:text-ink-300 mt-2 whitespace-pre-wrap">{a.body}</p>}
+            <button key={a.announcementId} onClick={() => open(a)} className="text-left">
+              <Card interactive elevation="xs">
+                <CardBody className="py-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-medium text-ink-1000 dark:text-ink-100">{a.title}</p>
+                    {!a.readAt && <span className="h-2 w-2 shrink-0 rounded-full bg-brand-500" aria-label="unread" />}
+                  </div>
+                  <p className="mt-0.5 text-caption text-ink-500/80">{new Date(a.sentAt).toLocaleString()}</p>
+                  {openId === a.announcementId && (
+                    <p className="mt-2.5 whitespace-pre-wrap text-small leading-relaxed text-ink-700 dark:text-ink-300">{a.body}</p>
+                  )}
+                </CardBody>
+              </Card>
             </button>
           ))}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -7,6 +7,8 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  PageContainer,
+  PageHeader,
   Select,
   Spinner,
   cn,
@@ -190,19 +192,12 @@ export default function AttendancePage() {
   const selectedClass = classes.find((c) => c.id === selectedClassId);
 
   return (
-    <div className="px-4 py-8 mx-auto max-w-4xl">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
-          Attendance
-        </h1>
-        <p className="text-small text-ink-500">Mark daily attendance for your class.</p>
-        {!sync.online && (
-          <div className="mt-2">
-            <Badge tone="warning">Offline — marks saved on this device</Badge>
-          </div>
-        )}
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Attendance"
+        description="Mark daily attendance for your class."
+        actions={!sync.online ? <Badge tone="warning">Offline — saved on this device</Badge> : undefined}
+      />
 
       {/* Controls */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
@@ -321,7 +316,7 @@ export default function AttendancePage() {
                   "focus-visible:outline-none focus-visible:shadow-focus",
                   r.status
                     ? STATUS_TILE_BG[r.status]
-                    : "bg-surface dark:bg-surface-dark border-ink-200 dark:border-white/10",
+                    : "bg-surface dark:bg-surface-dark border-ink-1000/[0.08] dark:border-white/10",
                 )}
               >
                 <Avatar
@@ -346,6 +341,6 @@ export default function AttendancePage() {
           </div>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }

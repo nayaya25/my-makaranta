@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button, Spinner, EmptyState, Badge } from "@mymakaranta/ui";
+import { Button, Card, Spinner, EmptyState, Badge, PageContainer, PageHeader, StatCard } from "@mymakaranta/ui";
 import { api, ApiError, type AcademicYear, type CollectionRow, type InvoiceDetail, type BankRow, type ProposedMatch, type FinanceSummary } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
 import { Wallet } from "lucide-react";
@@ -386,95 +386,110 @@ export default function FeesPage() {
     }
   };
 
-  return (
-    <div className="px-4 py-8 mx-auto max-w-4xl">
-      <div className="mb-6">
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Fees</h1>
-        <p className="text-small text-ink-500">Generate invoices and track balances by student.</p>
-      </div>
+  const termSelect =
+    terms.length > 0 ? (
+      <select
+        value={termId}
+        onChange={(e) => setTermId(e.target.value)}
+        className="rounded-[10px] border border-ink-1000/10 bg-surface px-3.5 py-2 text-small font-medium text-ink-1000 transition-colors hover:border-ink-1000/20 focus-visible:shadow-focus focus-visible:outline-none dark:border-white/15 dark:bg-surface-dark dark:text-ink-100"
+      >
+        {terms.map((t) => (
+          <option key={t.id} value={t.id}>{t.label}</option>
+        ))}
+      </select>
+    ) : null;
 
-      <div className="mb-6 flex items-end gap-3 flex-wrap">
-        <label className="text-small text-ink-500 flex flex-col gap-1">Term
-          <select value={termId} onChange={(e) => setTermId(e.target.value)} className={cls}>
-            {terms.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-        </label>
-        <Button onClick={generate} disabled={!termId || generating}>
-          {generating ? "Generating…" : "Generate invoices"}
-        </Button>
-        {msg && <span className="text-caption text-success">{msg}</span>}
-      </div>
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Fees"
+        description="Generate invoices and track balances by student."
+        actions={
+          <>
+            {termSelect}
+            <Button onClick={generate} disabled={!termId || generating}>
+              {generating ? "Generating…" : "Generate invoices"}
+            </Button>
+          </>
+        }
+      />
+
+      {msg && (
+        <div className="mb-5 rounded-[12px] border border-success/30 bg-success/10 px-4 py-2.5 text-small font-medium text-success">
+          {msg}
+        </div>
+      )}
 
       {/* Finance summary */}
-      <div className="mb-8">
-        {summaryLoading ? (
-          <div className="flex justify-center py-10"><Spinner /></div>
-        ) : summaryError ? (
-          <p className="text-small text-error">{summaryError}</p>
-        ) : summary ? (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-              {[
-                { label: "Expected", kobo: summary.expectedKobo },
-                { label: "Collected", kobo: summary.collectedKobo },
-                { label: "Outstanding", kobo: summary.outstandingKobo },
-                { label: "Overdue", kobo: summary.overdueKobo, tone: "text-error" },
-                { label: "Collected this week", kobo: summary.collectedThisWeekKobo },
-              ].map((k) => (
-                <div
-                  key={k.label}
-                  className="rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-3 flex flex-col gap-1"
-                >
-                  <span className="text-caption text-ink-500">{k.label}</span>
-                  <span className={`text-body font-semibold tabular-nums ${k.tone ?? "text-ink-1000 dark:text-ink-100"}`}>
-                    {formatMoney(k.kobo, currency)}
-                  </span>
-                </div>
-              ))}
-            </div>
+      {summaryLoading ? (
+        <div className="flex justify-center py-10"><Spinner /></div>
+      ) : summaryError ? (
+        <p className="mb-8 text-small text-error">{summaryError}</p>
+      ) : summary ? (
+        <div className="mb-8 flex flex-col gap-5">
+          <Card elevation="xs" className="p-6">
+            <p className="text-small font-medium text-ink-500">Collected this week</p>
+            <p className="mt-2 font-display text-h1 font-bold tabular-nums text-brand-700 dark:text-brand-300">
+              {formatMoney(summary.collectedThisWeekKobo, currency)}
+            </p>
+          </Card>
 
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard label="Expected" value={formatMoney(summary.expectedKobo, currency)} />
+            <StatCard label="Collected" value={formatMoney(summary.collectedKobo, currency)} tone="success" />
+            <StatCard label="Outstanding" value={formatMoney(summary.outstandingKobo, currency)} tone="warning" />
+            <StatCard label="Overdue" value={formatMoney(summary.overdueKobo, currency)} tone="error" />
+          </div>
+
+          <Card className="overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-small border-collapse">
-                <thead><tr className="text-left text-ink-500">
-                  <th className="py-2 pr-3 font-medium">Class level</th>
-                  <th className="py-2 px-3 font-medium text-right">Expected</th>
-                  <th className="py-2 px-3 font-medium text-right">Collected</th>
-                  <th className="py-2 px-3 font-medium text-right">Outstanding</th>
-                  <th className="py-2 pl-3 font-medium text-right">Students</th>
-                </tr></thead>
+              <table className="w-full text-small">
+                <thead>
+                  <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] dark:border-white/10 dark:bg-white/[0.03]">
+                    <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Class level</th>
+                    <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Expected</th>
+                    <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Collected</th>
+                    <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Outstanding</th>
+                    <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Students</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {summary.byClassLevel.length === 0 ? (
-                    <tr className="border-t border-ink-100 dark:border-white/10">
-                      <td colSpan={5} className="py-3 text-ink-500">No invoices for this term yet.</td>
+                    <tr>
+                      <td colSpan={5} className="px-4 py-4 text-ink-500">No invoices for this term yet.</td>
                     </tr>
                   ) : (
                     summary.byClassLevel.map((c) => (
-                      <tr key={c.classLevelId} className="border-t border-ink-100 dark:border-white/10">
-                        <td className="py-1.5 pr-3 whitespace-nowrap text-ink-1000 dark:text-ink-100">{c.classLevelName}</td>
-                        <td className="py-1.5 px-3 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.expectedKobo, currency)}</td>
-                        <td className="py-1.5 px-3 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.collectedKobo, currency)}</td>
-                        <td className="py-1.5 px-3 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.outstandingKobo, currency)}</td>
-                        <td className="py-1.5 pl-3 text-right tabular-nums text-ink-700 dark:text-ink-300">{c.studentCount}</td>
+                      <tr key={c.classLevelId} className="border-t border-ink-1000/[0.06] dark:border-white/[0.06]">
+                        <td className="whitespace-nowrap px-4 py-2.5 font-medium text-ink-1000 dark:text-ink-100">{c.classLevelName}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.expectedKobo, currency)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.collectedKobo, currency)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(c.outstandingKobo, currency)}</td>
+                        <td className="px-4 py-2.5 text-right tabular-nums text-ink-700 dark:text-ink-300">{c.studentCount}</td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
-          </>
-        ) : null}
-      </div>
+          </Card>
+        </div>
+      ) : null}
 
-      <div className="mb-6 flex items-end gap-3 flex-wrap">
-        <label className="text-small text-ink-500 flex flex-col gap-1">Due date
-          <input type="date" value={dueDateInput} onChange={(e) => setDueDateInput(e.target.value)} className={cls} />
-        </label>
-        <Button variant="secondary" onClick={setDueDate} disabled={!termId || !dueDateInput || settingDueDate}>
-          {settingDueDate ? "Setting…" : "Set"}
-        </Button>
-        <Button variant="secondary" onClick={remindAll} disabled={!termId || remindingAll}>
-          {remindingAll ? "Reminding…" : "Remind all overdue"}
-        </Button>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <h2 className="font-display text-h3 font-semibold text-ink-1000 dark:text-ink-100">Collections</h2>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="flex flex-col gap-1 text-caption font-medium text-ink-500">
+            Due date
+            <input type="date" value={dueDateInput} onChange={(e) => setDueDateInput(e.target.value)} className={cls} />
+          </label>
+          <Button variant="secondary" onClick={setDueDate} disabled={!termId || !dueDateInput || settingDueDate}>
+            {settingDueDate ? "Setting…" : "Set"}
+          </Button>
+          <Button variant="secondary" onClick={remindAll} disabled={!termId || remindingAll}>
+            {remindingAll ? "Reminding…" : "Remind all overdue"}
+          </Button>
+        </div>
       </div>
 
       {error && <p className="mb-4 text-small text-error">{error}</p>}
@@ -483,55 +498,59 @@ export default function FeesPage() {
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : rows.length === 0 ? (
         <EmptyState
-          icon={<Wallet size={28} />}
+          icon={<Wallet size={26} />}
           title="No invoices"
           description="No invoices for this term yet. Generate invoices to get started."
         />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-small border-collapse">
-            <thead><tr className="text-left text-ink-500">
-              <th className="py-2 pr-3 font-medium">Student</th>
-              <th className="py-2 px-3 font-medium">Status</th>
-              <th className="py-2 px-3 font-medium">Due date</th>
-              <th className="py-2 px-3 font-medium text-right">Total</th>
-              <th className="py-2 px-3 font-medium text-right">Paid</th>
-              <th className="py-2 px-3 font-medium text-right">Balance</th>
-              <th className="py-2 px-3 font-medium">Last reminded</th>
-              <th className="py-2 pl-3 font-medium text-right">Remind</th>
-            </tr></thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr
-                  key={r.invoiceId}
-                  className="border-t border-ink-100 dark:border-white/10 cursor-pointer hover:bg-ink-100/50 dark:hover:bg-white/5"
-                  onClick={() => openDetail(r.studentId)}
-                >
-                  <td className="py-1.5 pr-3 whitespace-nowrap text-ink-1000 dark:text-ink-100">{r.name}</td>
-                  <td className="py-1.5 px-3"><Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge></td>
-                  <td className="py-1.5 px-3 whitespace-nowrap text-ink-700 dark:text-ink-300">{formatDate(r.dueDate)}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{formatMoney(r.totalKobo, currency)}</td>
-                  <td className="py-1.5 px-3 text-right tabular-nums">{formatMoney(r.paidKobo, currency)}</td>
-                  <td className={`py-1.5 px-3 text-right tabular-nums font-medium ${r.balanceKobo > 0 ? "text-error" : "text-success"}`}>
-                    {formatMoney(r.balanceKobo, currency)}
-                  </td>
-                  <td className="py-1.5 px-3 whitespace-nowrap text-ink-700 dark:text-ink-300">{formatDate(r.lastRemindedAt)}</td>
-                  <td className="py-1.5 pl-3 text-right" onClick={(e) => e.stopPropagation()}>
-                    {r.balanceKobo > 0 && (
-                      <Button size="sm" variant="ghost" onClick={() => remindOne(r.invoiceId)} disabled={remindingId === r.invoiceId}>
-                        {remindingId === r.invoiceId ? "Reminding…" : "Remind"}
-                      </Button>
-                    )}
-                  </td>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-small">
+              <thead>
+                <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] dark:border-white/10 dark:bg-white/[0.03]">
+                  <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Student</th>
+                  <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Status</th>
+                  <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Due date</th>
+                  <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Total</th>
+                  <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Paid</th>
+                  <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Balance</th>
+                  <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Last reminded</th>
+                  <th className="px-4 py-2.5 text-right text-caption font-semibold uppercase tracking-wide text-ink-500">Remind</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr
+                    key={r.invoiceId}
+                    className="cursor-pointer border-t border-ink-1000/[0.06] transition-colors hover:bg-ink-1000/[0.02] dark:border-white/[0.06] dark:hover:bg-white/[0.03]"
+                    onClick={() => openDetail(r.studentId)}
+                  >
+                    <td className="whitespace-nowrap px-4 py-2.5 font-medium text-ink-1000 dark:text-ink-100">{r.name}</td>
+                    <td className="px-4 py-2.5"><Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge></td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-ink-700 dark:text-ink-300">{formatDate(r.dueDate)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(r.totalKobo, currency)}</td>
+                    <td className="px-4 py-2.5 text-right tabular-nums text-ink-700 dark:text-ink-300">{formatMoney(r.paidKobo, currency)}</td>
+                    <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${r.balanceKobo > 0 ? "text-error" : "text-success"}`}>
+                      {formatMoney(r.balanceKobo, currency)}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-2.5 text-ink-700 dark:text-ink-300">{formatDate(r.lastRemindedAt)}</td>
+                    <td className="px-4 py-2.5 text-right" onClick={(e) => e.stopPropagation()}>
+                      {r.balanceKobo > 0 && (
+                        <Button size="sm" variant="ghost" onClick={() => remindOne(r.invoiceId)} disabled={remindingId === r.invoiceId}>
+                          {remindingId === r.invoiceId ? "Reminding…" : "Remind"}
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {/* Bank-statement reconciliation */}
-      <div className="mt-10 border-t border-ink-100 dark:border-white/10 pt-6">
+      <div className="mt-10 border-t border-ink-1000/[0.08] pt-6 dark:border-white/10">
         <button
           type="button"
           onClick={() => setReconcileOpen((o) => !o)}
@@ -660,9 +679,9 @@ export default function FeesPage() {
       </div>
 
       {(detail || detailLoading) && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-1000/40 p-4" onClick={closeDetail}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-1000/40 p-4 backdrop-blur-sm" onClick={closeDetail}>
           <div
-            className="w-full max-w-md rounded-card border border-ink-100 dark:border-white/10 bg-surface dark:bg-surface-dark p-5 shadow-lg"
+            className="w-full max-w-md rounded-[16px] border border-ink-1000/10 bg-surface p-5 shadow-xl dark:border-white/10 dark:bg-surface-dark"
             onClick={(e) => e.stopPropagation()}
           >
             {detailLoading || !detail ? (
@@ -763,6 +782,6 @@ export default function FeesPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -7,10 +7,12 @@ import {
   Avatar,
   Badge,
   Button,
+  Card,
   Dialog,
   ErrorState,
   Field,
   Input,
+  PageContainer,
   Skeleton,
   Tabs,
 } from "@mymakaranta/ui";
@@ -208,22 +210,22 @@ export default function StudentProfilePage() {
 
   if (loading) {
     return (
-      <div className="px-4 py-8 mx-auto max-w-3xl flex flex-col gap-4">
+      <PageContainer className="flex max-w-3xl flex-col gap-4">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-48 w-full" />
-      </div>
+      </PageContainer>
     );
   }
 
   if (loadError || !student) {
     return (
-      <div className="px-4 py-8 mx-auto max-w-3xl">
+      <PageContainer className="max-w-3xl">
         <ErrorState
           description={loadError ?? "Student not found."}
           onRetry={loadError ? load : undefined}
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -234,7 +236,7 @@ export default function StudentProfilePage() {
   const guardians = student.guardians ?? [];
 
   return (
-    <div className="px-4 py-8 mx-auto max-w-3xl">
+    <PageContainer className="max-w-3xl">
       <Link
         href="/students"
         className="mb-6 flex items-center gap-2 text-small text-ink-500 hover:text-ink-1000 dark:hover:text-ink-100 transition-colors duration-micro"
@@ -260,11 +262,11 @@ export default function StudentProfilePage() {
             size="sm"
             disabled={photoUploading}
             onClick={() => photoInputRef.current?.click()}
-            className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full p-0 bg-surface dark:bg-surface-dark border border-ink-200 dark:border-white/10 shadow-sm"
+            className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full p-0 bg-surface dark:bg-surface-dark border border-ink-1000/[0.12] dark:border-white/15 shadow-sm"
             aria-label="Change photo"
           >
             {photoUploading ? (
-              <span className="h-3 w-3 rounded-full border-2 border-ink-400 border-t-transparent animate-spin" />
+              <span className="h-3 w-3 rounded-full border-2 border-ink-500 border-t-transparent animate-spin" />
             ) : (
               <Camera size={12} aria-hidden />
             )}
@@ -323,23 +325,17 @@ export default function StudentProfilePage() {
         </div>
 
         {guardians.length === 0 ? (
-          <p className="text-small text-ink-500 py-4">No guardians linked yet.</p>
+          <p className="py-4 text-small text-ink-500">No guardians linked yet.</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <Card className="divide-y divide-ink-1000/[0.06] dark:divide-white/[0.06]">
             {guardians.map((g) => (
-              <div
-                key={g.id}
-                className="flex items-center gap-3 rounded-input border border-ink-200 dark:border-white/10 px-4 py-3"
-              >
-                <Avatar
-                  name={`${g.parent.firstName} ${g.parent.lastName}`}
-                  size="sm"
-                />
-                <div className="flex-1 min-w-0">
+              <div key={g.id} className="flex items-center gap-3 px-4 py-3">
+                <Avatar name={`${g.parent.firstName} ${g.parent.lastName}`} size="sm" />
+                <div className="min-w-0 flex-1">
                   <p className="text-small font-medium text-ink-1000 dark:text-ink-100">
                     {g.parent.firstName} {g.parent.lastName}
                   </p>
-                  <p className="text-caption text-ink-500 tabular-nums">
+                  <p className="text-caption tabular-nums text-ink-500">
                     {g.parent.phone}
                     {g.parent.email ? ` · ${g.parent.email}` : ""}
                   </p>
@@ -350,7 +346,7 @@ export default function StudentProfilePage() {
                 </div>
               </div>
             ))}
-          </div>
+          </Card>
         )}
       </div>
 
@@ -364,6 +360,6 @@ export default function StudentProfilePage() {
           )
         }
       />
-    </div>
+    </PageContainer>
   );
 }

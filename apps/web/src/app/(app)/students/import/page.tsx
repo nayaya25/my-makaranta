@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { Upload, Download, CheckCircle2, ArrowLeft } from "lucide-react";
-import { Button, Badge, Spinner, ErrorState, cn } from "@mymakaranta/ui";
+import { Button, Badge, PageContainer, Spinner, ErrorState, cn } from "@mymakaranta/ui";
 import { api, ApiError, type ImportRow, type ImportJobStatus } from "@/lib/api";
 import { parseImportFile } from "@/lib/parse-import";
 
@@ -118,7 +118,7 @@ export default function ImportStudentsPage() {
   }
 
   return (
-    <div className="px-4 py-8 mx-auto max-w-3xl">
+    <PageContainer className="max-w-3xl">
       <div className="mb-6 flex items-center gap-3">
         <Link
           href="/students"
@@ -136,7 +136,7 @@ export default function ImportStudentsPage() {
       </div>
 
       {/* Template download */}
-      <div className="mb-6 rounded-card border border-ink-200 dark:border-white/10 bg-surface dark:bg-surface-dark p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="mb-6 rounded-card border border-ink-1000/[0.08] dark:border-white/10 bg-surface dark:bg-surface-dark p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <p className="text-small font-medium text-ink-1000 dark:text-ink-100">Need a template?</p>
           <p className="text-caption text-ink-500">Download a CSV with the correct column headers.</p>
@@ -207,10 +207,10 @@ export default function ImportStudentsPage() {
             </Button>
           </div>
 
-          <div className="rounded-card border border-ink-200 dark:border-white/10 overflow-x-auto">
+          <div className="rounded-card border border-ink-1000/[0.08] dark:border-white/10 overflow-x-auto">
             <table className="w-full text-small">
               <thead>
-                <tr className="border-b border-ink-200 dark:border-white/10 bg-ink-100/50 dark:bg-white/4">
+                <tr className="border-b border-ink-1000/[0.08] dark:border-white/10 bg-ink-1000/[0.02] dark:bg-white/[0.03]">
                   {PREVIEW_COLS.map((col) => (
                     <th
                       key={col.key}
@@ -226,9 +226,9 @@ export default function ImportStudentsPage() {
                   <tr
                     key={i}
                     className={cn(
-                      "hover:bg-ink-100/40 dark:hover:bg-white/4 transition-colors duration-micro",
+                      "hover:bg-ink-1000/[0.02] dark:hover:bg-white/[0.03] transition-colors duration-micro",
                       i < Math.min(phase.rows.length, 8) - 1
-                        ? "border-b border-ink-200 dark:border-white/10"
+                        ? "border-b border-ink-1000/[0.06] dark:border-white/[0.06]"
                         : "",
                     )}
                   >
@@ -242,7 +242,7 @@ export default function ImportStudentsPage() {
                             : "",
                         )}
                       >
-                        {row[col.key] ?? <span className="text-ink-400">—</span>}
+                        {row[col.key] ?? <span className="text-ink-500">—</span>}
                       </td>
                     ))}
                   </tr>
@@ -261,7 +261,7 @@ export default function ImportStudentsPage() {
 
       {/* Importing / polling */}
       {phase.kind === "importing" && (
-        <div className="rounded-card border border-ink-200 dark:border-white/10 bg-surface dark:bg-surface-dark p-10 flex flex-col items-center gap-4 text-center">
+        <div className="rounded-card border border-ink-1000/[0.08] dark:border-white/10 bg-surface dark:bg-surface-dark p-10 flex flex-col items-center gap-4 text-center">
           <Spinner size="lg" />
           <div>
             <p className="text-small font-medium text-ink-1000 dark:text-ink-100">Importing…</p>
@@ -277,7 +277,7 @@ export default function ImportStudentsPage() {
       {/* Success */}
       {phase.kind === "done" && phase.status.result && (
         <div className="flex flex-col gap-6">
-          <div className="rounded-card border border-ink-200 dark:border-white/10 bg-surface dark:bg-surface-dark p-6 flex flex-col items-center gap-3 text-center">
+          <div className="rounded-card border border-ink-1000/[0.08] dark:border-white/10 bg-surface dark:bg-surface-dark p-6 flex flex-col items-center gap-3 text-center">
             <div className="text-success bg-success/10 rounded-pill p-3">
               <CheckCircle2 size={24} />
             </div>
@@ -310,10 +310,10 @@ export default function ImportStudentsPage() {
               <p className="text-small font-semibold text-ink-1000 dark:text-ink-100 mb-3">
                 Rows with errors
               </p>
-              <div className="rounded-card border border-ink-200 dark:border-white/10 overflow-x-auto">
+              <div className="rounded-card border border-ink-1000/[0.08] dark:border-white/10 overflow-x-auto">
                 <table className="w-full text-small">
                   <thead>
-                    <tr className="border-b border-ink-200 dark:border-white/10 bg-ink-100/50 dark:bg-white/4">
+                    <tr className="border-b border-ink-1000/[0.08] dark:border-white/10 bg-ink-1000/[0.02] dark:bg-white/[0.03]">
                       <th className="text-left px-4 py-3 font-semibold text-ink-700 dark:text-ink-300 tabular-nums">Row #</th>
                       <th className="text-left px-4 py-3 font-semibold text-ink-700 dark:text-ink-300">Adm. No.</th>
                       <th className="text-left px-4 py-3 font-semibold text-ink-700 dark:text-ink-300">Error</th>
@@ -324,9 +324,9 @@ export default function ImportStudentsPage() {
                       <tr
                         key={i}
                         className={cn(
-                          "hover:bg-ink-100/40 dark:hover:bg-white/4 transition-colors duration-micro",
+                          "hover:bg-ink-1000/[0.02] dark:hover:bg-white/[0.03] transition-colors duration-micro",
                           i < phase.status.result!.errors.length - 1
-                            ? "border-b border-ink-200 dark:border-white/10"
+                            ? "border-b border-ink-1000/[0.06] dark:border-white/[0.06]"
                             : "",
                         )}
                       >
@@ -334,7 +334,7 @@ export default function ImportStudentsPage() {
                           {err.row}
                         </td>
                         <td className="px-4 py-3 tabular-nums text-ink-700 dark:text-ink-300">
-                          {err.admissionNo ?? <span className="text-ink-400">—</span>}
+                          {err.admissionNo ?? <span className="text-ink-500">—</span>}
                         </td>
                         <td className="px-4 py-3 text-error">{err.message}</td>
                       </tr>
@@ -374,6 +374,6 @@ export default function ImportStudentsPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

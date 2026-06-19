@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge, Button, Spinner, EmptyState, cn } from "@mymakaranta/ui";
+import { Badge, Button, Card, PageContainer, PageHeader, Spinner, EmptyState, cn } from "@mymakaranta/ui";
 import {
   api,
   ApiError,
@@ -122,11 +122,8 @@ export default function GradebookPage() {
   };
 
   return (
-    <div className="px-4 py-8 mx-auto max-w-5xl">
-      <div className="mb-6">
-        <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">Gradebook</h1>
-        <p className="text-small text-ink-500">Record assessment scores for a class and subject.</p>
-      </div>
+    <PageContainer>
+      <PageHeader title="Gradebook" description="Record assessment scores for a class and subject." />
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <label className="text-small text-ink-500 flex flex-col gap-1">Class
@@ -170,45 +167,47 @@ export default function GradebookPage() {
         <EmptyState icon={<ClipboardList size={28} />} title="No students"
           description="This class has no enrolled students for the selected term." />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-small border-collapse">
-            <thead>
-              <tr className="text-left text-ink-500">
-                <th className="py-2 pr-3 font-medium">Student</th>
-                {types.map((t) => <th key={t.id} className="py-2 px-2 font-medium text-center">{t.name}<span className="text-caption text-ink-400">/{t.maxScore}</span></th>)}
-                <th className="py-2 px-2 font-medium text-center">Total</th>
-                <th className="py-2 px-2 font-medium text-center">Grade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const res = computeRow(r.values, boundaries);
-                return (
-                  <tr key={r.studentId} className="border-t border-ink-100 dark:border-white/10">
-                    <td className="py-1.5 pr-3 text-ink-1000 dark:text-ink-100 whitespace-nowrap">{r.name}</td>
-                    {types.map((t) => {
-                      const v = r.values[t.id];
-                      const bad = Number.isFinite(v) && overMax(t.id, v as number);
-                      return (
-                        <td key={t.id} className="py-1.5 px-2 text-center">
-                          <input type="number" min={0} max={t.maxScore}
-                            aria-label={`${r.name} ${t.name}`}
-                            value={Number.isFinite(v) ? String(v) : ""}
-                            onChange={(e) => setCell(r.studentId, t.id, e.target.value)}
-                            className={cn("h-9 w-16 rounded-input border bg-surface dark:bg-surface-dark px-2 text-center",
-                              bad ? "border-error" : "border-ink-300 dark:border-white/15")} />
-                        </td>
-                      );
-                    })}
-                    <td className="py-1.5 px-2 text-center tabular-nums font-medium">{res.total}</td>
-                    <td className="py-1.5 px-2 text-center">{res.grade ? <Badge tone="info">{res.grade}</Badge> : <span className="text-ink-400">—</span>}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-small">
+              <thead>
+                <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] text-left dark:border-white/10 dark:bg-white/[0.03]">
+                  <th className="px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-ink-500">Student</th>
+                  {types.map((t) => <th key={t.id} className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">{t.name}<span className="ml-0.5 normal-case text-ink-500/70">/{t.maxScore}</span></th>)}
+                  <th className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">Total</th>
+                  <th className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">Grade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const res = computeRow(r.values, boundaries);
+                  return (
+                    <tr key={r.studentId} className="border-t border-ink-1000/[0.06] dark:border-white/[0.06]">
+                      <td className="whitespace-nowrap px-4 py-2 font-medium text-ink-1000 dark:text-ink-100">{r.name}</td>
+                      {types.map((t) => {
+                        const v = r.values[t.id];
+                        const bad = Number.isFinite(v) && overMax(t.id, v as number);
+                        return (
+                          <td key={t.id} className="px-2 py-2 text-center">
+                            <input type="number" min={0} max={t.maxScore}
+                              aria-label={`${r.name} ${t.name}`}
+                              value={Number.isFinite(v) ? String(v) : ""}
+                              onChange={(e) => setCell(r.studentId, t.id, e.target.value)}
+                              className={cn("h-9 w-16 rounded-input border bg-surface px-2 text-center tabular-nums dark:bg-surface-dark",
+                                bad ? "border-error" : "border-ink-300 dark:border-white/15")} />
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-2 text-center font-semibold tabular-nums text-ink-1000 dark:text-ink-100">{res.total}</td>
+                      <td className="px-2 py-2 text-center">{res.grade ? <Badge tone="info">{res.grade}</Badge> : <span className="text-ink-500">—</span>}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
-    </div>
+    </PageContainer>
   );
 }

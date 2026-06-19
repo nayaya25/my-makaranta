@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Button,
+  Card,
   Dialog,
   EmptyState,
   ErrorState,
   Field,
   Input,
+  PageContainer,
+  PageHeader,
   Select,
   Spinner,
   Badge,
@@ -88,28 +92,14 @@ function AddStudentDialog({
           )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="First name" htmlFor="s-first">
-              <Input
-                id="s-first"
-                value={form.firstName}
-                onChange={(e) => update("firstName", e.target.value)}
-                required
-              />
+              <Input id="s-first" value={form.firstName} onChange={(e) => update("firstName", e.target.value)} required />
             </Field>
             <Field label="Last name" htmlFor="s-last">
-              <Input
-                id="s-last"
-                value={form.lastName}
-                onChange={(e) => update("lastName", e.target.value)}
-                required
-              />
+              <Input id="s-last" value={form.lastName} onChange={(e) => update("lastName", e.target.value)} required />
             </Field>
           </div>
           <Field label="Middle name (optional)" htmlFor="s-middle">
-            <Input
-              id="s-middle"
-              value={form.middleName}
-              onChange={(e) => update("middleName", e.target.value)}
-            />
+            <Input id="s-middle" value={form.middleName} onChange={(e) => update("middleName", e.target.value)} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Admission no." htmlFor="s-adm">
@@ -135,21 +125,10 @@ function AddStudentDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Date of birth" htmlFor="s-dob">
-              <Input
-                id="s-dob"
-                type="date"
-                value={form.dateOfBirth}
-                onChange={(e) => update("dateOfBirth", e.target.value)}
-                required
-              />
+              <Input id="s-dob" type="date" value={form.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} required />
             </Field>
             <Field label="State of origin" htmlFor="s-state">
-              <Input
-                id="s-state"
-                value={form.stateOfOrigin}
-                onChange={(e) => update("stateOfOrigin", e.target.value)}
-                placeholder="e.g. Kano"
-              />
+              <Input id="s-state" value={form.stateOfOrigin} onChange={(e) => update("stateOfOrigin", e.target.value)} placeholder="e.g. Kano" />
             </Field>
           </div>
           <Dialog.Footer>
@@ -158,10 +137,7 @@ function AddStudentDialog({
                 Cancel
               </Button>
             </Dialog.Close>
-            <Button
-              type="submit"
-              disabled={busy || !form.firstName || !form.lastName || !form.admissionNo}
-            >
+            <Button type="submit" disabled={busy || !form.firstName || !form.lastName || !form.admissionNo}>
               {busy ? "Adding…" : "Add student"}
             </Button>
           </Dialog.Footer>
@@ -172,6 +148,7 @@ function AddStudentDialog({
 }
 
 export default function StudentsPage() {
+  const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -195,40 +172,31 @@ export default function StudentsPage() {
   }, []);
 
   return (
-    <div className="px-4 py-8 mx-auto max-w-5xl">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
-            Students
-          </h1>
-          <p className="text-small text-ink-500 tabular-nums">
-            {loading ? "" : `${students.length} total`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/students/import"
-            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-button font-medium h-11 px-4 text-body border border-ink-300 bg-transparent text-ink-1000 hover:bg-ink-100 transition-[transform,background-color,box-shadow,color] duration-micro ease-expo active:scale-[0.98] focus-visible:outline-none focus-visible:shadow-focus dark:text-ink-100 dark:border-white/20 dark:hover:bg-white/8"
-          >
-            Bulk import
-          </Link>
-          <Button onClick={() => setDialogOpen(true)}>Add student</Button>
-        </div>
-      </div>
+    <PageContainer>
+      <PageHeader
+        title="Students"
+        description={loading ? undefined : `${students.length} ${students.length === 1 ? "student" : "students"} enrolled`}
+        actions={
+          <>
+            <Button variant="outline" onClick={() => router.push("/students/import")}>
+              Bulk import
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>Add student</Button>
+          </>
+        }
+      />
 
       {loading && (
-        <div className="flex items-center justify-center py-16">
+        <div className="flex items-center justify-center py-20">
           <Spinner size="lg" />
         </div>
       )}
 
-      {!loading && loadError && (
-        <ErrorState description={loadError} onRetry={load} />
-      )}
+      {!loading && loadError && <ErrorState description={loadError} onRetry={load} />}
 
       {!loading && !loadError && students.length === 0 && (
         <EmptyState
-          icon={<Users size={28} />}
+          icon={<Users size={26} />}
           title="No students yet"
           description="Add your first student to get started."
           action={<Button onClick={() => setDialogOpen(true)}>Add student</Button>}
@@ -236,20 +204,14 @@ export default function StudentsPage() {
       )}
 
       {!loading && !loadError && students.length > 0 && (
-        <div className="rounded-card border border-ink-200 dark:border-white/10 overflow-hidden">
+        <Card className="overflow-hidden">
           <table className="w-full text-small">
             <thead>
-              <tr className="border-b border-ink-200 dark:border-white/10 bg-ink-100/50 dark:bg-white/4">
-                <th className="text-left px-4 py-3 font-semibold text-ink-700 dark:text-ink-300 tabular-nums">
-                  Adm. No.
-                </th>
-                <th className="text-left px-4 py-3 font-semibold text-ink-700 dark:text-ink-300">
-                  Name
-                </th>
-                <th className="text-left px-4 py-3 font-semibold text-ink-700 dark:text-ink-300 hidden sm:table-cell">
-                  Gender
-                </th>
-                <th className="px-4 py-3" />
+              <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] dark:border-white/10 dark:bg-white/[0.03]">
+                <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Adm. No.</th>
+                <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Name</th>
+                <th className="hidden px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500 sm:table-cell">Gender</th>
+                <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -257,27 +219,22 @@ export default function StudentsPage() {
                 <tr
                   key={s.id}
                   className={[
-                    "hover:bg-ink-100/40 dark:hover:bg-white/4 transition-colors duration-micro",
-                    i < students.length - 1
-                      ? "border-b border-ink-200 dark:border-white/10"
-                      : "",
+                    "transition-colors duration-micro hover:bg-ink-1000/[0.02] dark:hover:bg-white/[0.03]",
+                    i < students.length - 1 ? "border-b border-ink-1000/[0.06] dark:border-white/[0.06]" : "",
                   ].join(" ")}
                 >
-                  <td className="px-4 py-3 tabular-nums text-ink-700 dark:text-ink-300">
-                    {s.admissionNo}
+                  <td className="px-4 py-3 tabular-nums text-ink-500">{s.admissionNo}</td>
+                  <td className="px-4 py-3 font-medium text-ink-1000 dark:text-ink-100">
+                    {s.firstName} {s.middleName ? `${s.middleName} ` : ""}
+                    {s.lastName}
                   </td>
-                  <td className="px-4 py-3 text-ink-1000 dark:text-ink-100 font-medium">
-                    {s.firstName} {s.middleName ? `${s.middleName} ` : ""}{s.lastName}
-                  </td>
-                  <td className="px-4 py-3 hidden sm:table-cell">
-                    <Badge tone={s.gender === "F" ? "info" : "neutral"}>
-                      {s.gender === "M" ? "Male" : "Female"}
-                    </Badge>
+                  <td className="hidden px-4 py-3 sm:table-cell">
+                    <Badge tone={s.gender === "F" ? "info" : "neutral"}>{s.gender === "M" ? "Male" : "Female"}</Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link
                       href={`/students/${s.id}`}
-                      className="text-brand-500 hover:underline text-caption font-medium"
+                      className="text-caption font-semibold text-brand-700 hover:underline dark:text-brand-300"
                     >
                       View
                     </Link>
@@ -286,7 +243,7 @@ export default function StudentsPage() {
               ))}
             </tbody>
           </table>
-        </div>
+        </Card>
       )}
 
       <AddStudentDialog
@@ -294,6 +251,6 @@ export default function StudentsPage() {
         onOpenChange={setDialogOpen}
         onAdded={(s) => setStudents((prev) => [s, ...prev])}
       />
-    </div>
+    </PageContainer>
   );
 }
