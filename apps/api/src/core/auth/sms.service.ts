@@ -5,6 +5,11 @@ import { Injectable, Logger } from "@nestjs/common";
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
   private readonly provider = process.env.SMS_PROVIDER ?? "mock";
+  // Termii issues a per-account base URL (regulatory region) — read it from the dashboard.
+  private readonly termiiBase = (process.env.TERMII_BASE_URL ?? "https://v3.api.termii.com").replace(/\/$/, "");
+  // OTPs MUST go via the "dnd" route: "generic" won't deliver to DND numbers and is
+  // time-restricted on MTN (8PM–8AM). The dnd route must be activated on the Termii account.
+  private readonly termiiChannel = process.env.TERMII_CHANNEL ?? "dnd";
   private readonly lastCode = new Map<string, string>();
 
   async send(phone: string, message: string): Promise<void> {
@@ -25,15 +30,15 @@ export class SmsService {
   }
 
   private async sendViaTermii(phone: string, message: string): Promise<void> {
-    const res = await fetch("https://api.ng.termii.com/api/sms/send", {
+    const res = await fetch(`${this.termiiBase}/api/sms/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        to: phone.replace(/^\+/, ""),
+        to: phone.replace(/^\+/, ""), // international format, no leading +
         from: process.env.TERMII_SENDER_ID ?? "myMakaranta",
         sms: message,
         type: "plain",
-        channel: "generic",
+        channel: this.termiiChannel,
         api_key: process.env.TERMII_API_KEY,
       }),
     });
