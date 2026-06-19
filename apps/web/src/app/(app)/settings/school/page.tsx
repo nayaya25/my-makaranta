@@ -126,7 +126,7 @@ export default function SchoolSettingsPage() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-small font-medium text-ink-1000 dark:text-ink-100">School logo</p>
-                <p className="text-caption text-ink-500">PNG, JPG, WebP or SVG, up to 5MB.</p>
+                <p className="text-caption text-ink-500">PNG, JPG, or WebP, up to 5MB.</p>
                 {logoError && <p className="mt-1 text-caption text-error">{logoError}</p>}
               </div>
               <input

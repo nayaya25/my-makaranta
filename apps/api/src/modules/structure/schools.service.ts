@@ -10,7 +10,10 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
 import { CreateSchoolDto, UpdateSchoolDto } from "./dto/schools.dto";
 
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
+// Raster types only — SVG is excluded deliberately: an uploaded SVG can carry
+// inline scripts and would execute as same-origin stored XSS when its signed
+// /files URL is opened directly. Matches the staff/student photo allow-list.
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type SchoolRecord = { logoUrl?: string | null };
@@ -110,18 +113,11 @@ export class SchoolsService {
     if (!schoolId) throw new NotFoundException("No school associated with this account.");
     if (!file) throw new BadRequestException("No file uploaded.");
     if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
-      throw new BadRequestException("Logo must be JPEG, PNG, WebP, or SVG.");
+      throw new BadRequestException("Logo must be JPEG, PNG, or WebP.");
     }
     if (file.size > MAX_IMAGE_BYTES) throw new BadRequestException("Logo must be 5MB or smaller.");
 
-    const ext =
-      file.mimetype === "image/png"
-        ? "png"
-        : file.mimetype === "image/webp"
-          ? "webp"
-          : file.mimetype === "image/svg+xml"
-            ? "svg"
-            : "jpg";
+    const ext = file.mimetype === "image/png" ? "png" : file.mimetype === "image/webp" ? "webp" : "jpg";
     const key = `logos/${schoolId}.${ext}`;
     await this.storage.put(key, file.buffer, { contentType: file.mimetype });
     await this.prisma.school.update({ where: { id: schoolId }, data: { logoUrl: key } });
