@@ -2,23 +2,27 @@ import { forwardRef } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../lib/cn";
 
-const card = cva("transition-shadow duration-standard ease-expo", {
+const card = cva("transition-all duration-standard ease-expo", {
   variants: {
     tone: {
-      // Bold Ink base — bordered crisp card (admin/proprietor surfaces)
-      base: "rounded-card border border-ink-100 bg-surface dark:border-white/10 dark:bg-surface-dark",
-      // Saffron warmth — friendlier radius, borderless, softer (parent/student surfaces)
-      warm: "rounded-warm bg-surface dark:bg-surface-dark",
+      // Crisp hairline-bordered surface (admin/proprietor) — Linear/Vercel-style.
+      base: "rounded-[14px] border border-ink-1000/[0.08] bg-surface dark:border-white/10 dark:bg-surface-dark",
+      // Friendlier radius, softer (parent/student surfaces).
+      warm: "rounded-warm border border-ink-1000/[0.06] bg-surface dark:border-white/10 dark:bg-surface-dark",
     },
     elevation: {
       flat: "",
+      xs: "shadow-xs",
       sm: "shadow-sm",
       md: "shadow-md",
       lg: "shadow-lg",
     },
-    interactive: { true: "hover:shadow-lg cursor-pointer", false: "" },
+    interactive: {
+      true: "cursor-pointer hover:border-ink-1000/[0.14] hover:shadow-md dark:hover:border-white/20",
+      false: "",
+    },
   },
-  defaultVariants: { tone: "base", elevation: "sm", interactive: false },
+  defaultVariants: { tone: "base", elevation: "xs", interactive: false },
 });
 
 export interface CardProps

@@ -23,28 +23,52 @@ import {
   LogOut,
   Menu,
   X,
+  GraduationCap,
 } from "lucide-react";
 
-const NAV_ITEMS: { href: string; label: string; icon: React.ElementType; perm?: string }[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/students", label: "Students", icon: Users, perm: "students.view" },
-  { href: "/staff", label: "Staff", icon: UserSquare2, perm: "staff.view" },
-  { href: "/classes", label: "Classes", icon: BookOpen, perm: "classes.view" },
-  { href: "/attendance", label: "Attendance", icon: CalendarCheck, perm: "attendance.view" },
-  { href: "/gradebook", label: "Gradebook", icon: ClipboardList, perm: "results.record" },
-  { href: "/review", label: "Review", icon: BarChart3, perm: "results.review" },
-  { href: "/release", label: "Release", icon: Lock, perm: "results.release" },
-  { href: "/announcements", label: "Announcements", icon: Megaphone, perm: "announcements.create" },
-  { href: "/inbox", label: "Inbox", icon: Inbox },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
-  { href: "/fees", label: "Fees", icon: Wallet, perm: "fees.view" },
-  { href: "/settings", label: "Settings", icon: Settings, perm: "school.manage" },
+type NavItem = { href: string; label: string; icon: React.ElementType; perm?: string };
+type NavGroup = { label: string | null; items: NavItem[] };
+
+const NAV_GROUPS: NavGroup[] = [
+  { label: null, items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] },
+  {
+    label: "People",
+    items: [
+      { href: "/students", label: "Students", icon: Users, perm: "students.view" },
+      { href: "/staff", label: "Staff", icon: UserSquare2, perm: "staff.view" },
+      { href: "/classes", label: "Classes", icon: BookOpen, perm: "classes.view" },
+    ],
+  },
+  {
+    label: "Academics",
+    items: [
+      { href: "/attendance", label: "Attendance", icon: CalendarCheck, perm: "attendance.view" },
+      { href: "/gradebook", label: "Gradebook", icon: ClipboardList, perm: "results.record" },
+      { href: "/review", label: "Review", icon: BarChart3, perm: "results.review" },
+      { href: "/release", label: "Release", icon: Lock, perm: "results.release" },
+    ],
+  },
+  {
+    label: "Communication",
+    items: [
+      { href: "/announcements", label: "Announcements", icon: Megaphone, perm: "announcements.create" },
+      { href: "/inbox", label: "Inbox", icon: Inbox },
+      { href: "/messages", label: "Messages", icon: MessageSquare },
+    ],
+  },
+  { label: "Finance", items: [{ href: "/fees", label: "Fees", icon: Wallet, perm: "fees.view" }] },
+  { label: null, items: [{ href: "/settings", label: "Settings", icon: Settings, perm: "school.manage" }] },
 ];
 
-const PARENT_NAV = [
-  { href: "/parent", label: "Fees", icon: Wallet },
-  { href: "/parent/announcements", label: "Announcements", icon: Megaphone },
-  { href: "/messages", label: "Messages", icon: MessageSquare },
+const PARENT_GROUPS: NavGroup[] = [
+  {
+    label: null,
+    items: [
+      { href: "/parent", label: "Fees", icon: Wallet },
+      { href: "/parent/announcements", label: "Announcements", icon: Megaphone },
+      { href: "/messages", label: "Messages", icon: MessageSquare },
+    ],
+  },
 ];
 
 function NavLink({
@@ -64,18 +88,30 @@ function NavLink({
     <Link
       href={href}
       onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-input px-3 py-2.5 text-small font-medium",
-        "transition-colors duration-micro ease-expo",
+        "group flex items-center gap-3 rounded-[10px] px-3 py-2 text-small transition-colors duration-micro ease-expo",
         active
-          ? "bg-brand-500 text-white"
-          : "text-ink-700 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-white/8",
+          ? "bg-brand-50 font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-100"
+          : "font-medium text-ink-700 hover:bg-ink-1000/[0.04] dark:text-ink-300 dark:hover:bg-white/5",
       )}
     >
-      <Icon size={18} aria-hidden />
+      <Icon
+        size={18}
+        aria-hidden
+        className={
+          active
+            ? "text-brand-500 dark:text-brand-300"
+            : "text-ink-500 group-hover:text-ink-700 dark:text-ink-300"
+        }
+      />
       {label}
     </Link>
   );
+}
+
+function titleCase(s: string) {
+  return s.charAt(0) + s.slice(1).toLowerCase();
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -106,8 +142,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!ready) return null;
 
-  const staffNav = NAV_ITEMS.filter((i) => !i.perm || (perms?.has(i.perm) ?? false));
-  const navItems = user?.identityType === "PARENT" ? PARENT_NAV : staffNav;
+  const isParent = user?.identityType === "PARENT";
+  const groups = (isParent ? PARENT_GROUPS : NAV_GROUPS)
+    .map((g) => ({ ...g, items: g.items.filter((i) => !i.perm || (perms?.has(i.perm) ?? false)) }))
+    .filter((g) => g.items.length > 0);
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  const roleLabel = user ? titleCase(user.identityType) : "";
+  const contact = user?.phone ?? user?.email ?? "";
 
   function signOut() {
     session.clear();
@@ -116,7 +158,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-paper dark:bg-paper-dark">
-      {/* Mobile overlay */}
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-ink-1000/40 backdrop-blur-sm lg:hidden"
@@ -127,19 +168,23 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-ink-200 dark:border-white/10 print:hidden",
-          "bg-surface dark:bg-surface-dark",
+          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-ink-1000/[0.08] bg-surface print:hidden dark:border-white/10 dark:bg-surface-dark",
           "transition-transform duration-standard ease-expo",
           mobileOpen ? "translate-x-0" : "-translate-x-full",
           "lg:static lg:translate-x-0",
         )}
       >
-        <div className="flex h-14 items-center justify-between px-4 border-b border-ink-200 dark:border-white/10">
-          <span className="font-display text-h3 font-semibold text-ink-1000 dark:text-ink-100">
-            myMakaranta
-          </span>
+        <div className="flex h-16 items-center justify-between px-5">
+          <Link href="/dashboard" className="flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
+            <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-brand-500 text-white">
+              <GraduationCap size={18} aria-hidden />
+            </span>
+            <span className="font-display text-lg font-bold tracking-tight text-ink-1000 dark:text-ink-100">
+              myMakaranta
+            </span>
+          </Link>
           <button
-            className="lg:hidden text-ink-500 hover:text-ink-1000 dark:hover:text-ink-100 p-1"
+            className="p-1 text-ink-500 hover:text-ink-1000 dark:hover:text-ink-100 lg:hidden"
             onClick={() => setMobileOpen(false)}
             aria-label="Close menu"
           >
@@ -147,46 +192,58 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex flex-1 flex-col gap-1 p-3 overflow-y-auto">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.href}
-              {...item}
-              active={pathname === item.href || pathname.startsWith(item.href + "/")}
-              onClick={() => setMobileOpen(false)}
-            />
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 pb-3">
+          {groups.map((group, gi) => (
+            <div key={group.label ?? `g${gi}`} className="flex flex-col gap-0.5">
+              {group.label && (
+                <p className="px-3 pb-1 pt-4 text-[0.68rem] font-semibold uppercase tracking-wider text-ink-500">
+                  {group.label}
+                </p>
+              )}
+              {group.items.map((item) => (
+                <NavLink
+                  key={item.href}
+                  {...item}
+                  active={isActive(item.href)}
+                  onClick={() => setMobileOpen(false)}
+                />
+              ))}
+            </div>
           ))}
         </nav>
 
-        <div className="p-3 border-t border-ink-200 dark:border-white/10">
-          <button
-            onClick={signOut}
-            className={cn(
-              "flex w-full items-center gap-3 rounded-input px-3 py-2.5 text-small font-medium",
-              "text-ink-700 dark:text-ink-300 hover:bg-ink-100 dark:hover:bg-white/8",
-              "transition-colors duration-micro ease-expo",
-            )}
-          >
-            <LogOut size={18} aria-hidden />
-            Sign out
-          </button>
+        {/* User area */}
+        <div className="border-t border-ink-1000/[0.08] p-3 dark:border-white/10">
+          <div className="flex items-center gap-3 rounded-[10px] px-2 py-1.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-small font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-100">
+              {(roleLabel[0] ?? "U").toUpperCase()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-small font-semibold text-ink-1000 dark:text-ink-100">{roleLabel}</p>
+              {contact && <p className="truncate text-caption text-ink-500">{contact}</p>}
+            </div>
+            <button
+              onClick={signOut}
+              aria-label="Sign out"
+              className="rounded-[8px] p-2 text-ink-500 transition-colors hover:bg-ink-1000/[0.05] hover:text-ink-1000 dark:hover:bg-white/5 dark:hover:text-ink-100"
+            >
+              <LogOut size={17} aria-hidden />
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main */}
-      <div className="flex flex-1 flex-col min-w-0">
-        {/* Mobile topbar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-200 dark:border-white/10 bg-surface dark:bg-surface-dark px-4 lg:hidden print:hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-1000/[0.08] bg-surface px-4 dark:border-white/10 dark:bg-surface-dark lg:hidden print:hidden">
           <button
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
-            className="text-ink-700 dark:text-ink-300 hover:text-ink-1000 dark:hover:text-ink-100 p-1"
+            className="p-1 text-ink-700 hover:text-ink-1000 dark:text-ink-300 dark:hover:text-ink-100"
           >
             <Menu size={20} />
           </button>
-          <span className="font-display text-h3 font-semibold text-ink-1000 dark:text-ink-100">
-            myMakaranta
-          </span>
+          <span className="font-display text-h3 font-semibold text-ink-1000 dark:text-ink-100">myMakaranta</span>
         </header>
 
         <main className="flex-1">{children}</main>
