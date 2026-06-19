@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   Button,
   Card,
@@ -166,6 +167,7 @@ export default function StaffPage() {
                 <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Name</th>
                 <th className="hidden px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500 sm:table-cell">Email</th>
                 <th className="hidden px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500 md:table-cell">Phone</th>
+                <th className="px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -183,6 +185,14 @@ export default function StaffPage() {
                   </td>
                   <td className="hidden px-4 py-3 text-ink-700 dark:text-ink-300 sm:table-cell">{s.email}</td>
                   <td className="hidden px-4 py-3 tabular-nums text-ink-700 dark:text-ink-300 md:table-cell">{s.phone}</td>
+                  <td className="px-4 py-3 text-right">
+                    <Link
+                      href={`/staff/${s.id}`}
+                      className="text-caption font-semibold text-brand-700 hover:underline dark:text-brand-300"
+                    >
+                      Manage
+                    </Link>
+                  </td>
                 </tr>
               ))}
             </tbody>

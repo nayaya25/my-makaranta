@@ -9,6 +9,7 @@ export const preset = {
       colors: {
         brand: colors.brand,
         saffron: colors.saffron,
+        sidebar: colors.sidebar,
         ink: colors.ink,
         paper: { DEFAULT: colors.paper, warm: colors.paperWarm, dark: colors.paperDark },
         surface: { DEFAULT: colors.surface, dark: colors.surfaceDark },
