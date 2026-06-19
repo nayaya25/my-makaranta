@@ -13,14 +13,14 @@ export class AuthController {
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @HttpCode(204)
   async requestOtp(@Body() dto: RequestOtpDto): Promise<void> {
-    await this.auth.requestOtp(dto.phone);
+    await this.auth.requestOtp({ phone: dto.phone, email: dto.email });
   }
 
   @Post("auth/otp/verify")
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
   @HttpCode(200)
   async verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.auth.verifyOtp(dto.phone, dto.code);
+    return this.auth.verifyOtp({ phone: dto.phone, email: dto.email }, dto.code);
   }
 
   @Get("me")
