@@ -9,13 +9,16 @@ import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
 import { sniffImageType, extForImage } from "../../core/storage/image-sniff";
-import { CreateSchoolDto, UpdateSchoolDto } from "./dto/schools.dto";
+import { CreateSchoolDto, UpdateBrandingDto, UpdateSchoolDto } from "./dto/schools.dto";
 
 // Raster types only — SVG is excluded deliberately: an uploaded SVG can carry
 // inline scripts and would execute as same-origin stored XSS when its signed
 // /files URL is opened directly. Format is verified by magic bytes, not the
 // client-supplied mimetype.
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+
+// TODO(P2 Task 5): replace with import { PALETTE_KEYS } from "@mymakaranta/ui"
+const PALETTE_KEYS = ["teal", "emerald", "indigo", "violet", "rose", "amber", "slate", "sky"] as const;
 
 type SchoolRecord = { logoUrl?: string | null };
 
@@ -124,5 +127,35 @@ export class SchoolsService {
     await this.storage.put(key, file.buffer, { contentType: type });
     await this.prisma.school.update({ where: { id: schoolId }, data: { logoUrl: key } });
     return { logoUrl: await this.storage.getSignedUrl(key) };
+  }
+
+  async updateBranding(schoolId: string | null, dto: UpdateBrandingDto) {
+    if (!schoolId) throw new NotFoundException("No school associated with this account.");
+
+    if (dto.themeKey !== undefined && !(PALETTE_KEYS as readonly string[]).includes(dto.themeKey)) {
+      throw new BadRequestException(
+        `themeKey must be one of: ${PALETTE_KEYS.join(", ")}`,
+      );
+    }
+
+    const school = await this.prisma.school.update({
+      where: { id: schoolId },
+      data: {
+        ...(dto.themeKey !== undefined ? { themeKey: dto.themeKey } : {}),
+        ...(dto.motto !== undefined ? { motto: dto.motto } : {}),
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
+        ...(dto.state !== undefined ? { state: dto.state } : {}),
+        ...(dto.technicalContact?.name !== undefined
+          ? { technicalContactName: dto.technicalContact.name }
+          : {}),
+        ...(dto.technicalContact?.phone !== undefined
+          ? { technicalContactPhone: dto.technicalContact.phone }
+          : {}),
+        ...(dto.technicalContact?.email !== undefined
+          ? { technicalContactEmail: dto.technicalContact.email }
+          : {}),
+      },
+    });
+    return this.signLogo(school);
   }
 }

@@ -1,6 +1,53 @@
-import { IsIn, IsOptional, IsString, Matches, MaxLength } from "class-validator";
+import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, ValidateNested } from "class-validator";
+import { Type } from "class-transformer";
 
 const COUNTRY_CODES = ["NG", "GH", "KE"] as const;
+
+// TODO(P2 Task 5): replace with import { PALETTE_KEYS } from "@mymakaranta/ui"
+const PALETTE_KEYS = ["teal", "emerald", "indigo", "violet", "rose", "amber", "slate", "sky"] as const;
+
+export class TechnicalContactDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  phone?: string;
+
+  @IsOptional()
+  @IsEmail()
+  @MaxLength(254)
+  email?: string;
+}
+
+export class UpdateBrandingDto {
+  @IsOptional()
+  @IsIn(PALETTE_KEYS, { message: `themeKey must be one of: ${PALETTE_KEYS.join(", ")}` })
+  themeKey?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  motto?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  type?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  state?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => TechnicalContactDto)
+  technicalContact?: TechnicalContactDto;
+}
 
 export class UpdateSchoolDto {
   @IsOptional()
