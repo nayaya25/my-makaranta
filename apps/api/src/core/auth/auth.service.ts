@@ -232,9 +232,7 @@ export class AuthService {
 
   async loginWithPassword(schoolId: string, identifier: string, password: string) {
     const resolved = await this.identity.resolvePerson(schoolId, identifier);
-    const ok =
-      resolved?.person.passwordHash &&
-      (await this.passwords.verify(resolved.person.passwordHash, password));
+    const ok = await this.passwords.verifySafe(resolved?.person.passwordHash, password);
     if (!resolved || !ok) throw new UnauthorizedException("Invalid credentials");
     const { person, membership } = resolved;
     const { roles, perms } = await this.identity.deriveAuthz(membership.id);

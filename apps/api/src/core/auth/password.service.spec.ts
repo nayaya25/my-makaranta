@@ -11,6 +11,26 @@ describe("PasswordService", () => {
     expect(await svc.verify(h, "wrong")).toBe(false);
   });
 
+  describe("verifySafe", () => {
+    it("returns false (no throw) when hash is null", async () => {
+      await expect(svc.verifySafe(null, "x")).resolves.toBe(false);
+    });
+
+    it("returns false when hash is undefined", async () => {
+      await expect(svc.verifySafe(undefined, "x")).resolves.toBe(false);
+    });
+
+    it("returns true for correct password", async () => {
+      const h = await svc.hash("p");
+      await expect(svc.verifySafe(h, "p")).resolves.toBe(true);
+    });
+
+    it("returns false for wrong password", async () => {
+      const h = await svc.hash("p");
+      await expect(svc.verifySafe(h, "wrong")).resolves.toBe(false);
+    });
+  });
+
   it("enforces policy", () => {
     expect(svc.validatePolicy("Str0ng!pass")).toBeNull();
     expect(svc.validatePolicy("weak")).toMatch(/8/);

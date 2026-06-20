@@ -10,6 +10,17 @@ export class PasswordService {
   async verify(hash: string, plain: string): Promise<boolean> {
     try { return await argon2.verify(hash, plain); } catch { return false; }
   }
+
+  private dummyHashPromise?: Promise<string>;
+  private dummyHash(): Promise<string> {
+    return (this.dummyHashPromise ??= argon2.hash("nomatch-dummy-credential", { type: argon2.argon2id }));
+  }
+  /** Always runs a verify (constant-ish time); returns false when hash is absent. */
+  async verifySafe(hash: string | null | undefined, plain: string): Promise<boolean> {
+    const h = hash ?? (await this.dummyHash());
+    const ok = await argon2.verify(h, plain).catch(() => false);
+    return hash ? ok : false;
+  }
   validatePolicy(p: string): string | null {
     if (p.length < 8) return "Password must be at least 8 characters.";
     if (!/[A-Z]/.test(p)) return "Password must contain an uppercase letter.";
