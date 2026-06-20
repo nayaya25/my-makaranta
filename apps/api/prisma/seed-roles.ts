@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+﻿import { PrismaClient } from "@prisma/client";
 
 export const PRESET_KEYS = [
   "proprietor",
@@ -103,10 +103,29 @@ export async function seedSystemRoles(prisma: PrismaClient): Promise<void> {
   const permByKey = new Map(allPermissions.map((p) => [p.key, p.id]));
 
   for (const key of PRESET_KEYS) {
-    // Upsert the Role (cannot use upsert with schoolId: null in compound unique)
-    const existing = await prisma.role.findFirst({
+    // Upsert the Role (cannot use upsert with schoolId: null in compound unique).
+    // PostgreSQL UNIQUE(schoolId, key) treats NULL values as distinct, so duplicates
+    // can accumulate across test runs. Find all matches, keep the first, delete extras.
+    const allExisting = await prisma.role.findMany({
       where: { schoolId: null, key },
+      orderBy: { id: "asc" },
     });
+
+    if (allExisting.length > 1) {
+      const [, ...extras] = allExisting;
+      const extraIds = extras.map((r) => r.id);
+      await prisma.rolePermission.deleteMany({
+        where: { roleId: { in: extraIds } },
+      });
+      await prisma.roleAssignment.deleteMany({
+        where: { roleId: { in: extraIds } },
+      });
+      await prisma.role.deleteMany({
+        where: { id: { in: extraIds } },
+      });
+    }
+
+    const existing = allExisting[0] ?? null;
 
     const role = existing
       ? await prisma.role.update({
