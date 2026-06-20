@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Patch,
   Post,
   UploadedFile,
@@ -15,6 +16,18 @@ import { RequirePermissions } from "../../core/auth/permissions/require-permissi
 import { CurrentUser, RequestUser } from "../../core/auth/current-user.decorator";
 import { SchoolsService } from "./schools.service";
 import { CreateSchoolDto, UpdateBrandingDto, UpdateSchoolDto } from "./dto/schools.dto";
+
+/** Public endpoint — no authentication required. */
+@Controller("v1/public")
+export class PublicTenantController {
+  constructor(private schools: SchoolsService) {}
+
+  /** Resolve a school's public branding by slug. Returns only public fields; 404 if not found. */
+  @Get("tenant/:slug")
+  resolveTenant(@Param("slug") slug: string) {
+    return this.schools.findPublicBySlug(slug);
+  }
+}
 
 @Controller("v1/schools")
 export class SchoolsController {

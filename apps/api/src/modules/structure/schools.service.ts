@@ -5,6 +5,17 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+
+/** Public branding fields returned by the tenant-resolve endpoint. Never includes
+ *  counts, contacts, fees, or any other non-public field. */
+export interface PublicTenantDto {
+  id: string;
+  name: string;
+  slug: string;
+  themeKey: string;
+  logoUrl: string | null;
+  motto: string | null;
+}
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
@@ -127,6 +138,26 @@ export class SchoolsService {
     await this.storage.put(key, file.buffer, { contentType: type });
     await this.prisma.school.update({ where: { id: schoolId }, data: { logoUrl: key } });
     return { logoUrl: await this.storage.getSignedUrl(key) };
+  }
+
+  /**
+   * Resolves a school by slug for the public tenant endpoint.
+   * CRITICAL: selects ONLY public branding fields — never contacts, counts, or fees.
+   */
+  async findPublicBySlug(slug: string): Promise<PublicTenantDto> {
+    const school = await this.prisma.school.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        themeKey: true,
+        logoUrl: true,
+        motto: true,
+      },
+    });
+    if (!school) throw new NotFoundException(`No school found for slug "${slug}".`);
+    return this.signLogo(school);
   }
 
   async updateBranding(schoolId: string | null, dto: UpdateBrandingDto) {
