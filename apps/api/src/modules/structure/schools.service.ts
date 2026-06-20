@@ -8,12 +8,13 @@ import {
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
+import { sniffImageType, extForImage } from "../../core/storage/image-sniff";
 import { CreateSchoolDto, UpdateSchoolDto } from "./dto/schools.dto";
 
 // Raster types only — SVG is excluded deliberately: an uploaded SVG can carry
 // inline scripts and would execute as same-origin stored XSS when its signed
-// /files URL is opened directly. Matches the staff/student photo allow-list.
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+// /files URL is opened directly. Format is verified by magic bytes, not the
+// client-supplied mimetype.
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 type SchoolRecord = { logoUrl?: string | null };
@@ -112,14 +113,15 @@ export class SchoolsService {
   ) {
     if (!schoolId) throw new NotFoundException("No school associated with this account.");
     if (!file) throw new BadRequestException("No file uploaded.");
-    if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
-      throw new BadRequestException("Logo must be JPEG, PNG, or WebP.");
-    }
     if (file.size > MAX_IMAGE_BYTES) throw new BadRequestException("Logo must be 5MB or smaller.");
+    // Verify by magic bytes — the client-supplied mimetype is not trusted (and
+    // this rejects SVG, which would be a stored-XSS vector).
+    const type = sniffImageType(file.buffer);
+    if (!type) throw new BadRequestException("Logo must be a valid JPEG, PNG, or WebP image.");
 
-    const ext = file.mimetype === "image/png" ? "png" : file.mimetype === "image/webp" ? "webp" : "jpg";
+    const ext = extForImage(type);
     const key = `logos/${schoolId}.${ext}`;
-    await this.storage.put(key, file.buffer, { contentType: file.mimetype });
+    await this.storage.put(key, file.buffer, { contentType: type });
     await this.prisma.school.update({ where: { id: schoolId }, data: { logoUrl: key } });
     return { logoUrl: await this.storage.getSignedUrl(key) };
   }

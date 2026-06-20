@@ -8,9 +8,9 @@ import {
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
+import { sniffImageType, extForImage } from "../../core/storage/image-sniff";
 import { CreateStaffDto, UpdateStaffDto } from "./dto/staff.dto";
 
-const ALLOWED_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
 @Injectable()
@@ -79,17 +79,17 @@ export class StaffService {
 
   async setPhoto(id: string, file?: { buffer: Buffer; mimetype: string; size: number }) {
     if (!file) throw new BadRequestException("No file uploaded.");
-    if (!ALLOWED_PHOTO_TYPES.has(file.mimetype)) {
-      throw new BadRequestException("Photo must be JPEG, PNG, or WebP.");
-    }
     if (file.size > MAX_PHOTO_BYTES) throw new BadRequestException("Photo must be 5MB or smaller.");
+    // Verify by magic bytes — the client-supplied mimetype is not trusted.
+    const type = sniffImageType(file.buffer);
+    if (!type) throw new BadRequestException("Photo must be a valid JPEG, PNG, or WebP image.");
 
     const staff = await this.prisma.staff.findUnique({ where: { id } });
     if (!staff) throw new NotFoundException("Staff not found");
 
-    const ext = file.mimetype === "image/png" ? "png" : file.mimetype === "image/webp" ? "webp" : "jpg";
+    const ext = extForImage(type);
     const key = `photos/staff/${staff.schoolId}/${id}.${ext}`;
-    await this.storage.put(key, file.buffer, { contentType: file.mimetype });
+    await this.storage.put(key, file.buffer, { contentType: type });
     await this.prisma.staff.update({ where: { id }, data: { photoUrl: key } });
     return { photoUrl: await this.storage.getSignedUrl(key) };
   }
