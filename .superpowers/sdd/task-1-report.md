@@ -56,13 +56,19 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 
 ## P1 Review Fixes (2026-06-20)
 
-Two FK relations added per code review:
+Three fixes applied per code review:
 
 1. **FormTeacherAssignment → StaffProfile**: Added `staffProfile StaffProfile @relation(fields: [staffProfileId], references: [id])` on `FormTeacherAssignment` and back-reference `formTeacherAssignments FormTeacherAssignment[]` on `StaffProfile`.
 
 2. **RolePermission → Permission**: Added `permission Permission @relation(fields: [permissionId], references: [id])` on `RolePermission` and back-reference `rolePermissions RolePermission[]` on `Permission`.
 
-Migration regenerated as `20260620120308_identity_core`. Verified migration.sql contains both `ADD CONSTRAINT` lines. Jest test still passes (1/1).
+3. **Test teardown**: `identity-model.spec.ts` now records created IDs (`schoolId`, `roleId`, `personId`, `membershipId`) and deletes them in FK-safe order in `afterAll` (best-effort, errors swallowed per row). Prevents row accumulation across repeated test runs.
+
+Migration regenerated as `20260620120308_identity_core`. Verified migration.sql contains:
+- `ALTER TABLE "RolePermission" ADD CONSTRAINT "RolePermission_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "Permission"("id")`
+- `ALTER TABLE "FormTeacherAssignment" ADD CONSTRAINT "FormTeacherAssignment_staffProfileId_fkey" FOREIGN KEY ("staffProfileId") REFERENCES "StaffProfile"("id")`
+
+Jest: 1 passed, 1 total (teardown confirmed clean).
 
 ---
 
