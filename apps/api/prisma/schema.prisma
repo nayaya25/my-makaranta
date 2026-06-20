@@ -670,3 +670,115 @@ model Receipt {
   balanceAfterKobo Int
   createdAt        DateTime @default(now())
 }
+
+// === Identity Core (P1) ===
+
+model Person {
+  id           String      @id @default(cuid())
+  email        String?     @unique
+  phone        String?     @unique
+  passwordHash String?
+  firstName    String?
+  lastName     String?
+  gender       String?
+  photoUrl     String?
+  tokenVersion Int         @default(0)
+  lastLoginAt  DateTime?
+  createdAt    DateTime    @default(now())
+  memberships  Membership[]
+}
+
+model Membership {
+  id             String           @id @default(cuid())
+  personId       String
+  schoolId       String
+  status         String           @default("active") // active | invited | suspended
+  createdAt      DateTime         @default(now())
+  person         Person           @relation(fields: [personId], references: [id])
+  roles          RoleAssignment[]
+  staffProfile   StaffProfile?
+  studentProfile StudentProfile?
+  guardianOf     Guardian_v2[]
+
+  @@unique([personId, schoolId])
+  @@index([schoolId])
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  schoolId    String?          // null = system preset
+  key         String
+  name        String
+  isPreset    Boolean          @default(false)
+  permissions RolePermission[]
+  assignments RoleAssignment[]
+
+  @@unique([schoolId, key])
+}
+
+model RoleAssignment {
+  id           String     @id @default(cuid())
+  membershipId String
+  roleId       String
+  membership   Membership @relation(fields: [membershipId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
+
+  @@unique([membershipId, roleId])
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         Role   @relation(fields: [roleId], references: [id])
+
+  @@unique([roleId, permissionId])
+}
+
+model StaffProfile {
+  id           String     @id @default(cuid())
+  membershipId String     @unique
+  schoolId     String
+  staffNo      String
+  hireDate     DateTime?
+  membership   Membership @relation(fields: [membershipId], references: [id])
+
+  @@unique([schoolId, staffNo])
+}
+
+model StudentProfile {
+  id           String        @id @default(cuid())
+  membershipId String?       @unique
+  schoolId     String
+  admissionNo  String
+  studentId    String
+  dateOfBirth  DateTime?
+  gender       String?
+  membership   Membership?   @relation(fields: [membershipId], references: [id])
+  guardians    Guardian_v2[]
+
+  @@unique([schoolId, studentId])
+  @@unique([schoolId, admissionNo])
+}
+
+model Guardian_v2 {
+  id                 String         @id @default(cuid())
+  parentMembershipId String
+  studentProfileId   String
+  relationship       String
+  isPrimary          Boolean        @default(false)
+  parentMembership   Membership     @relation(fields: [parentMembershipId], references: [id])
+  studentProfile     StudentProfile @relation(fields: [studentProfileId], references: [id])
+
+  @@unique([parentMembershipId, studentProfileId])
+}
+
+model FormTeacherAssignment {
+  id             String @id @default(cuid())
+  classId        String
+  staffProfileId String
+  termId         String
+  kind           String // form | assistant
+
+  @@unique([classId, termId, kind])
+}
