@@ -3,6 +3,9 @@
  * Pure functions live here so they can be unit-tested without Next.js.
  */
 
+import type React from "react";
+import { paletteVars } from "@mymakaranta/ui";
+
 const RESERVED = new Set([
   "app",
   "www",
@@ -93,4 +96,15 @@ export async function getTenantSlug(): Promise<string | null> {
     return h.get("x-tenant-slug");
   }
   return parseTenantHost(window.location.host);
+}
+
+/**
+ * Returns a React.CSSProperties object containing the CSS custom properties
+ * for the given palette themeKey. Apply as `style={brandStyle(themeKey)}` on
+ * a root wrapper element to inject the brand colour ramp for that tenant.
+ *
+ * Falls back to "teal" for unknown / missing keys.
+ */
+export function brandStyle(themeKey: string): React.CSSProperties {
+  return paletteVars(themeKey) as React.CSSProperties;
 }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Field, Input } from "@mymakaranta/ui";
 import { Check, GraduationCap } from "lucide-react";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type PublicTenant, getPublicTenant } from "@/lib/api";
 import { session } from "@/lib/auth";
+import { parseTenantHost, brandStyle } from "@/lib/tenant";
 
 type Channel = "phone" | "email";
 
@@ -24,6 +25,14 @@ export default function LoginPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [tenant, setTenant] = useState<PublicTenant | null>(null);
+
+  // Resolve tenant branding from subdomain on mount (client-only).
+  useEffect(() => {
+    const slug = parseTenantHost(window.location.host);
+    if (!slug) return;
+    getPublicTenant(slug).then((t) => setTenant(t ?? null)).catch(() => {/* silent */});
+  }, []);
 
   const target = channel === "phone" ? { phone } : { email };
   const sentTo = channel === "phone" ? phone : email;
@@ -64,8 +73,10 @@ export default function LoginPage() {
     }
   }
 
+  const themeKey = tenant?.themeKey ?? "teal";
+
   return (
-    <main className="grid min-h-screen lg:grid-cols-2">
+    <main className="grid min-h-screen lg:grid-cols-2" style={brandStyle(themeKey)}>
       {/* Brand panel (desktop) */}
       <aside className="relative hidden overflow-hidden bg-brand-500 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div
@@ -109,6 +120,31 @@ export default function LoginPage() {
             <GraduationCap className="h-6 w-6" aria-hidden="true" />
             myMakaranta
           </div>
+
+          {tenant && (
+            <div className="mb-6 flex items-center gap-3">
+              {tenant.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tenant.logoUrl}
+                  alt={`${tenant.name} logo`}
+                  className="h-10 w-10 rounded-lg object-cover"
+                />
+              ) : (
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500 text-white">
+                  <GraduationCap size={20} aria-hidden />
+                </span>
+              )}
+              <div>
+                <p className="font-display text-base font-700 text-ink-1000 dark:text-ink-100 leading-tight">
+                  {tenant.name}
+                </p>
+                {tenant.motto && (
+                  <p className="text-small text-ink-500 leading-tight">{tenant.motto}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           <h1 className="font-display text-h2 font-700 text-ink-1000 dark:text-ink-100">
             {step === "contact" ? "Welcome back" : "Check your messages"}
