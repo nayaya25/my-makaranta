@@ -95,27 +95,70 @@ function Eyebrow({ children, className = "text-teal-800 dark:text-teal-200" }: {
   return <span className={`text-xs font-600 uppercase tracking-[0.14em] ${className}`}>{children}</span>;
 }
 
+/**
+ * Primary call-to-action with the "button-in-button" trailing arrow: the icon
+ * lives in its own nested circle that drifts diagonally on hover (magnetic
+ * physics) while the whole pill presses inward on click. House ease throughout.
+ */
+function MagneticCta({
+  href,
+  children,
+  tone = "teal",
+  className = "",
+}: {
+  href: string;
+  children: React.ReactNode;
+  tone?: "teal" | "lime";
+  className?: string;
+}) {
+  const surface =
+    tone === "teal"
+      ? "bg-teal-800 text-white hover:bg-teal-1000"
+      : "bg-lime-400 text-ink hover:bg-lime-200";
+  const iconWrap = tone === "teal" ? "bg-white/15" : "bg-ink/10";
+  return (
+    <a
+      href={href}
+      className={`group inline-flex items-center gap-3 rounded-full py-2 pl-7 pr-2 text-body font-600 shadow-sm transition-all duration-500 ease-house hover:shadow-md active:scale-[0.98] ${surface} ${className}`}
+    >
+      {children}
+      <span
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-500 ease-house group-hover:translate-x-0.5 group-hover:-translate-y-0.5 ${iconWrap}`}
+      >
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </span>
+    </a>
+  );
+}
+
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-canvas">
-      {/* Nav */}
-      <header className="sticky top-0 z-50 border-b border-line bg-canvas/85 backdrop-blur-md">
-        <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5 sm:px-8">
+    <div
+      className="min-h-[100dvh] bg-canvas"
+      style={{
+        backgroundImage:
+          "radial-gradient(48% 30% at 82% 3%, rgba(0,163,163,0.10), transparent 60%), radial-gradient(40% 26% at 6% 1%, rgba(179,204,24,0.07), transparent 55%)",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {/* Nav — a floating glass island detached from the top edge */}
+      <header className="sticky top-0 z-50 px-4 pt-4 sm:pt-5">
+        <nav className="mx-auto flex max-w-5xl items-center justify-between gap-4 rounded-full border border-line bg-canvas/70 py-2 pl-5 pr-2 shadow-[0_8px_30px_-12px_rgba(0,31,31,0.20)] backdrop-blur-xl sm:pl-6">
           <Link href="/" className="flex items-center gap-2.5">
             <Logomark className="h-7 w-7" />
-            <span className="text-xl font-700 tracking-tight text-content">myMakaranta</span>
+            <span className="text-lg font-700 tracking-tight text-content">myMakaranta</span>
           </Link>
           <div className="hidden items-center gap-8 text-small font-500 text-muted md:flex">
             <a href="#platform" className="transition-colors hover:text-content">Platform</a>
             <a href="#pricing" className="transition-colors hover:text-content">Pricing</a>
             <a href="#demo" className="transition-colors hover:text-content">Demo</a>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <ThemeToggle />
             <a href={APP_URL} className="hidden px-3 py-2 text-small font-500 text-content transition-colors hover:text-teal-600 sm:block">
               Sign in
             </a>
-            <a href="#demo" className="rounded-full bg-teal-800 px-5 py-2.5 text-small font-600 text-white transition-colors duration-300 hover:bg-teal-1000">
+            <a href="#demo" className="rounded-full bg-teal-800 px-5 py-2.5 text-small font-600 text-white shadow-sm transition-all duration-500 ease-house hover:bg-teal-1000 hover:shadow-md active:scale-[0.97]">
               Request a demo
             </a>
           </div>
@@ -145,12 +188,9 @@ export default function HomePage() {
               </p>
             </Reveal>
             <Reveal delay={0.24}>
-              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                <a href="#demo" className="inline-flex items-center justify-center gap-2 rounded-full bg-teal-800 px-7 py-3.5 text-body font-600 text-white transition-colors duration-300 hover:bg-teal-1000">
-                  Request a demo
-                  <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </a>
-                <a href={APP_URL} className="inline-flex items-center justify-center rounded-full ring-hair bg-card px-7 py-3.5 text-body font-600 text-content transition-colors duration-300 hover:bg-surface">
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <MagneticCta href="#demo">Request a demo</MagneticCta>
+                <a href={APP_URL} className="inline-flex items-center justify-center rounded-full ring-hair bg-card px-7 py-3 text-body font-600 text-content shadow-xs transition-all duration-500 ease-house hover:-translate-y-0.5 hover:shadow-sm active:translate-y-0 active:scale-[0.98]">
                   Start free
                 </a>
               </div>
@@ -203,8 +243,10 @@ export default function HomePage() {
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {PLATFORM.map((p, i) => (
             <Reveal key={p.title} delay={i * 0.06}>
-              <div className={`h-full rounded-2xl ${p.tint} p-6`}>
-                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-card/70">
+              <div
+                className={`group h-full rounded-2xl ${p.tint} p-6 ring-1 ring-inset ring-ink/[0.04] transition-all duration-500 ease-house hover:-translate-y-1.5 hover:shadow-lg dark:ring-white/[0.06]`}
+              >
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-card/70 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] ring-1 ring-ink/[0.04] transition-transform duration-500 ease-house group-hover:-translate-y-0.5 group-hover:scale-105 dark:ring-white/10">
                   <p.icon className={`h-5 w-5 ${p.fg}`} aria-hidden="true" />
                 </span>
                 <h3 className={`mt-4 text-h3 font-700 ${p.fg}`}>{p.title}</h3>
@@ -241,7 +283,7 @@ export default function HomePage() {
                 </div>
               </Reveal>
               <Reveal delay={0.1} y={36}>
-                <div className={`rounded-3xl ${row.tint} p-5 sm:p-8`}>
+                <div className={`rounded-3xl ${row.tint} p-5 ring-1 ring-inset ring-ink/[0.04] transition-all duration-700 ease-house hover:-translate-y-1 hover:shadow-xl dark:ring-white/[0.06] sm:p-8`}>
                   <V />
                 </div>
               </Reveal>
@@ -329,7 +371,7 @@ export default function HomePage() {
         <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {TIERS.map((tier, i) => (
             <Reveal key={tier.name} delay={i * 0.06}>
-              <div className={`flex h-full flex-col rounded-2xl p-6 ${tier.highlight ? "bg-teal-1000 text-white" : "bg-surface ring-hair"}`}>
+              <div className={`flex h-full flex-col rounded-2xl p-6 transition-all duration-500 ease-house hover:-translate-y-1.5 hover:shadow-xl ${tier.highlight ? "bg-teal-1000 text-white shadow-lg lg:-translate-y-2" : "bg-surface ring-hair"}`}>
                 <div className="flex items-start justify-between">
                   <div>
                     <p className={`text-h3 font-700 ${tier.highlight ? "text-white" : "text-content"}`}>{tier.name}</p>
@@ -354,8 +396,8 @@ export default function HomePage() {
                 </ul>
                 <a
                   href={tier.price === "Free" ? APP_URL : "#demo"}
-                  className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-4 py-2.5 text-small font-600 transition-colors duration-300 ${
-                    tier.highlight ? "bg-lime-400 text-ink hover:bg-lime-200" : "ring-hair text-content hover:bg-surface"
+                  className={`mt-7 inline-flex w-full items-center justify-center rounded-full px-4 py-2.5 text-small font-600 transition-all duration-500 ease-house active:scale-[0.98] ${
+                    tier.highlight ? "bg-lime-400 text-ink hover:bg-lime-200" : "ring-hair text-content hover:bg-surface hover:shadow-sm"
                   }`}
                 >
                   {tier.price === "Free" ? "Get started free" : "Book a demo"}
@@ -379,11 +421,14 @@ export default function HomePage() {
               you the product. Bring your toughest questions.
             </p>
             <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-              <a href="mailto:demo@mymakaranta.com?subject=Book%20a%20demo" className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-lime-400 px-7 py-3.5 text-body font-700 text-ink transition-colors duration-300 hover:bg-lime-200 sm:w-auto">
+              <MagneticCta
+                href="mailto:demo@mymakaranta.com?subject=Book%20a%20demo"
+                tone="lime"
+                className="w-full justify-between sm:w-auto sm:justify-start"
+              >
                 Request a demo
-                <ArrowRight className="h-4 w-4" aria-hidden="true" />
-              </a>
-              <a href={APP_URL} className="inline-flex w-full items-center justify-center rounded-full border border-white/25 px-7 py-3.5 text-body font-600 text-white transition-colors duration-300 hover:bg-white/10 sm:w-auto">
+              </MagneticCta>
+              <a href={APP_URL} className="inline-flex w-full items-center justify-center rounded-full border border-white/25 px-7 py-3.5 text-body font-600 text-white transition-all duration-500 ease-house hover:-translate-y-0.5 hover:bg-white/10 active:translate-y-0 active:scale-[0.98] sm:w-auto">
                 Or start free
               </a>
             </div>

@@ -23,6 +23,17 @@ export const preset = {
         display: fonts.display as unknown as string[],
         serif: fonts.serif as unknown as string[],
       },
+      // Numeric weight aliases. The apps + marketing landing reference weights as
+      // `font-500/600/700` (General Sans ships these). Tailwind core only emits the
+      // named utilities (`font-medium/semibold/bold`), so without these the numeric
+      // classes are silently inert and headings collapse to 400. Named utilities are
+      // preserved via `extend`.
+      fontWeight: {
+        400: "400",
+        500: "500",
+        600: "600",
+        700: "700",
+      },
       fontSize: {
         display: fontSize.display as unknown as [string, string],
         h1: fontSize.h1 as unknown as [string, string],
