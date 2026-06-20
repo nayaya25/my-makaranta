@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException, Inject } from "@nestjs/common";
+import { Injectable, BadRequestException, UnauthorizedException, ForbiddenException, Inject } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { randomInt } from "node:crypto";
 import * as bcrypt from "bcrypt";
@@ -250,6 +250,22 @@ export class AuthService {
       person: { id: person.id, firstName: person.firstName, lastName: person.lastName },
       membershipId: membership.id,
     };
+  }
+
+  async switchContext(personId: string, membershipId: string): Promise<{ token: string }> {
+    const m = await this.prisma.membership.findFirst({ where: { id: membershipId, personId } });
+    if (!m) throw new ForbiddenException("Membership not available for this account.");
+    const person = await this.prisma.person.findUniqueOrThrow({ where: { id: personId } });
+    const { roles, perms } = await this.identity.deriveAuthz(m.id);
+    const token = await this.jwt.signAsync({
+      sub: personId,
+      mbr: m.id,
+      sch: m.schoolId,
+      roles,
+      perms,
+      tv: person.tokenVersion,
+    });
+    return { token };
   }
 
   /** Step-up re-verification: validate a fresh phone OTP for an already-authenticated user. */
