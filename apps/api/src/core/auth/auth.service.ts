@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Inject } from "@nestjs/common";
+import { Injectable, BadRequestException, UnauthorizedException, Inject } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { randomInt } from "node:crypto";
 import * as bcrypt from "bcrypt";
@@ -6,6 +6,8 @@ import { PrismaService } from "../prisma/prisma.service";
 import { SmsService } from "./sms.service";
 import { EMAIL_SERVICE, type EmailService } from "../email/email.types";
 import { normalizePhone, phoneMatchVariants } from "./phone";
+import { PasswordService } from "./password.service";
+import { IdentityService } from "../identity/identity.service";
 
 const OTP_TTL_MINUTES = 10;
 const OTP_RATE_LIMIT_PER_HOUR = 5;
@@ -44,6 +46,8 @@ export class AuthService {
     private sms: SmsService,
     private jwt: JwtService,
     @Inject(EMAIL_SERVICE) private email: EmailService,
+    private passwords: PasswordService,
+    private identity: IdentityService,
   ) {}
 
   /** Exactly one of phone/email must be present. Accepts a bare phone string (legacy
@@ -224,6 +228,30 @@ export class AuthService {
       } catch { /* best-effort audit; never break login */ }
     }
     return fresh as unknown as T;
+  }
+
+  async loginWithPassword(schoolId: string, identifier: string, password: string) {
+    const resolved = await this.identity.resolvePerson(schoolId, identifier);
+    const ok =
+      resolved?.person.passwordHash &&
+      (await this.passwords.verify(resolved.person.passwordHash, password));
+    if (!resolved || !ok) throw new UnauthorizedException("Invalid credentials");
+    const { person, membership } = resolved;
+    const { roles, perms } = await this.identity.deriveAuthz(membership.id);
+    const token = await this.jwt.signAsync({
+      sub: person.id,
+      mbr: membership.id,
+      sch: membership.schoolId,
+      roles,
+      perms,
+      tv: person.tokenVersion,
+    });
+    await this.prisma.person.update({ where: { id: person.id }, data: { lastLoginAt: new Date() } });
+    return {
+      token,
+      person: { id: person.id, firstName: person.firstName, lastName: person.lastName },
+      membershipId: membership.id,
+    };
   }
 
   /** Step-up re-verification: validate a fresh phone OTP for an already-authenticated user. */

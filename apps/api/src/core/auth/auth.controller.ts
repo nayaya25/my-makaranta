@@ -2,12 +2,19 @@ import { Body, Controller, Get, HttpCode, Post, Req, UseGuards } from "@nestjs/c
 import type { Request } from "express";
 import { Throttle } from "@nestjs/throttler";
 import { AuthService } from "./auth.service";
-import { RequestOtpDto, VerifyOtpDto } from "./dto";
+import { RequestOtpDto, VerifyOtpDto, PasswordLoginDto } from "./dto";
 import { JwtAuthGuard } from "./jwt-auth.guard";
 
 @Controller()
 export class AuthController {
   constructor(private auth: AuthService) {}
+
+  @Post("auth/login")
+  @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  @HttpCode(200)
+  login(@Body() dto: PasswordLoginDto) {
+    return this.auth.loginWithPassword(dto.schoolId, dto.identifier, dto.password);
+  }
 
   @Post("auth/otp/request")
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
