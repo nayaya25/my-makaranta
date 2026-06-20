@@ -200,7 +200,7 @@ it("backfills proprietor/staff/parent/student idempotently", async () => {
   });
   expect(parentPerson).not.toBeNull();
 
-  // 8. Parent Membership + Guardian_v2 linking to migrated StudentProfile
+  // 8. Parent Membership + Guardianship linking to migrated StudentProfile
   const parentMembership = await prisma.membership.findUnique({
     where: {
       personId_schoolId: { personId: parentPerson!.id, schoolId },
@@ -217,7 +217,7 @@ it("backfills proprietor/staff/parent/student idempotently", async () => {
   expect(studentProfile).not.toBeNull();
   expect(studentProfile!.studentId).toBe(studentId);
 
-  // Verify Guardian_v2 links to correct StudentProfile
+  // Verify Guardianship links to correct StudentProfile
   const guardianV2 = parentMembership!.guardianOf[0]!;
   expect(guardianV2.studentProfileId).toBe(studentProfile!.id);
 

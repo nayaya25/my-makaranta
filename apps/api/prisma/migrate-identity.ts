@@ -20,7 +20,7 @@ export async function backfillIdentity(
   }
 
   // ── 1. Students ─────────────────────────────────────────────────────────────
-  // Must run first so StudentProfiles exist when Parents link Guardian_v2
+  // Must run first so StudentProfiles exist when Parents link Guardianship
   const students = await prisma.student.findMany();
   for (const student of students) {
     await prisma.studentProfile.upsert({
@@ -66,7 +66,7 @@ export async function backfillIdentity(
     });
     membershipIds.add(membership.id);
 
-    // For each legacy Guardian row, create Guardian_v2 linking membership → StudentProfile
+    // For each legacy Guardian row, create Guardianship linking membership → StudentProfile
     for (const guardian of parent.guardians) {
       const studentProfile = await prisma.studentProfile.findUnique({
         where: {
@@ -78,7 +78,7 @@ export async function backfillIdentity(
       });
       if (!studentProfile) continue;
 
-      await prisma.guardian_v2.upsert({
+      await prisma.guardianship.upsert({
         where: {
           parentMembershipId_studentProfileId: {
             parentMembershipId: membership.id,
