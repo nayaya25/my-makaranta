@@ -699,7 +699,7 @@ model Membership {
   roles          RoleAssignment[]
   staffProfile   StaffProfile?
   studentProfile StudentProfile?
-  guardianOf     Guardian_v2[]
+  guardianOf     Guardianship[]
 
   @@unique([personId, schoolId])
   @@index([schoolId])
@@ -758,13 +758,13 @@ model StudentProfile {
   dateOfBirth  DateTime?
   gender       String?
   membership   Membership?   @relation(fields: [membershipId], references: [id])
-  guardians    Guardian_v2[]
+  guardians    Guardianship[]
 
   @@unique([schoolId, studentId])
   @@unique([schoolId, admissionNo])
 }
 
-model Guardian_v2 {
+model Guardianship {
   id                 String         @id @default(cuid())
   parentMembershipId String
   studentProfileId   String

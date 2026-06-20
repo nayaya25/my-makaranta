@@ -80,14 +80,14 @@ CREATE TABLE "StudentProfile" (
 );
 
 -- CreateTable
-CREATE TABLE "Guardian_v2" (
+CREATE TABLE "Guardianship" (
     "id" TEXT NOT NULL,
     "parentMembershipId" TEXT NOT NULL,
     "studentProfileId" TEXT NOT NULL,
     "relationship" TEXT NOT NULL,
     "isPrimary" BOOLEAN NOT NULL DEFAULT false,
 
-    CONSTRAINT "Guardian_v2_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Guardianship_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -138,7 +138,7 @@ CREATE UNIQUE INDEX "StudentProfile_schoolId_studentId_key" ON "StudentProfile"(
 CREATE UNIQUE INDEX "StudentProfile_schoolId_admissionNo_key" ON "StudentProfile"("schoolId", "admissionNo");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Guardian_v2_parentMembershipId_studentProfileId_key" ON "Guardian_v2"("parentMembershipId", "studentProfileId");
+CREATE UNIQUE INDEX "Guardianship_parentMembershipId_studentProfileId_key" ON "Guardianship"("parentMembershipId", "studentProfileId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "FormTeacherAssignment_classId_termId_kind_key" ON "FormTeacherAssignment"("classId", "termId", "kind");
@@ -165,10 +165,10 @@ ALTER TABLE "StaffProfile" ADD CONSTRAINT "StaffProfile_membershipId_fkey" FOREI
 ALTER TABLE "StudentProfile" ADD CONSTRAINT "StudentProfile_membershipId_fkey" FOREIGN KEY ("membershipId") REFERENCES "Membership"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Guardian_v2" ADD CONSTRAINT "Guardian_v2_parentMembershipId_fkey" FOREIGN KEY ("parentMembershipId") REFERENCES "Membership"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Guardianship" ADD CONSTRAINT "Guardianship_parentMembershipId_fkey" FOREIGN KEY ("parentMembershipId") REFERENCES "Membership"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Guardian_v2" ADD CONSTRAINT "Guardian_v2_studentProfileId_fkey" FOREIGN KEY ("studentProfileId") REFERENCES "StudentProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Guardianship" ADD CONSTRAINT "Guardianship_studentProfileId_fkey" FOREIGN KEY ("studentProfileId") REFERENCES "StudentProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "FormTeacherAssignment" ADD CONSTRAINT "FormTeacherAssignment_staffProfileId_fkey" FOREIGN KEY ("staffProfileId") REFERENCES "StaffProfile"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

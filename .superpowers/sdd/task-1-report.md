@@ -79,3 +79,39 @@ Jest: 1 passed, 1 total (teardown confirmed clean).
 2. **School.slug already non-nullable**: The NOTE in the plan asked to add `slug String? @unique` to School. The field already exists as `slug String @unique` (non-nullable, from the init migration). No change was needed — this is actually stricter/better than what the plan asked for.
 
 3. **RolePermission has no FK to Permission**: Following the spec verbatim — `RolePermission` stores `permissionId` as a plain `String` with no explicit FK to the `Permission` table. This is intentional per the spec (avoids coupling the new identity graph to the existing RBAC table). The `deriveAuthz` service will look up permissions by ID separately.
+
+---
+
+## Task 1 Review Fix — Rename Guardian_v2 → Guardianship (2026-06-20)
+
+**Trigger:** Review finding requested `Guardian_v2` be renamed `Guardianship` for clarity.
+
+### Schema edits (apps/api/prisma/schema.prisma)
+
+1. `model Guardian_v2 { … }` → `model Guardianship { … }` (model definition)
+2. `Membership.guardianOf Guardian_v2[]` → `Membership.guardianOf Guardianship[]`
+3. `StudentProfile.guardians Guardian_v2[]` → `StudentProfile.guardians Guardianship[]`
+
+Notes: FormTeacherAssignment FK and RolePermission→Permission FK were already present from the prior P1 review pass — no additional changes needed for those.
+
+### Migration regeneration
+
+- Deleted: `apps/api/prisma/migrations/20260620120308_identity_core/`
+- `prisma migrate reset --force` re-applied 29 baseline migrations on `my_makaranta_test`
+- `prisma migrate dev --name identity_core` generated new migration
+- **New migration:** `apps/api/prisma/migrations/20260620212615_identity_core/migration.sql`
+- Verified SQL: `CREATE TABLE "Guardianship"` with correct PKs, unique index, and both FKs
+
+### Test result
+
+```
+DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/my_makaranta_test?schema=public' \
+  pnpm exec jest identity-model --testTimeout=30000
+
+PASS src/core/identity/identity-model.spec.ts
+  identity core schema
+    ✓ creates a Person with a Membership and a Role assignment (90 ms)
+
+Tests: 1 passed, 1 total
+Time: 3.717 s
+```
