@@ -19,6 +19,12 @@
 - Tests: co-located `*.spec.ts`, run with `pnpm --filter @mymakaranta/api exec jest <pattern>`.
 - Use latest stable deps; run `pnpm audit` after adding `argon2` (per `dependency-policy`).
 
+## Amendments (discovered during execution)
+
+- **Guardian naming:** a legacy `Guardian` model (Student↔Parent) already exists, so the NEW model is named **`Guardian_v2`**. Wherever this plan writes `Guardian` / `guardianOf Guardian[]` / `guardians Guardian[]` / `prisma.guardian` for the **new** model, read **`Guardian_v2`** / `guardianOf Guardian_v2[]` / `guardians Guardian_v2[]` / `prisma.guardian_v2`. (Legacy `Guardian` stays untouched; rename to a clean `Guardian` happens at the P4 cutover.)
+- **School.slug:** already exists as non-nullable `@unique` from the init migration — Task 1's NOTE about adding `slug String?` is moot; no change needed.
+- **Added FKs (Task 1 review):** `FormTeacherAssignment.staffProfile → StaffProfile` and `RolePermission.permission → Permission` relations were added for referential integrity.
+
 ## File Structure
 
 - `apps/api/prisma/schema.prisma` — add identity + profile models (modify).
