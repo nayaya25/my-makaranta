@@ -45,3 +45,6 @@ storybook-static/
 
 # build info
 *.tsbuildinfo
+
+# SDD scratch (ledger, task reports) — local only
+.superpowers/
