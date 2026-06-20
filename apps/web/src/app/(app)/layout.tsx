@@ -256,7 +256,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   ).filter((i) => !i.perm || (perms?.has(i.perm) ?? false));
 
   return (
-    <div className="flex min-h-screen bg-paper dark:bg-paper-dark">
+    <div className="flex min-h-[100dvh] bg-paper dark:bg-paper-dark">
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-ink-1000/50 backdrop-blur-sm lg:hidden"

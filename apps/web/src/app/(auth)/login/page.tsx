@@ -65,7 +65,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="grid min-h-screen lg:grid-cols-2">
+    <main className="grid min-h-[100dvh] lg:grid-cols-2">
       {/* Brand panel (desktop) */}
       <aside className="relative hidden overflow-hidden bg-brand-500 p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div
@@ -134,7 +134,7 @@ export default function LoginPage() {
                     role="tab"
                     aria-selected={channel === c}
                     onClick={() => switchChannel(c)}
-                    className={`rounded-[0.375rem] py-2 text-small font-600 capitalize transition-colors ${
+                    className={`rounded-[0.375rem] py-2 text-small font-600 capitalize transition-all duration-micro ease-expo active:scale-[0.98] ${
                       channel === c
                         ? "bg-surface text-brand-500 shadow-sm dark:bg-surface-dark"
                         : "text-ink-500 hover:text-ink-1000 dark:hover:text-ink-100"

@@ -36,6 +36,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <SmoothScroll />
         {children}
+        {/* Film-grain texture — fixed, non-interactive; sits above content for a tactile finish. */}
+        <div className="grain" aria-hidden="true" />
       </body>
     </html>
   );
