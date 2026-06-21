@@ -1,6 +1,6 @@
 // apps/api/src/core/auth/me.controller.spec.ts
 import { PrismaClient } from "@prisma/client";
-import { IdentityService } from "../identity/identity.service";
+import { IdentityService, type MeContext } from "../identity/identity.service";
 import { MeController } from "./me.controller";
 import { seedSystemRoles } from "../../../prisma/seed-roles";
 
@@ -22,16 +22,16 @@ describe("MeController.getMe", () => {
     const staffNo = `SN-${Date.now()}`;
     await prisma.staffProfile.create({ data: { membershipId: m.id, schoolId: school.id, staffNo } });
 
-    const result = await controller.getMe({ user: { personId: person.id, membershipId: m.id } } as never);
+    const result = await controller.getMe({ personId: person.id, membershipId: m.id } as never) as MeContext;
 
     expect(result).not.toHaveProperty("legacy");
-    expect((result as any).profile.isStaff).toBe(true);
-    expect((result as any).profile.isParent).toBe(false);
-    expect((result as any).profile.isStudent).toBe(false);
-    expect((result as any).personId).toBe(person.id);
-    expect((result as any).activeMembershipId).toBe(m.id);
-    expect((result as any).person.firstName).toBe("Ada");
-    expect((result as any).person.lastName).toBe("Lovelace");
+    expect(result.profile.isStaff).toBe(true);
+    expect(result.profile.isParent).toBe(false);
+    expect(result.profile.isStudent).toBe(false);
+    expect(result.personId).toBe(person.id);
+    expect(result.activeMembershipId).toBe(m.id);
+    expect(result.person.firstName).toBe("Ada");
+    expect(result.person.lastName).toBe("Lovelace");
   });
 
   // ------------------------------------------------------------------
@@ -51,12 +51,12 @@ describe("MeController.getMe", () => {
       data: { parentMembershipId: parentMembership.id, studentProfileId: studentProfile.id, relationship: "parent" },
     });
 
-    const result = await controller.getMe({ user: { personId: parentPerson.id, membershipId: parentMembership.id } } as never);
+    const result = await controller.getMe({ personId: parentPerson.id, membershipId: parentMembership.id } as never) as MeContext;
 
     expect(result).not.toHaveProperty("legacy");
-    expect((result as any).profile.isParent).toBe(true);
-    expect((result as any).profile.isStaff).toBe(false);
-    expect((result as any).profile.isStudent).toBe(false);
+    expect(result.profile.isParent).toBe(true);
+    expect(result.profile.isStaff).toBe(false);
+    expect(result.profile.isStudent).toBe(false);
   });
 
   // ------------------------------------------------------------------
@@ -71,12 +71,12 @@ describe("MeController.getMe", () => {
       data: { membershipId: m.id, schoolId: school.id, admissionNo: sid, studentId: sid },
     });
 
-    const result = await controller.getMe({ user: { personId: person.id, membershipId: m.id } } as never);
+    const result = await controller.getMe({ personId: person.id, membershipId: m.id } as never) as MeContext;
 
     expect(result).not.toHaveProperty("legacy");
-    expect((result as any).profile.isStudent).toBe(true);
-    expect((result as any).profile.isStaff).toBe(false);
-    expect((result as any).profile.isParent).toBe(false);
+    expect(result.profile.isStudent).toBe(true);
+    expect(result.profile.isStaff).toBe(false);
+    expect(result.profile.isParent).toBe(false);
   });
 
   // ------------------------------------------------------------------
@@ -89,31 +89,30 @@ describe("MeController.getMe", () => {
     const mA = await prisma.membership.create({ data: { personId: person.id, schoolId: schoolA.id } });
     const mB = await prisma.membership.create({ data: { personId: person.id, schoolId: schoolB.id } });
 
-    const result = await controller.getMe({ user: { personId: person.id, membershipId: mA.id } } as never);
+    const result = await controller.getMe({ personId: person.id, membershipId: mA.id } as never) as MeContext;
 
     expect(result).not.toHaveProperty("legacy");
-    const memberships = (result as any).memberships as any[];
+    const memberships = result.memberships;
     expect(memberships.length).toBeGreaterThanOrEqual(2);
-    const ids = memberships.map((m: any) => m.id);
+    const ids = memberships.map((m) => m.id);
     expect(ids).toContain(mA.id);
     expect(ids).toContain(mB.id);
 
-    const mAEntry = memberships.find((m: any) => m.id === mA.id);
-    expect(mAEntry.schoolName).toBe("SchoolA");
-    const mBEntry = memberships.find((m: any) => m.id === mB.id);
-    expect(mBEntry.schoolName).toBe("SchoolB");
+    const mAEntry = memberships.find((m) => m.id === mA.id);
+    expect(mAEntry!.schoolName).toBe("SchoolA");
+    const mBEntry = memberships.find((m) => m.id === mB.id);
+    expect(mBEntry!.schoolName).toBe("SchoolB");
   });
 
   // ------------------------------------------------------------------
   // (e) legacy fallback: no personId → returns { legacy: true, ... }
   // ------------------------------------------------------------------
   it("returns legacy shape when personId is absent", async () => {
-    const result = await controller.getMe({
-      user: { identityType: "STAFF", schoolId: "s1" },
-    } as never);
+    const result = await controller.getMe({ identityType: "STAFF", schoolId: "s1" } as never);
 
-    expect((result as any).legacy).toBe(true);
-    expect((result as any).identityType).toBe("STAFF");
-    expect((result as any).schoolId).toBe("s1");
+    const legacy = result as { legacy: boolean; identityType: string; schoolId: string };
+    expect(legacy.legacy).toBe(true);
+    expect(legacy.identityType).toBe("STAFF");
+    expect(legacy.schoolId).toBe("s1");
   });
 });
