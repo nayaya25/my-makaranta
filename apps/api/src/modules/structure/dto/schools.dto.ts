@@ -1,10 +1,8 @@
 import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
+import { PALETTE_KEYS } from "../../../core/tenant/palette-keys";
 
 const COUNTRY_CODES = ["NG", "GH", "KE"] as const;
-
-// TODO(P2 Task 5): replace with import { PALETTE_KEYS } from "@mymakaranta/ui"
-const PALETTE_KEYS = ["teal", "emerald", "indigo", "violet", "rose", "amber", "slate", "sky"] as const;
 
 export class TechnicalContactDto {
   @IsOptional()

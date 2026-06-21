@@ -35,4 +35,9 @@ describe("TenantGuard", () => {
     const ctx = makeCtx("school-1", "");
     expect(guard.canActivate(ctx)).toBe(true);
   });
+
+  it("returns true when header is present but request.user is absent (unauthenticated route)", () => {
+    const ctx = makeCtx(undefined, "school-1");
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
 });

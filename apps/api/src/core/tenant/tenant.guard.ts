@@ -28,6 +28,9 @@ export class TenantGuard implements CanActivate {
 
     const jwtSchoolId = req.user?.schoolId;
 
+    // No authenticated user yet (public / unauthenticated route) → allow.
+    if (!jwtSchoolId) return true;
+
     if (tenantId !== jwtSchoolId) {
       throw new ForbiddenException("Tenant mismatch: the requested school does not match your session.");
     }

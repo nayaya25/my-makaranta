@@ -21,15 +21,14 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
 import { sniffImageType, extForImage } from "../../core/storage/image-sniff";
 import { CreateSchoolDto, UpdateBrandingDto, UpdateSchoolDto } from "./dto/schools.dto";
+import { validateSlug } from "../../core/tenant/slug";
+import { PALETTE_KEYS } from "../../core/tenant/palette-keys";
 
 // Raster types only — SVG is excluded deliberately: an uploaded SVG can carry
 // inline scripts and would execute as same-origin stored XSS when its signed
 // /files URL is opened directly. Format is verified by magic bytes, not the
 // client-supplied mimetype.
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-
-// TODO(P2 Task 5): replace with import { PALETTE_KEYS } from "@mymakaranta/ui"
-const PALETTE_KEYS = ["teal", "emerald", "indigo", "violet", "rose", "amber", "slate", "sky"] as const;
 
 type SchoolRecord = { logoUrl?: string | null };
 
@@ -59,6 +58,9 @@ export class SchoolsService {
     }
 
     const slug = dto.slug ?? dto.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+    const slugError = validateSlug(slug);
+    if (slugError) throw new BadRequestException(slugError);
 
     const existing = await this.prisma.school.findUnique({ where: { slug } });
     if (existing) throw new BadRequestException(`School slug "${slug}" is already taken.`);
