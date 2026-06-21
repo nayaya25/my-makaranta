@@ -5,12 +5,13 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
+import { PasswordService } from "../../core/auth/password.service";
 import { SignupService } from "./signup.service";
 
 const prisma = new PrismaClient();
 
 function makeService(): SignupService {
-  return new SignupService(prisma as unknown as PrismaService);
+  return new SignupService(prisma as unknown as PrismaService, new PasswordService());
 }
 
 describe("SignupService.checkSlug", () => {
