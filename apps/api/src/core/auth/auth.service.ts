@@ -127,6 +127,37 @@ export class AuthService {
 
     user = await this.linkIdentityIfMatch(user);
 
+    // P4 cutover: if the user belongs to a school, try to resolve a Person+Membership.
+    // Issue the Person-shape JWT when found; fall back to the legacy JWT otherwise so
+    // accounts not yet on the new model continue to work without interruption (D1/D5).
+    if (user.schoolId) {
+      const identifier = t.channel === "phone" ? t.phone : t.email;
+      const resolved = await this.identity.resolvePerson(user.schoolId, identifier);
+      if (resolved) {
+        const { person, membership } = resolved;
+        const { roles, perms } = await this.identity.deriveAuthz(membership.id);
+        await this.prisma.person.update({ where: { id: person.id }, data: { lastLoginAt: new Date() } });
+        const token = await this.jwt.signAsync({
+          sub: person.id,
+          mbr: membership.id,
+          sch: membership.schoolId,
+          roles,
+          perms,
+          tv: person.tokenVersion,
+        });
+        return {
+          token,
+          user: {
+            id: user.id,
+            phone: user.phone,
+            email: user.email,
+            schoolId: user.schoolId,
+            identityType: user.identityType,
+          },
+        };
+      }
+    }
+
     const token = await this.jwt.signAsync({
       sub: user.id,
       phone: user.phone,
