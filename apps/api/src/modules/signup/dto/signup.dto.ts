@@ -1,13 +1,4 @@
-import {
-  IsEmail,
-  IsOptional,
-  IsString,
-  IsUrl,
-  Length,
-  Matches,
-  MaxLength,
-  MinLength,
-} from "class-validator";
+import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from "class-validator";
 
 export class SignupDto {
   @IsString()
@@ -21,17 +12,13 @@ export class SignupDto {
   @Matches(/^[a-z0-9-]+$/)
   slug: string;
 
-  @IsString()
-  @Length(2)
+  // Matches the Prisma CountryCode enum supported at onboarding.
+  @IsIn(["NG", "GH", "KE"])
   country: string;
 
   @IsOptional()
   @IsString()
   type?: string;
-
-  @IsOptional()
-  @IsUrl()
-  website?: string;
 
   @IsString()
   @MinLength(1)
