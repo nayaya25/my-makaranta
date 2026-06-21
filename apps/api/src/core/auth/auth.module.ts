@@ -8,10 +8,11 @@ import { PermissionsService } from "./permissions/permissions.service";
 import { PermissionGuard } from "./permissions/permission.guard";
 import { PasswordService } from "./password.service";
 import { IdentityModule } from "../identity/identity.module";
+import { MeController } from "./me.controller";
 
 @Module({
   imports: [PassportModule, IdentityModule],
-  controllers: [AuthController],
+  controllers: [AuthController, MeController],
   providers: [AuthService, SmsService, JwtStrategy, PermissionsService, PermissionGuard, PasswordService],
   exports: [AuthService, SmsService, PermissionsService, PermissionGuard, PasswordService],
 })
