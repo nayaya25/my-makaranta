@@ -1,5 +1,9 @@
 export { cn } from "./lib/cn";
 
+// Theme utilities
+export { PALETTE_KEYS, paletteVars } from "./theme/palettes";
+export type { PaletteKey } from "./theme/palettes";
+
 // Primitives — form & display
 export * from "./components/button";
 export * from "./components/card";

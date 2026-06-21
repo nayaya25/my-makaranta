@@ -6,11 +6,13 @@ import { SmsService } from "./sms.service";
 import { JwtStrategy } from "./jwt.strategy";
 import { PermissionsService } from "./permissions/permissions.service";
 import { PermissionGuard } from "./permissions/permission.guard";
+import { PasswordService } from "./password.service";
+import { IdentityModule } from "../identity/identity.module";
 
 @Module({
-  imports: [PassportModule],
+  imports: [PassportModule, IdentityModule],
   controllers: [AuthController],
-  providers: [AuthService, SmsService, JwtStrategy, PermissionsService, PermissionGuard],
-  exports: [AuthService, SmsService, PermissionsService, PermissionGuard],
+  providers: [AuthService, SmsService, JwtStrategy, PermissionsService, PermissionGuard, PasswordService],
+  exports: [AuthService, SmsService, PermissionsService, PermissionGuard, PasswordService],
 })
 export class AuthModule {}

@@ -32,10 +32,15 @@ async function authedRequest<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(401, "Not authenticated");
   }
+  // Attach the tenant header so the API's TenantGuard can validate it.
+  const schoolId = session.user()?.schoolId;
+  const tenantHeaders: Record<string, string> = schoolId
+    ? { "x-tenant-school-id": schoolId }
+    : {};
   try {
     return await request<T>(path, {
       ...init,
-      headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) },
+      headers: { Authorization: `Bearer ${token}`, ...tenantHeaders, ...(init?.headers ?? {}) },
     });
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
@@ -463,6 +468,29 @@ export interface PublicReceipt {
   channel: string;
   paidAt: string;
   balanceAfterKobo: number;
+}
+
+/** Public branding info returned by GET /v1/public/tenant/:slug (no auth). */
+export interface PublicTenant {
+  id: string;
+  name: string;
+  slug: string;
+  themeKey: string;
+  logoUrl: string | null;
+  motto: string | null;
+}
+
+/**
+ * Fetch public tenant branding by slug (no auth required).
+ * Returns null when the tenant is not found (404).
+ */
+export async function getPublicTenant(slug: string): Promise<PublicTenant | null> {
+  try {
+    return await request<PublicTenant>(`/v1/public/tenant/${encodeURIComponent(slug)}`);
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) return null;
+    throw err;
+  }
 }
 
 export interface SentAnnouncement {

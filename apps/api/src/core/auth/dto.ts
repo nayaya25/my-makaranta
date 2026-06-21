@@ -1,4 +1,4 @@
-import { IsString, Matches, Length, IsOptional, IsEmail } from "class-validator";
+import { IsString, Matches, Length, IsOptional, IsEmail, MinLength } from "class-validator";
 
 export class RequestOtpDto {
   @IsOptional()
@@ -24,4 +24,14 @@ export class VerifyOtpDto {
   @IsString()
   @Length(6, 6)
   code!: string;
+}
+
+export class PasswordLoginDto {
+  @IsString() schoolId!: string;
+  @IsString() identifier!: string;
+  @IsString() @MinLength(1) password!: string;
+}
+
+export class SwitchContextDto {
+  @IsString() membershipId!: string;
 }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { cn } from "@mymakaranta/ui";
 import { session } from "@/lib/auth";
 import { api, type AuthUser } from "@/lib/api";
+import { brandStyle } from "@/lib/tenant";
 import {
   LayoutDashboard,
   Users,
@@ -255,8 +256,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         ]
   ).filter((i) => !i.perm || (perms?.has(i.perm) ?? false));
 
+  // themeKey: session doesn't carry it yet — a follow-up can fetch & cache it.
+  // Fallback "teal" is the default palette; wiring is in place for that follow-up.
+  const themeKey = "teal";
+
   return (
-    <div className="flex min-h-[100dvh] bg-paper dark:bg-paper-dark">
+    <div className="flex min-h-screen bg-paper dark:bg-paper-dark" style={brandStyle(themeKey)}>
       {mobileOpen && (
         <div
           className="fixed inset-0 z-40 bg-ink-1000/50 backdrop-blur-sm lg:hidden"
