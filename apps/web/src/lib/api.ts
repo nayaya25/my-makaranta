@@ -481,6 +481,41 @@ export interface PublicTenant {
 }
 
 /**
+ * Check whether a school slug is available (public, no auth).
+ * Returns `{ available: true, reason: null }` when free,
+ * or `{ available: false, reason: "<why>" }` when invalid/taken.
+ */
+export async function checkSlug(slug: string): Promise<{ available: boolean; reason: string | null }> {
+  return request<{ available: boolean; reason: string | null }>(
+    `/v1/public/signup/slug-available?slug=${encodeURIComponent(slug)}`,
+  );
+}
+
+export interface SignupBody {
+  schoolName: string;
+  slug: string;
+  country: string;
+  type?: string;
+  firstName: string;
+  lastName: string;
+  gender: string;
+  email: string;
+  phone: string;
+  password: string;
+}
+
+/**
+ * Create a new school + proprietor account (public, no auth).
+ * Returns `{ slug, schoolId }` on success.
+ */
+export async function signup(body: SignupBody): Promise<{ slug: string; schoolId: string }> {
+  return request<{ slug: string; schoolId: string }>("/v1/public/signup", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
  * Fetch public tenant branding by slug (no auth required).
  * Returns null when the tenant is not found (404).
  */
