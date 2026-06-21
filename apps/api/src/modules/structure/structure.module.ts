@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../../core/auth/auth.module";
-import { SchoolsController } from "./schools.controller";
+import { PublicTenantController, SchoolsController } from "./schools.controller";
 import { SchoolsService } from "./schools.service";
 import { AcademicYearsController } from "./academic-years.controller";
 import { AcademicYearsService } from "./academic-years.service";
@@ -14,6 +14,7 @@ import { SubjectsService } from "./subjects.service";
 @Module({
   imports: [AuthModule],
   controllers: [
+    PublicTenantController,
     SchoolsController,
     AcademicYearsController,
     ClassLevelsController,

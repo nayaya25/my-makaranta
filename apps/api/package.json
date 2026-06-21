@@ -12,7 +12,8 @@
     "lint": "eslint \"src/**/*.ts\"",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "seed": "prisma db seed"
+    "seed": "prisma db seed",
+    "migrate:identity": "ts-node prisma/migrate-identity.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
@@ -28,6 +29,7 @@
     "@nestjs/platform-express": "^11",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^5.22.0",
+    "argon2": "^0.44.0",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.78.0",
     "class-transformer": "^0.5.1",
