@@ -71,6 +71,13 @@ model School {
   country            CountryCode          @default(NG)
   currency           String               @default("NGN")
   requireCorrectionOtp Boolean            @default(true)
+  themeKey           String               @default("teal")
+  motto              String?
+  type               String?
+  state              String?
+  technicalContactName  String?
+  technicalContactPhone String?
+  technicalContactEmail String?
   createdAt          DateTime             @default(now())
   classes            Class[]
   classLevels        ClassLevel[]

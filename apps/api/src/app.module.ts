@@ -7,6 +7,7 @@ import { AppController } from "./app.controller";
 import { PrismaModule } from "./core/prisma/prisma.module";
 import { TenantModule } from "./core/tenant/tenant.module";
 import { TenantMiddleware } from "./core/tenant/tenant.middleware";
+import { TenantGuard } from "./core/tenant/tenant.guard";
 import { AuthModule } from "./core/auth/auth.module";
 import { StorageModule } from "./core/storage/storage.module";
 import { EmailModule } from "./core/email/email.module";
@@ -60,7 +61,13 @@ import { IdentityModule } from "./core/identity/identity.module";
     IdentityModule,
   ],
   controllers: [AppController],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // TenantGuard runs after ThrottlerGuard; it no-ops when either the
+    // x-tenant-school-id header or request.user is absent, so public routes
+    // and unauthenticated clients are unaffected.
+    { provide: APP_GUARD, useClass: TenantGuard },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

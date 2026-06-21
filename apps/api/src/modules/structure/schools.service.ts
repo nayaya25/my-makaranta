@@ -5,11 +5,24 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+
+/** Public branding fields returned by the tenant-resolve endpoint. Never includes
+ *  counts, contacts, fees, or any other non-public field. */
+export interface PublicTenantDto {
+  id: string;
+  name: string;
+  slug: string;
+  themeKey: string;
+  logoUrl: string | null;
+  motto: string | null;
+}
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
 import { sniffImageType, extForImage } from "../../core/storage/image-sniff";
-import { CreateSchoolDto, UpdateSchoolDto } from "./dto/schools.dto";
+import { CreateSchoolDto, UpdateBrandingDto, UpdateSchoolDto } from "./dto/schools.dto";
+import { validateSlug } from "../../core/tenant/slug";
+import { PALETTE_KEYS } from "../../core/tenant/palette-keys";
 
 // Raster types only — SVG is excluded deliberately: an uploaded SVG can carry
 // inline scripts and would execute as same-origin stored XSS when its signed
@@ -45,6 +58,9 @@ export class SchoolsService {
     }
 
     const slug = dto.slug ?? dto.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+
+    const slugError = validateSlug(slug);
+    if (slugError) throw new BadRequestException(slugError);
 
     const existing = await this.prisma.school.findUnique({ where: { slug } });
     if (existing) throw new BadRequestException(`School slug "${slug}" is already taken.`);
@@ -124,5 +140,55 @@ export class SchoolsService {
     await this.storage.put(key, file.buffer, { contentType: type });
     await this.prisma.school.update({ where: { id: schoolId }, data: { logoUrl: key } });
     return { logoUrl: await this.storage.getSignedUrl(key) };
+  }
+
+  /**
+   * Resolves a school by slug for the public tenant endpoint.
+   * CRITICAL: selects ONLY public branding fields — never contacts, counts, or fees.
+   */
+  async findPublicBySlug(slug: string): Promise<PublicTenantDto> {
+    const school = await this.prisma.school.findUnique({
+      where: { slug },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        themeKey: true,
+        logoUrl: true,
+        motto: true,
+      },
+    });
+    if (!school) throw new NotFoundException(`No school found for slug "${slug}".`);
+    return this.signLogo(school);
+  }
+
+  async updateBranding(schoolId: string | null, dto: UpdateBrandingDto) {
+    if (!schoolId) throw new NotFoundException("No school associated with this account.");
+
+    if (dto.themeKey !== undefined && !(PALETTE_KEYS as readonly string[]).includes(dto.themeKey)) {
+      throw new BadRequestException(
+        `themeKey must be one of: ${PALETTE_KEYS.join(", ")}`,
+      );
+    }
+
+    const school = await this.prisma.school.update({
+      where: { id: schoolId },
+      data: {
+        ...(dto.themeKey !== undefined ? { themeKey: dto.themeKey } : {}),
+        ...(dto.motto !== undefined ? { motto: dto.motto } : {}),
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
+        ...(dto.state !== undefined ? { state: dto.state } : {}),
+        ...(dto.technicalContact?.name !== undefined
+          ? { technicalContactName: dto.technicalContact.name }
+          : {}),
+        ...(dto.technicalContact?.phone !== undefined
+          ? { technicalContactPhone: dto.technicalContact.phone }
+          : {}),
+        ...(dto.technicalContact?.email !== undefined
+          ? { technicalContactEmail: dto.technicalContact.email }
+          : {}),
+      },
+    });
+    return this.signLogo(school);
   }
 }
