@@ -3,15 +3,49 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
 import { sniffImageType, extForImage } from "../../core/storage/image-sniff";
 import { TenantContext } from "../../core/tenant/tenant.context";
+import { PasswordService } from "../../core/auth/password.service";
 import { CreateStudentDto, UpdateStudentDto } from "./dto/student.dto";
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+/** Generates a temp password that satisfies the policy: min8 + upper + lower + digit + special */
+function generateTempPassword(): string {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghjkmnpqrstuvwxyz";
+  const digits = "23456789";
+  const specials = "!@#$%&*";
+
+  const rand = (set: string) => set[Math.floor(Math.random() * set.length)];
+  const extra = upper + lower + digits;
+
+  // Guarantee one of each required class, then pad to 10 chars total
+  const parts = [
+    rand(upper),
+    rand(upper),
+    rand(lower),
+    rand(lower),
+    rand(digits),
+    rand(digits),
+    rand(specials),
+    rand(extra),
+    rand(extra),
+    rand(extra),
+  ];
+
+  // Shuffle
+  for (let i = parts.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [parts[i], parts[j]] = [parts[j], parts[i]];
+  }
+  return parts.join("");
+}
 
 @Injectable()
 export class StudentsService {
   constructor(
     private prisma: PrismaService,
     @Inject(STORAGE_SERVICE) private storage: StorageService,
+    private passwords: PasswordService,
   ) {}
 
   async create(dto: CreateStudentDto) {
@@ -96,5 +130,57 @@ export class StudentsService {
     // Persist the stable KEY; hand back a fresh signed URL for immediate display.
     await this.prisma.student.update({ where: { id }, data: { photoUrl: key } });
     return { photoUrl: await this.storage.getSignedUrl(key) };
+  }
+
+  /**
+   * POST /v1/students/:id/login — provision or reset a student login.
+   *
+   * Tenant-scoped: the StudentProfile must belong to `callerSchoolId`.
+   * Creates Person + Membership on first call; resets the password hash on subsequent calls.
+   * Returns `{ studentId, tempPassword }` — shown once, not stored in plain.
+   */
+  async provisionLogin(profileId: string, callerSchoolId: string): Promise<{ studentId: string; tempPassword: string }> {
+    // Generate and validate temp password before opening the transaction
+    let tempPassword: string;
+    let attempt = 0;
+    do {
+      tempPassword = generateTempPassword();
+      if (attempt++ > 20) throw new Error("Could not generate a valid temp password");
+    } while (this.passwords.validatePolicy(tempPassword) !== null);
+
+    const passwordHash = await this.passwords.hash(tempPassword);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Tenant scope: profile must belong to caller's school
+      const profile = await tx.studentProfile.findFirst({
+        where: { id: profileId, schoolId: callerSchoolId },
+        include: { membership: { include: { person: true } } },
+      });
+      if (!profile) throw new NotFoundException("Student not found");
+
+      if (profile.membershipId && profile.membership) {
+        // Existing login — reset password only, no new Membership
+        await tx.person.update({
+          where: { id: profile.membership.personId },
+          data: { passwordHash },
+        });
+      } else {
+        // No login yet — create Person, Membership, link to profile
+        const person = await tx.person.create({
+          data: { email: null, phone: null, passwordHash },
+        });
+        const membership = await tx.membership.create({
+          data: { personId: person.id, schoolId: callerSchoolId, status: "active" },
+        });
+        await tx.studentProfile.update({
+          where: { id: profileId },
+          data: { membershipId: membership.id },
+        });
+      }
+
+      return { studentId: profile.studentId };
+    });
+
+    return { studentId: result.studentId, tempPassword };
   }
 }
