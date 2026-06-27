@@ -1,3 +1,4 @@
+import { randomInt } from "node:crypto";
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
@@ -15,7 +16,7 @@ function generateTempPassword(): string {
   const digits = "23456789";
   const specials = "!@#$%&*";
 
-  const rand = (set: string) => set[Math.floor(Math.random() * set.length)];
+  const rand = (set: string) => set[randomInt(0, set.length)];
   const extra = upper + lower + digits;
 
   // Guarantee one of each required class, then pad to 10 chars total
@@ -32,9 +33,9 @@ function generateTempPassword(): string {
     rand(extra),
   ];
 
-  // Shuffle
+  // Shuffle (Fisher-Yates with CSPRNG)
   for (let i = parts.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = randomInt(0, i + 1);
     [parts[i], parts[j]] = [parts[j], parts[i]];
   }
   return parts.join("");
@@ -148,8 +149,6 @@ export class StudentsService {
       if (attempt++ > 20) throw new Error("Could not generate a valid temp password");
     } while (this.passwords.validatePolicy(tempPassword) !== null);
 
-    const passwordHash = await this.passwords.hash(tempPassword);
-
     const result = await this.prisma.$transaction(async (tx) => {
       // Tenant scope: profile must belong to caller's school
       const profile = await tx.studentProfile.findFirst({
@@ -157,6 +156,9 @@ export class StudentsService {
         include: { membership: { include: { person: true } } },
       });
       if (!profile) throw new NotFoundException("Student not found");
+
+      // Hash only after confirming the profile exists (avoids ~300ms argon2 work on 404)
+      const passwordHash = await this.passwords.hash(tempPassword);
 
       if (profile.membershipId && profile.membership) {
         // Existing login — reset password only, no new Membership
