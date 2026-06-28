@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@mymakaranta/ui";
 import { session } from "@/lib/auth";
-import { api, type AuthUser } from "@/lib/api";
+import { api, type AuthUser, type MeContext } from "@/lib/api";
 import { brandStyle } from "@/lib/tenant";
 import {
   LayoutDashboard,
@@ -192,14 +192,79 @@ function titleCase(s: string) {
   return s.charAt(0) + s.slice(1).toLowerCase();
 }
 
+// ─── Context-switcher (multi-profile people) ──────────────────────────────────
+function ContextSwitcher({
+  meCtx,
+  onSwitch,
+}: {
+  meCtx: MeContext;
+  onSwitch: (membershipId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (meCtx.memberships.length <= 1) return null;
+
+  const active = meCtx.memberships.find((m) => m.id === meCtx.activeMembershipId);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-lg border border-sidebar-border bg-sidebar-item-hover px-2.5 py-1.5 text-[12px] font-medium text-sidebar-text-active transition-colors hover:bg-sidebar-item-active"
+        aria-label="Switch context"
+      >
+        <span className="max-w-[120px] truncate">
+          {active
+            ? active.isStaff
+              ? "Staff"
+              : active.isParent
+                ? "Parent"
+                : "Student"
+            : "Switch"}
+        </span>
+        <ChevronDown size={11} strokeWidth={2} className={cn("transition-transform", open ? "rotate-0" : "-rotate-90")} aria-hidden />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-50 mt-1.5 w-52 overflow-hidden rounded-xl border border-ink-1000/[0.08] bg-surface shadow-md dark:border-white/10 dark:bg-surface-dark">
+          {meCtx.memberships.map((m) => {
+            const label = m.isStaff ? `Staff — ${m.schoolName}` : m.isParent ? `Parent — ${m.schoolName}` : `Student — ${m.schoolName}`;
+            const isActive = m.id === meCtx.activeMembershipId;
+            return (
+              <button
+                key={m.id}
+                disabled={isActive}
+                onClick={() => {
+                  setOpen(false);
+                  onSwitch(m.id);
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2.5 text-left text-[12px] transition-colors",
+                  isActive
+                    ? "bg-brand-50 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+                    : "text-ink-700 hover:bg-ink-1000/[0.04] dark:text-ink-300 dark:hover:bg-white/[0.04]",
+                )}
+              >
+                <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", isActive ? "bg-brand-500" : "bg-ink-300")} />
+                <span className="truncate">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ready, setReady] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [meCtx, setMeCtx] = useState<MeContext | null>(null);
   const [perms, setPerms] = useState<Set<string> | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [switchingCtx, setSwitchingCtx] = useState(false);
 
   useEffect(() => {
     const u = session.user();
@@ -209,6 +274,30 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
     setUser(u);
     setReady(true);
+
+    // Fetch /v1/me and route by profile flags; fall back to identityType on error.
+    api
+      .getMe()
+      .then((me) => {
+        if ("legacy" in me) {
+          // Legacy JWT — route exactly as before.
+          if (me.identityType === "PARENT") router.replace("/parent");
+          // staff/proprietor stays here — no action needed
+          return;
+        }
+        setMeCtx(me);
+        const { isStaff, isParent, isStudent } = me.profile;
+        if (isStudent && !isStaff) {
+          router.replace("/student/progress");
+        } else if (isParent && !isStaff && !isStudent) {
+          router.replace("/parent");
+        }
+        // isStaff (possibly also isParent) → stays in staff shell
+      })
+      .catch(() => {
+        // Defensive: fall back to legacy identityType routing on error.
+        if (u.identityType === "PARENT") router.replace("/parent");
+      });
   }, [router]);
 
   useEffect(() => {
@@ -219,9 +308,27 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       .catch(() => setPerms(new Set()));
   }, []);
 
+  async function handleSwitchContext(membershipId: string) {
+    if (switchingCtx) return;
+    setSwitchingCtx(true);
+    try {
+      const { token } = await api.switchContext(membershipId);
+      const u = session.user();
+      if (u) session.save(token, u);
+      // Hard reload so the new JWT is picked up everywhere.
+      window.location.replace("/dashboard");
+    } catch {
+      setSwitchingCtx(false);
+    }
+  }
+
   if (!ready) return null;
 
-  const isParent = user?.identityType === "PARENT";
+  // Determine isParent for nav/utility selection:
+  // prefer /v1/me profile flags; fall back to legacy identityType.
+  const isParent = meCtx
+    ? meCtx.profile.isParent && !meCtx.profile.isStaff && !meCtx.profile.isStudent
+    : user?.identityType === "PARENT";
 
   // Filter sections/items by permission; drop empty sections.
   const entries: NavEntry[] = (isParent ? PARENT_NAV : NAV)
@@ -298,7 +405,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Identity lockup → My profile */}
-        <div className="shrink-0 px-3 pb-2 pt-3">
+        <div className="shrink-0 px-3 pb-2 pt-3 space-y-2">
           <Link
             href="/profile"
             onClick={() => setMobileOpen(false)}
@@ -310,6 +417,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               {contact && <p className="mt-0.5 truncate text-[10px] leading-none text-sidebar-text">{contact}</p>}
             </div>
           </Link>
+          {meCtx && meCtx.memberships.length > 1 && (
+            <div className="px-1">
+              <ContextSwitcher
+                meCtx={meCtx}
+                onSwitch={handleSwitchContext}
+              />
+            </div>
+          )}
         </div>
 
         {/* Nav */}
