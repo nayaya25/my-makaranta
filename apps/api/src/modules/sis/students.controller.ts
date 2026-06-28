@@ -14,6 +14,7 @@ import { FileInterceptor } from "@nestjs/platform-express";
 import { JwtAuthGuard } from "../../core/auth/jwt-auth.guard";
 import { PermissionGuard } from "../../core/auth/permissions/permission.guard";
 import { RequirePermissions } from "../../core/auth/permissions/require-permissions.decorator";
+import { TenantContext } from "../../core/tenant/tenant.context";
 import { StudentsService } from "./students.service";
 import { CreateStudentDto, UpdateStudentDto } from "./dto/student.dto";
 
@@ -62,5 +63,13 @@ export class StudentsController {
   @UseInterceptors(FileInterceptor("file"))
   setPhoto(@Param("id") id: string, @UploadedFile() file?: Express.Multer.File) {
     return this.students.setPhoto(id, file);
+  }
+
+  @Post(":id/login")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("students.manage")
+  provisionLogin(@Param("id") id: string) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    return this.students.provisionLogin(id, schoolId);
   }
 }

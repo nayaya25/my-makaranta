@@ -470,6 +470,37 @@ export interface PublicReceipt {
   balanceAfterKobo: number;
 }
 
+// ─── /v1/me context (P4) ──────────────────────────────────────────────────────
+
+export interface MeMembership {
+  id: string;
+  schoolId: string;
+  schoolName: string;
+  roles: string[];
+  isStaff: boolean;
+  isParent: boolean;
+  isStudent: boolean;
+}
+
+export interface MeContext {
+  personId: string;
+  activeMembershipId: string;
+  schoolId: string;
+  roles: string[];
+  perms: string[];
+  profile: { isStaff: boolean; isParent: boolean; isStudent: boolean };
+  person: { firstName: string; lastName: string };
+  memberships: MeMembership[];
+}
+
+export interface MeLegacy {
+  legacy: true;
+  identityType: string;
+  schoolId: string | null;
+}
+
+export type MeResponse = MeContext | MeLegacy;
+
 /** Public branding info returned by GET /v1/public/tenant/:slug (no auth). */
 export interface PublicTenant {
   id: string;
@@ -478,6 +509,41 @@ export interface PublicTenant {
   themeKey: string;
   logoUrl: string | null;
   motto: string | null;
+}
+
+/**
+ * Check whether a school slug is available (public, no auth).
+ * Returns `{ available: true, reason: null }` when free,
+ * or `{ available: false, reason: "<why>" }` when invalid/taken.
+ */
+export async function checkSlug(slug: string): Promise<{ available: boolean; reason: string | null }> {
+  return request<{ available: boolean; reason: string | null }>(
+    `/v1/public/signup/slug-available?slug=${encodeURIComponent(slug)}`,
+  );
+}
+
+export interface SignupBody {
+  schoolName: string;
+  slug: string;
+  country: string;
+  type?: string;
+  firstName: string;
+  lastName: string;
+  gender: string;
+  email: string;
+  phone: string;
+  password: string;
+}
+
+/**
+ * Create a new school + proprietor account (public, no auth).
+ * Returns `{ slug, schoolId }` on success.
+ */
+export async function signup(body: SignupBody): Promise<{ slug: string; schoolId: string }> {
+  return request<{ slug: string; schoolId: string }>("/v1/public/signup", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /**
@@ -842,6 +908,14 @@ export const api = {
   getMessages: (id: string) => authedRequest<ChatMessage[]>(`/v1/me/conversations/${id}/messages`),
   postMessage: (id: string, body: string) =>
     authedRequest<{ id: string; sentAt: string }>(`/v1/me/conversations/${id}/messages`, { method: "POST", body: JSON.stringify({ body }) }),
+
+  // Identity context (P4)
+  getMe: () => authedRequest<MeResponse>("/v1/me"),
+  switchContext: (membershipId: string) =>
+    authedRequest<{ token: string }>("/v1/auth/context", {
+      method: "POST",
+      body: JSON.stringify({ membershipId }),
+    }),
 
   // Permissions (RBAC)
   getPermissionsCatalog: () => authedRequest<PermissionCatalog>("/v1/permissions"),
