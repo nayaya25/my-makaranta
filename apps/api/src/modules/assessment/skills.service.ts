@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import type { CreateSkillDomainDto, UpdateSkillDomainDto, CreateSkillItemDto, UpdateSkillItemDto, ScalePointDto } from "./dto/skills.dto";
@@ -34,14 +34,15 @@ export class SkillsService {
     const schoolId = TenantContext.schoolIdOrThrow();
     const domain = await this.prisma.skillDomain.findFirst({ where: { id, schoolId } });
     if (!domain) throw new NotFoundException("Skill domain not found.");
-    return this.prisma.skillDomain.update({ where: { id }, data: dto });
+    await this.prisma.skillDomain.updateMany({ where: { id, schoolId }, data: dto });
+    return this.prisma.skillDomain.findUnique({ where: { id }, include: { items: { orderBy: { order: "asc" } } } });
   }
 
   async deleteDomain(id: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const domain = await this.prisma.skillDomain.findFirst({ where: { id, schoolId } });
     if (!domain) throw new NotFoundException("Skill domain not found.");
-    await this.prisma.skillDomain.delete({ where: { id } });
+    await this.prisma.skillDomain.deleteMany({ where: { id, schoolId } });
   }
 
   async createItem(dto: CreateSkillItemDto) {
@@ -58,14 +59,15 @@ export class SkillsService {
     const schoolId = TenantContext.schoolIdOrThrow();
     const item = await this.prisma.skillItem.findFirst({ where: { id, schoolId } });
     if (!item) throw new NotFoundException("Skill item not found.");
-    return this.prisma.skillItem.update({ where: { id }, data: dto });
+    await this.prisma.skillItem.updateMany({ where: { id, schoolId }, data: dto });
+    return this.prisma.skillItem.findUnique({ where: { id } });
   }
 
   async deleteItem(id: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const item = await this.prisma.skillItem.findFirst({ where: { id, schoolId } });
     if (!item) throw new NotFoundException("Skill item not found.");
-    await this.prisma.skillItem.delete({ where: { id } });
+    await this.prisma.skillItem.deleteMany({ where: { id, schoolId } });
   }
 
   async getScale() {

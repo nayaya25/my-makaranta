@@ -52,7 +52,7 @@ describe("SkillsService", () => {
     const updated = await TenantContext.run({ schoolId, userId: null }, async () =>
       service.updateDomain(domain.id, { name: "RenamedDomain" }),
     );
-    expect(updated.name).toBe("RenamedDomain");
+    expect(updated!.name).toBe("RenamedDomain");
   });
 
   it("deleteDomain removes the domain", async () => {
