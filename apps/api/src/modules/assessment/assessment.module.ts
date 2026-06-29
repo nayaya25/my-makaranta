@@ -18,10 +18,12 @@ import { ReportCardService } from "./report-card.service";
 import { ReportCardController } from "./report-card.controller";
 import { SkillsService } from "./skills.service";
 import { SkillsController } from "./skills.controller";
+import { RemarksService } from "./remarks.service";
+import { RemarksController } from "./remarks.controller";
 
 @Module({
   imports: [AuthModule],
-  controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController, ReviewController, ReleaseController, CorrectionController, ReportCardController, SkillsController],
+  controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController, ReviewController, ReleaseController, CorrectionController, ReportCardController, SkillsController, RemarksController],
   providers: [
     AssessmentTypesService,
     GradeBoundariesService,
@@ -32,6 +34,7 @@ import { SkillsController } from "./skills.controller";
     CorrectionService,
     ReportCardService,
     SkillsService,
+    RemarksService,
   ],
 })
 export class AssessmentModule {}
