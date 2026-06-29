@@ -595,6 +595,21 @@ export interface Messageable { staffId?: string; staffName?: string; childName?:
 export interface ConversationRow { id: string; counterpartName: string; lastMessageAt: string | null; unreadCount: number; }
 export interface ChatMessage { id: string; senderType: "PARENT" | "STAFF"; body: string; sentAt: string; readAt: string | null; }
 
+export interface SkillItem { id: string; name: string; order: number; }
+export interface SkillDomain { id: string; name: string; order: number; items: SkillItem[]; }
+export interface SkillScalePoint { value: number; label: string; order: number; }
+export interface SkillConfig { domains: SkillDomain[]; scale: SkillScalePoint[]; }
+export interface ReportCardConfig {
+  id: string;
+  layout: "classic" | "modern" | "compact";
+  showSkills: boolean;
+  showAttendance: boolean;
+  showRemarks: boolean;
+  showGradingKey: boolean;
+  showPosition: boolean;
+  nextTermBegins: string | null;
+}
+
 export const api = {
   requestOtp: (target: { phone?: string; email?: string }) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify(target) }),
@@ -923,4 +938,27 @@ export const api = {
   setStaffPermissions: (id: string, keys: string[]) =>
     authedRequest<{ keys: string[] }>(`/v1/staff/${id}/permissions`, { method: "PUT", body: JSON.stringify({ keys }) }),
   getMyPermissions: () => authedRequest<{ keys: string[] }>("/v1/me/permissions"),
+
+  // Skills config (AC-1 Task 3)
+  getSkillConfig: () => authedRequest<SkillConfig>("/v1/assessment/skill-domains"),
+  createSkillDomain: (body: { name: string; order?: number }) =>
+    authedRequest<SkillDomain>("/v1/assessment/skill-domains", { method: "POST", body: JSON.stringify(body) }),
+  updateSkillDomain: (id: string, body: { name?: string; order?: number }) =>
+    authedRequest<SkillDomain>(`/v1/assessment/skill-domains/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteSkillDomain: (id: string) =>
+    authedRequest<void>(`/v1/assessment/skill-domains/${id}`, { method: "DELETE" }),
+  createSkillItem: (body: { domainId: string; name: string; order?: number }) =>
+    authedRequest<SkillItem>("/v1/assessment/skill-items", { method: "POST", body: JSON.stringify(body) }),
+  updateSkillItem: (id: string, body: { name?: string; order?: number }) =>
+    authedRequest<SkillItem>(`/v1/assessment/skill-items/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteSkillItem: (id: string) =>
+    authedRequest<void>(`/v1/assessment/skill-items/${id}`, { method: "DELETE" }),
+  getSkillScale: () => authedRequest<SkillScalePoint[]>("/v1/assessment/skill-scale"),
+  setSkillScale: (points: Array<{ value: number; label: string }>) =>
+    authedRequest<SkillScalePoint[]>("/v1/assessment/skill-scale", { method: "PUT", body: JSON.stringify({ points }) }),
+
+  // Report-card config (AC-1 Task 6)
+  getReportCardConfig: () => authedRequest<ReportCardConfig>("/v1/assessment/report-card-config"),
+  putReportCardConfig: (body: Partial<Omit<ReportCardConfig, "id">>) =>
+    authedRequest<ReportCardConfig>("/v1/assessment/report-card-config", { method: "PUT", body: JSON.stringify(body) }),
 };
