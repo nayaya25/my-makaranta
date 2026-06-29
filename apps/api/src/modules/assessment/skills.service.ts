@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import type { CreateSkillDomainDto, UpdateSkillDomainDto, CreateSkillItemDto, UpdateSkillItemDto, ScalePointDto, SaveSkillRatingsDto } from "./dto/skills.dto";
@@ -143,6 +143,25 @@ export class SkillsService {
     // Verify class belongs to this school (IDOR guard)
     const klass = await this.prisma.class.findFirst({ where: { id: dto.classId, schoolId } });
     if (!klass) throw new NotFoundException("Class not found in this school.");
+
+    // Build allow-sets: enrolled students and valid skill items for this school
+    const enrolled = new Set(
+      (await this.prisma.enrollment.findMany({
+        where: { classId: dto.classId, termId: dto.termId },
+        select: { studentId: true },
+      })).map((e) => e.studentId),
+    );
+    const validItems = new Set(
+      (await this.prisma.skillItem.findMany({
+        where: { schoolId },
+        select: { id: true },
+      })).map((i) => i.id),
+    );
+    for (const r of dto.ratings) {
+      if (!enrolled.has(r.studentId) || !validItems.has(r.skillItemId)) {
+        throw new ForbiddenException("Rating references a student or skill not in this class/school.");
+      }
+    }
 
     const school = await this.prisma.school.findFirst({ where: { id: schoolId }, select: { skillScaleMax: true } });
     const max = school?.skillScaleMax ?? 5;

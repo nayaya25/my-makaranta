@@ -201,6 +201,59 @@ describe("SkillsService – skills grid + bulk ratings", () => {
     ).rejects.toThrow(NotFoundException);
   });
 
+  it("saveRatings with unenrolled studentId → ForbiddenException (IDOR)", async () => {
+    const domains = await prisma.skillDomain.findMany({
+      where: { schoolId },
+      include: { items: true },
+      orderBy: { order: "asc" },
+    });
+    const skillItemId = domains[0]!.items[0]!.id;
+
+    // Create a student in the same school but NOT enrolled in (classId, termId)
+    const ts3 = Date.now();
+    const unenrolledStudent = await prisma.student.create({
+      data: {
+        schoolId,
+        admissionNo: `UE-${ts3}`,
+        firstName: "Charlie",
+        lastName: "NotEnrolled",
+        gender: "MALE",
+        dateOfBirth: new Date("2011-03-01"),
+      },
+    });
+
+    await expect(
+      TenantContext.run({ schoolId, userId: null }, () =>
+        service.saveRatings(
+          { classId, termId, ratings: [{ studentId: unenrolledStudent.id, skillItemId, value: 3 }] },
+          recordedBy,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("saveRatings with skillItemId from another school → ForbiddenException (IDOR)", async () => {
+    // Create a second school with its own skill items
+    const ts4 = Date.now();
+    const school2 = await prisma.school.create({ data: { name: `OtherSchool2-${ts4}`, slug: `other2-${ts4}` } as never });
+    await seedSkillDefaults(prisma, school2.id);
+
+    const otherDomains = await prisma.skillDomain.findMany({
+      where: { schoolId: school2.id },
+      include: { items: true },
+    });
+    const foreignSkillItemId = otherDomains[0]!.items[0]!.id;
+
+    await expect(
+      TenantContext.run({ schoolId, userId: null }, () =>
+        service.saveRatings(
+          { classId, termId, ratings: [{ studentId: studentId1, skillItemId: foreignSkillItemId, value: 3 }] },
+          recordedBy,
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
   it("getGrid with Release created → locked: true", async () => {
     // Create release for main classId/termId
     const person = await prisma.person.create({ data: {} });
