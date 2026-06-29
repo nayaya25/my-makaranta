@@ -78,6 +78,7 @@ model School {
   technicalContactName  String?
   technicalContactPhone String?
   technicalContactEmail String?
+  skillScaleMax      Int                  @default(5)
   createdAt          DateTime             @default(now())
   classes            Class[]
   classLevels        ClassLevel[]
@@ -104,6 +105,12 @@ model School {
   announcementRecipients AnnouncementRecipient[]
   conversations          Conversation[]
   messages               Message[]
+  skillDomains           SkillDomain[]
+  skillItems             SkillItem[]
+  skillScalePoints       SkillScalePoint[]
+  skillRatings           SkillRating[]
+  termRemarks            TermRemark[]
+  reportCardConfig       ReportCardConfig?
 }
 
 model Conversation {
@@ -792,4 +799,85 @@ model FormTeacherAssignment {
   staffProfile   StaffProfile @relation(fields: [staffProfileId], references: [id])
 
   @@unique([classId, termId, kind])
+}
+
+// === Skills + Report Card (AC-1) ===
+
+model SkillDomain {
+  id       String      @id @default(cuid())
+  schoolId String
+  school   School      @relation(fields: [schoolId], references: [id])
+  name     String
+  order    Int         @default(0)
+  items    SkillItem[]
+
+  @@unique([schoolId, name])
+}
+
+model SkillItem {
+  id       String        @id @default(cuid())
+  schoolId String
+  school   School        @relation(fields: [schoolId], references: [id])
+  domainId String
+  domain   SkillDomain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  name     String
+  order    Int           @default(0)
+  ratings  SkillRating[]
+
+  @@unique([domainId, name])
+  @@index([schoolId])
+}
+
+model SkillScalePoint {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id])
+  value    Int
+  label    String
+  order    Int    @default(0)
+
+  @@unique([schoolId, value])
+}
+
+model SkillRating {
+  id          String    @id @default(cuid())
+  schoolId    String
+  school      School    @relation(fields: [schoolId], references: [id])
+  studentId   String
+  termId      String
+  skillItemId String
+  value       Int
+  recordedBy  String
+  updatedAt   DateTime  @updatedAt
+  skillItem   SkillItem @relation(fields: [skillItemId], references: [id])
+
+  @@unique([studentId, termId, skillItemId])
+  @@index([schoolId, termId])
+}
+
+model TermRemark {
+  id                String   @id @default(cuid())
+  schoolId          String
+  school            School   @relation(fields: [schoolId], references: [id])
+  studentId         String
+  termId            String
+  formTeacherRemark String?
+  principalRemark   String?
+  updatedAt         DateTime @updatedAt
+
+  @@unique([studentId, termId])
+  @@index([schoolId, termId])
+}
+
+model ReportCardConfig {
+  id             String    @id @default(cuid())
+  schoolId       String    @unique
+  school         School    @relation(fields: [schoolId], references: [id])
+  layout         String    @default("classic")
+  showSkills     Boolean   @default(true)
+  showAttendance Boolean   @default(true)
+  showRemarks    Boolean   @default(true)
+  showGradingKey Boolean   @default(true)
+  showPosition   Boolean   @default(true)
+  nextTermBegins DateTime?
 }
