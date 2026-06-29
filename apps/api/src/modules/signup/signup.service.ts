@@ -8,6 +8,7 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { PasswordService } from "../../core/auth/password.service";
 import { validateSlug } from "../../core/tenant/slug";
 import { SignupDto } from "./dto/signup.dto";
+import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
 
 @Injectable()
 export class SignupService {
@@ -43,7 +44,7 @@ export class SignupService {
       throw new BadRequestException(pwError);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 3. Slug not taken
       const existingSchool = await tx.school.findUnique({ where: { slug: dto.slug } });
       if (existingSchool) {
@@ -117,5 +118,8 @@ export class SignupService {
       // 10. Return
       return { slug: school.slug, schoolId: school.id };
     });
+
+    await seedSkillDefaults(this.prisma, result.schoolId);
+    return result;
   }
 }

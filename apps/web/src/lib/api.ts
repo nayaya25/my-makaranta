@@ -363,7 +363,7 @@ export interface CorrectScorePayload {
 }
 
 export interface ReportCard {
-  school: { name: string };
+  school: { name: string; logoUrl?: string | null; motto?: string | null; principalSignatureUrl?: string | null };
   student: { name: string; admissionNo: string };
   className: string;
   term: { label: string };
@@ -374,6 +374,12 @@ export interface ReportCard {
   releasedAt: string;
   gradeKey: Array<{ grade: string; minScore: number; remark: string }>;
   verificationCode: string;
+  // AC-1 T7 extended fields
+  skills?: Array<{ domain: string; items: Array<{ name: string; value: number | null }> }>;
+  scaleKey?: Array<{ value: number; label: string }>;
+  remarks?: { formTeacher: string | null; principal: string | null };
+  attendance?: { present: number; absent: number; total: number };
+  config?: ReportCardConfig;
 }
 
 export type VerifyResult =
@@ -594,6 +600,38 @@ export interface PermissionCatalog { catalog: { key: string; description: string
 export interface Messageable { staffId?: string; staffName?: string; childName?: string; className?: string; parentId?: string; parentName?: string; studentName?: string; }
 export interface ConversationRow { id: string; counterpartName: string; lastMessageAt: string | null; unreadCount: number; }
 export interface ChatMessage { id: string; senderType: "PARENT" | "STAFF"; body: string; sentAt: string; readAt: string | null; }
+
+export interface SkillItem { id: string; name: string; order: number; }
+export interface SkillDomain { id: string; name: string; order: number; items: SkillItem[]; }
+export interface SkillScalePoint { value: number; label: string; order: number; }
+export interface SkillConfig { domains: SkillDomain[]; scale: SkillScalePoint[]; }
+
+export interface SkillGridDomain { id: string; name: string; items: Array<{ id: string; name: string }>; }
+export interface SkillGridStudent { studentId: string; name: string; }
+export interface SkillGridRating { studentId: string; skillItemId: string; value: number; }
+export interface SkillsGrid {
+  locked: boolean;
+  scale: Array<{ value: number; label: string }>;
+  domains: SkillGridDomain[];
+  students: SkillGridStudent[];
+  ratings: SkillGridRating[];
+}
+export interface TermRemark {
+  studentId: string;
+  termId: string;
+  formTeacherRemark?: string | null;
+  principalRemark?: string | null;
+}
+export interface ReportCardConfig {
+  id: string;
+  layout: "classic" | "modern" | "compact";
+  showSkills: boolean;
+  showAttendance: boolean;
+  showRemarks: boolean;
+  showGradingKey: boolean;
+  showPosition: boolean;
+  nextTermBegins: string | null;
+}
 
 export const api = {
   requestOtp: (target: { phone?: string; email?: string }) =>
@@ -851,6 +889,44 @@ export const api = {
   verifyResult: (code: string) =>
     request<VerifyResult>(`/v1/public/verify/${encodeURIComponent(code)}`),
 
+  /** Stream the server-rendered PDF and trigger a browser download. */
+  downloadReportCardPdf: async (studentId: string, termId: string): Promise<void> => {
+    const token = session.token();
+    if (!token) {
+      if (typeof window !== "undefined") {
+        session.clear();
+        window.location.replace("/login");
+      }
+      throw new ApiError(401, "Not authenticated");
+    }
+    const schoolId = session.user()?.schoolId;
+    const tenantHeaders: Record<string, string> = schoolId ? { "x-tenant-school-id": schoolId } : {};
+    const res = await fetch(
+      `${API_BASE}/v1/assessment/report-card.pdf?studentId=${encodeURIComponent(studentId)}&termId=${encodeURIComponent(termId)}`,
+      { headers: { Authorization: `Bearer ${token}`, ...tenantHeaders } },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, (body as { message?: string }).message ?? `PDF download failed (${res.status})`);
+    }
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename="?([^";\n]+)"?/i.exec(disposition);
+    const filename = match?.[1] ?? "report-card.pdf";
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  },
+
+  /** Build the PDF download URL (for use in &lt;a href&gt; or window.open). */
+  reportCardPdfUrl: (studentId: string, termId: string): string =>
+    `${API_BASE}/v1/assessment/report-card.pdf?studentId=${encodeURIComponent(studentId)}&termId=${encodeURIComponent(termId)}`,
+
   // Fees
   getFeeItems: (classLevelId: string, termId: string) =>
     authedRequest<FeeItemRow[]>(`/v1/fees/items?classLevelId=${classLevelId}&termId=${termId}`),
@@ -923,4 +999,37 @@ export const api = {
   setStaffPermissions: (id: string, keys: string[]) =>
     authedRequest<{ keys: string[] }>(`/v1/staff/${id}/permissions`, { method: "PUT", body: JSON.stringify({ keys }) }),
   getMyPermissions: () => authedRequest<{ keys: string[] }>("/v1/me/permissions"),
+
+  // Skills config (AC-1 Task 3)
+  getSkillConfig: () => authedRequest<SkillConfig>("/v1/assessment/skill-domains"),
+  createSkillDomain: (body: { name: string; order?: number }) =>
+    authedRequest<SkillDomain>("/v1/assessment/skill-domains", { method: "POST", body: JSON.stringify(body) }),
+  updateSkillDomain: (id: string, body: { name?: string; order?: number }) =>
+    authedRequest<SkillDomain>(`/v1/assessment/skill-domains/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteSkillDomain: (id: string) =>
+    authedRequest<void>(`/v1/assessment/skill-domains/${id}`, { method: "DELETE" }),
+  createSkillItem: (body: { domainId: string; name: string; order?: number }) =>
+    authedRequest<SkillItem>("/v1/assessment/skill-items", { method: "POST", body: JSON.stringify(body) }),
+  updateSkillItem: (id: string, body: { name?: string; order?: number }) =>
+    authedRequest<SkillItem>(`/v1/assessment/skill-items/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteSkillItem: (id: string) =>
+    authedRequest<void>(`/v1/assessment/skill-items/${id}`, { method: "DELETE" }),
+  getSkillScale: () => authedRequest<SkillScalePoint[]>("/v1/assessment/skill-scale"),
+  setSkillScale: (points: Array<{ value: number; label: string }>) =>
+    authedRequest<SkillScalePoint[]>("/v1/assessment/skill-scale", { method: "PUT", body: JSON.stringify({ points }) }),
+
+  // Report-card config (AC-1 Task 6)
+  getReportCardConfig: () => authedRequest<ReportCardConfig>("/v1/assessment/report-card-config"),
+  putReportCardConfig: (body: Partial<Omit<ReportCardConfig, "id">>) =>
+    authedRequest<ReportCardConfig>("/v1/assessment/report-card-config", { method: "PUT", body: JSON.stringify(body) }),
+
+  // Skills grid + remarks (AC-1 Task 10)
+  getSkillsGrid: (classId: string, termId: string) =>
+    authedRequest<SkillsGrid>(`/v1/assessment/skills/grid?classId=${encodeURIComponent(classId)}&termId=${encodeURIComponent(termId)}`),
+  saveSkillRatings: (body: { classId: string; termId: string; ratings: Array<{ studentId: string; skillItemId: string; value: number }> }) =>
+    authedRequest<{ saved: number }>("/v1/assessment/skills", { method: "PUT", body: JSON.stringify(body) }),
+  getRemarks: (studentId: string, termId: string) =>
+    authedRequest<TermRemark | null>(`/v1/assessment/remarks?studentId=${encodeURIComponent(studentId)}&termId=${encodeURIComponent(termId)}`),
+  putRemarks: (body: { studentId: string; termId: string; classId: string; formTeacherRemark?: string; principalRemark?: string }) =>
+    authedRequest<TermRemark>("/v1/assessment/remarks", { method: "PUT", body: JSON.stringify(body) }),
 };

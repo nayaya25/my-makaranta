@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Badge, Card, PageContainer, PageHeader, Spinner, EmptyState, cn } from "@mymakaranta/ui";
+import { Badge, Button, Card, PageContainer, PageHeader, Spinner, EmptyState, cn } from "@mymakaranta/ui";
 import {
   api,
   ApiError,
@@ -28,6 +28,9 @@ export default function ReviewPage() {
   const [subjectSheet, setSubjectSheet] = useState<SubjectMasterSheet | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Principal remarks: map of studentId -> remark text
+  const [principalRemarks, setPrincipalRemarks] = useState<Map<string, string>>(new Map());
+  const [remarkSave, setRemarkSave] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   useEffect(() => {
     void (async () => {
@@ -69,9 +72,24 @@ export default function ReviewPage() {
       if (mode === "class") {
         setSubjectSheet(null); // drop the other mode's sheet so it can't flash
         if (!classId) return;
-        setClassSheet(await api.getClassMaster(classId, termId));
+        const sheet = await api.getClassMaster(classId, termId);
+        setClassSheet(sheet);
+        // Load existing principal remarks for each student
+        const rm = new Map<string, string>();
+        await Promise.all(
+          sheet.students.map(async (s) => {
+            try {
+              const r = await api.getRemarks(s.studentId, termId);
+              if (r?.principalRemark) rm.set(s.studentId, r.principalRemark);
+            } catch {
+              // non-fatal
+            }
+          }),
+        );
+        setPrincipalRemarks(rm);
       } else {
         setClassSheet(null);
+        setPrincipalRemarks(new Map());
         if (!subjectId) return;
         setSubjectSheet(await api.getSubjectMaster(subjectId, termId));
       }
@@ -82,6 +100,30 @@ export default function ReviewPage() {
     }
   }, [mode, classId, subjectId, termId]);
   useEffect(() => { void load(); }, [load]);
+
+  const savePrincipalRemarks = async () => {
+    if (!classSheet || !classId || !termId) return;
+    setRemarkSave("saving");
+    try {
+      await Promise.all(
+        classSheet.students
+          .filter((s) => principalRemarks.has(s.studentId))
+          .map((s) =>
+            api.putRemarks({
+              studentId: s.studentId,
+              termId,
+              classId,
+              principalRemark: principalRemarks.get(s.studentId) ?? "",
+            }),
+          ),
+      );
+      setRemarkSave("saved");
+      setTimeout(() => setRemarkSave("idle"), 2000);
+    } catch (e) {
+      setRemarkSave("error");
+      setError(e instanceof ApiError ? e.message : "Could not save remarks.");
+    }
+  };
 
   const cls = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small";
 
@@ -123,35 +165,67 @@ export default function ReviewPage() {
         !classSheet || classSheet.students.length === 0 ? (
           <EmptyState icon={<BarChart3 size={28} />} title="Nothing to review" description="No students or scores for this class and term." />
         ) : (
-          <Card className="overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-small">
-                <thead>
-                  <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] text-left dark:border-white/10 dark:bg-white/[0.03]">
-                    <th className="px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-ink-500">Student</th>
-                    {classSheet.subjects.map((s) => <th key={s.id} className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">{s.name}</th>)}
-                    <th className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">Avg</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {classSheet.students.map((st) => (
-                    <tr key={st.studentId} className="border-t border-ink-1000/[0.06] dark:border-white/[0.06]">
-                      <td className="whitespace-nowrap px-4 py-2 font-medium text-ink-1000 dark:text-ink-100">{st.name}</td>
-                      {classSheet.subjects.map((s) => {
-                        const cell = st.perSubject[s.id];
-                        return (
-                          <td key={s.id} className={cn("px-2 py-2 text-center", cell?.anomaly && "bg-warning/15")}>
-                            {cell ? <span className="tabular-nums text-ink-700 dark:text-ink-300">{cell.total}{cell.grade ? ` (${cell.grade})` : ""}</span> : <span className="text-ink-500">—</span>}
-                          </td>
-                        );
-                      })}
-                      <td className="px-2 py-2 text-center font-semibold tabular-nums text-ink-1000 dark:text-ink-100">{st.average}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          <>
+            <div className="mb-3 flex items-center justify-end gap-3">
+              <Button
+                size="sm"
+                onClick={() => void savePrincipalRemarks()}
+                disabled={remarkSave === "saving"}
+              >
+                Save remarks
+              </Button>
+              <span
+                aria-live="polite"
+                className={cn(
+                  "text-caption tabular-nums",
+                  remarkSave === "saved" ? "text-success" : remarkSave === "error" ? "text-error" : "text-ink-500",
+                )}
+              >
+                {remarkSave === "saving" ? "Saving…" : remarkSave === "saved" ? "Saved" : remarkSave === "error" ? "Save failed" : ""}
+              </span>
             </div>
-          </Card>
+            <Card className="overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-small">
+                  <thead>
+                    <tr className="border-b border-ink-1000/[0.08] bg-ink-1000/[0.02] text-left dark:border-white/10 dark:bg-white/[0.03]">
+                      <th className="px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-ink-500">Student</th>
+                      {classSheet.subjects.map((s) => <th key={s.id} className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">{s.name}</th>)}
+                      <th className="px-2 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">Avg</th>
+                      <th className="px-4 py-2.5 text-caption font-semibold uppercase tracking-wide text-ink-500 min-w-[180px]">Principal Remark</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {classSheet.students.map((st) => (
+                      <tr key={st.studentId} className="border-t border-ink-1000/[0.06] dark:border-white/[0.06]">
+                        <td className="whitespace-nowrap px-4 py-2 font-medium text-ink-1000 dark:text-ink-100">{st.name}</td>
+                        {classSheet.subjects.map((s) => {
+                          const cell = st.perSubject[s.id];
+                          return (
+                            <td key={s.id} className={cn("px-2 py-2 text-center", cell?.anomaly && "bg-warning/15")}>
+                              {cell ? <span className="tabular-nums text-ink-700 dark:text-ink-300">{cell.total}{cell.grade ? ` (${cell.grade})` : ""}</span> : <span className="text-ink-500">—</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="px-2 py-2 text-center font-semibold tabular-nums text-ink-1000 dark:text-ink-100">{st.average}</td>
+                        <td className="px-4 py-2">
+                          <textarea
+                            aria-label={`${st.name} principal remark`}
+                            value={principalRemarks.get(st.studentId) ?? ""}
+                            onChange={(e) =>
+                              setPrincipalRemarks((prev) => new Map(prev).set(st.studentId, e.target.value))
+                            }
+                            rows={2}
+                            className="w-full min-w-[160px] rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 py-1 text-small resize-none"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </>
         )
       ) : (
         !subjectSheet || subjectSheet.classes.length === 0 ? (

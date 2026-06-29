@@ -58,6 +58,11 @@ describe("SignupService.signup", () => {
             where: { id: { in: membershipIds } },
           });
         }
+        // Remove skill data seeded by lazy-seed before deleting school
+        await prisma.skillRating.deleteMany({ where: { schoolId: { in: schoolIds } } });
+        await prisma.skillItem.deleteMany({ where: { schoolId: { in: schoolIds } } });
+        await prisma.skillDomain.deleteMany({ where: { schoolId: { in: schoolIds } } });
+        await prisma.skillScalePoint.deleteMany({ where: { schoolId: { in: schoolIds } } });
         await prisma.school.deleteMany({ where: { id: { in: schoolIds } } });
       }
     }
