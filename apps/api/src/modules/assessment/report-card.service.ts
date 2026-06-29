@@ -60,7 +60,7 @@ export class ReportCardService {
               orderBy: { order: "asc" },
               include: {
                 ratings: {
-                  where: { studentId, termId },
+                  where: { schoolId, studentId, termId },
                   take: 1,
                 },
               },
@@ -69,7 +69,7 @@ export class ReportCardService {
         }),
         this.prisma.skillScalePoint.findMany({
           where: { schoolId },
-          orderBy: { value: "desc" },
+          orderBy: { order: "asc" },
         }),
         this.prisma.termRemark.findFirst({
           where: { schoolId, studentId, termId },
