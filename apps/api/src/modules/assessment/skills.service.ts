@@ -140,6 +140,10 @@ export class SkillsService {
 
     const schoolId = TenantContext.schoolIdOrThrow();
 
+    // Verify class belongs to this school (IDOR guard)
+    const klass = await this.prisma.class.findFirst({ where: { id: dto.classId, schoolId } });
+    if (!klass) throw new NotFoundException("Class not found in this school.");
+
     const school = await this.prisma.school.findFirst({ where: { id: schoolId }, select: { skillScaleMax: true } });
     const max = school?.skillScaleMax ?? 5;
 

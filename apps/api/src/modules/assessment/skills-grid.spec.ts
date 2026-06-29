@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
@@ -184,6 +184,21 @@ describe("SkillsService – skills grid + bulk ratings", () => {
         ),
       ),
     ).rejects.toThrow(ForbiddenException);
+  });
+
+  it("saveRatings with a classId from a different school throws NotFoundException", async () => {
+    // Create a second school and class
+    const ts2 = Date.now();
+    const school2 = await prisma.school.create({ data: { name: `OtherSchool-${ts2}`, slug: `other-${ts2}` } as never });
+    const level2b = await prisma.classLevel.create({ data: { schoolId: school2.id, name: "JSS1", order: 0 } });
+    const class2 = await prisma.class.create({ data: { schoolId: school2.id, name: "Other Class", classLevelId: level2b.id } });
+
+    // TenantContext still pointing to school1 (schoolId)
+    await expect(
+      TenantContext.run({ schoolId, userId: null }, () =>
+        service.saveRatings({ classId: class2.id, termId, ratings: [] }, recordedBy),
+      ),
+    ).rejects.toThrow(NotFoundException);
   });
 
   it("getGrid with Release created → locked: true", async () => {

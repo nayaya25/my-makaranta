@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, IsInt, IsNotEmpty, IsOptional, IsString, Min, ValidateNested } from "class-validator";
+import { IsArray, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min, ValidateNested } from "class-validator";
 
 export class CreateSkillDomainDto {
   @IsString()
@@ -79,6 +79,7 @@ export class RatingEntryDto {
 
   @IsInt()
   @Min(1)
+  @Max(100) // upper bound enforced per school.skillScaleMax in service; this guards against absurd values
   value!: number;
 }
 
