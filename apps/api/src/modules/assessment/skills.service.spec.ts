@@ -76,6 +76,32 @@ describe("SkillsService", () => {
     expect(item.schoolId).toBe(schoolId);
   });
 
+  it("updateItem changes the item name and returns schoolId-scoped record", async () => {
+    const config = await TenantContext.run({ schoolId, userId: null }, async () => service.listConfig());
+    const domainId = config.domains[0]!.id;
+    const item = await TenantContext.run({ schoolId, userId: null }, async () =>
+      service.createItem({ domainId, name: "TempItem", order: 99 }),
+    );
+    const updated = await TenantContext.run({ schoolId, userId: null }, async () =>
+      service.updateItem(item.id, { name: "RenamedItem" }),
+    );
+    expect(updated!.name).toBe("RenamedItem");
+    expect(updated!.schoolId).toBe(schoolId);
+  });
+
+  it("deleteItem removes the item", async () => {
+    const config = await TenantContext.run({ schoolId, userId: null }, async () => service.listConfig());
+    const domainId = config.domains[0]!.id;
+    const item = await TenantContext.run({ schoolId, userId: null }, async () =>
+      service.createItem({ domainId, name: "DeleteMeItem", order: 100 }),
+    );
+    await TenantContext.run({ schoolId, userId: null }, async () =>
+      service.deleteItem(item.id),
+    );
+    const found = await prisma.skillItem.findFirst({ where: { id: item.id } });
+    expect(found).toBeNull();
+  });
+
   it("getScale returns 5 points ordered", async () => {
     const scale = await TenantContext.run({ schoolId, userId: null }, async () => service.getScale());
     expect(scale).toHaveLength(5);

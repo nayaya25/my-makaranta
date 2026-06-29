@@ -35,7 +35,7 @@ export class SkillsService {
     const domain = await this.prisma.skillDomain.findFirst({ where: { id, schoolId } });
     if (!domain) throw new NotFoundException("Skill domain not found.");
     await this.prisma.skillDomain.updateMany({ where: { id, schoolId }, data: dto });
-    return this.prisma.skillDomain.findUnique({ where: { id }, include: { items: { orderBy: { order: "asc" } } } });
+    return this.prisma.skillDomain.findFirst({ where: { id, schoolId }, include: { items: { orderBy: { order: "asc" } } } });
   }
 
   async deleteDomain(id: string) {
@@ -60,7 +60,7 @@ export class SkillsService {
     const item = await this.prisma.skillItem.findFirst({ where: { id, schoolId } });
     if (!item) throw new NotFoundException("Skill item not found.");
     await this.prisma.skillItem.updateMany({ where: { id, schoolId }, data: dto });
-    return this.prisma.skillItem.findUnique({ where: { id } });
+    return this.prisma.skillItem.findFirst({ where: { id, schoolId } });
   }
 
   async deleteItem(id: string) {
