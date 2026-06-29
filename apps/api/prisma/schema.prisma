@@ -73,6 +73,7 @@ model School {
   requireCorrectionOtp Boolean            @default(true)
   themeKey           String               @default("teal")
   motto              String?
+  principalSignatureUrl String?
   type               String?
   state              String?
   technicalContactName  String?
