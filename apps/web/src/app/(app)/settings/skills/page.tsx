@@ -191,6 +191,8 @@ function DomainRow({ domain, onRename, onDelete, onAddItem, onRenameItem, onDele
   const [editName, setEditName] = useState(domain.name);
   const [newItemName, setNewItemName] = useState("");
 
+  useEffect(() => { setEditName(domain.name); }, [domain.name]);
+
   const handleRename = () => {
     const trimmed = editName.trim();
     if (trimmed && trimmed !== domain.name) void onRename(domain.id, trimmed);
@@ -275,6 +277,8 @@ interface ItemRowProps {
 
 function ItemRow({ domainId, item, onRename, onDelete }: ItemRowProps) {
   const [editName, setEditName] = useState(item.name);
+
+  useEffect(() => { setEditName(item.name); }, [item.name]);
 
   const handleRename = () => {
     const trimmed = editName.trim();
@@ -371,7 +375,7 @@ function ScalePanel() {
               <p className="text-small text-ink-500">No scale points yet. Add rows to define the rating scale.</p>
             )}
             {points.map((p, i) => (
-              <div key={i} className="flex items-center gap-2">
+              <div key={p.value} className="flex items-center gap-2">
                 <input
                   aria-label="scale value"
                   type="number"
