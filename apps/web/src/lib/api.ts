@@ -363,7 +363,7 @@ export interface CorrectScorePayload {
 }
 
 export interface ReportCard {
-  school: { name: string };
+  school: { name: string; logoUrl?: string | null; motto?: string | null; principalSignatureUrl?: string | null };
   student: { name: string; admissionNo: string };
   className: string;
   term: { label: string };
@@ -374,6 +374,12 @@ export interface ReportCard {
   releasedAt: string;
   gradeKey: Array<{ grade: string; minScore: number; remark: string }>;
   verificationCode: string;
+  // AC-1 T7 extended fields
+  skills?: Array<{ domain: string; items: Array<{ name: string; value: number | null }> }>;
+  scaleKey?: Array<{ value: number; label: string }>;
+  remarks?: { formTeacher: string | null; principal: string | null };
+  attendance?: { present: number; absent: number; total: number };
+  config?: ReportCardConfig;
 }
 
 export type VerifyResult =
@@ -882,6 +888,44 @@ export const api = {
     authedRequest<ReportCard>(`/v1/assessment/report-card?studentId=${studentId}&termId=${termId}`),
   verifyResult: (code: string) =>
     request<VerifyResult>(`/v1/public/verify/${encodeURIComponent(code)}`),
+
+  /** Stream the server-rendered PDF and trigger a browser download. */
+  downloadReportCardPdf: async (studentId: string, termId: string): Promise<void> => {
+    const token = session.token();
+    if (!token) {
+      if (typeof window !== "undefined") {
+        session.clear();
+        window.location.replace("/login");
+      }
+      throw new ApiError(401, "Not authenticated");
+    }
+    const schoolId = session.user()?.schoolId;
+    const tenantHeaders: Record<string, string> = schoolId ? { "x-tenant-school-id": schoolId } : {};
+    const res = await fetch(
+      `${API_BASE}/v1/assessment/report-card.pdf?studentId=${encodeURIComponent(studentId)}&termId=${encodeURIComponent(termId)}`,
+      { headers: { Authorization: `Bearer ${token}`, ...tenantHeaders } },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, (body as { message?: string }).message ?? `PDF download failed (${res.status})`);
+    }
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename="?([^";\n]+)"?/i.exec(disposition);
+    const filename = match?.[1] ?? "report-card.pdf";
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  },
+
+  /** Build the PDF download URL (for use in &lt;a href&gt; or window.open). */
+  reportCardPdfUrl: (studentId: string, termId: string): string =>
+    `${API_BASE}/v1/assessment/report-card.pdf?studentId=${encodeURIComponent(studentId)}&termId=${encodeURIComponent(termId)}`,
 
   // Fees
   getFeeItems: (classLevelId: string, termId: string) =>
