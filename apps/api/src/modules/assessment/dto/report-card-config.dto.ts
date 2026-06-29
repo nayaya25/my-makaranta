@@ -27,6 +27,7 @@ export class UpdateReportCardConfigDto {
   showPosition?: boolean;
 
   @IsOptional()
+  @IsDateString()
   @Type(() => Date)
   nextTermBegins?: Date;
 }
