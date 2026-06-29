@@ -7,6 +7,24 @@ import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
 const prisma = new PrismaClient();
 afterAll(() => prisma.$disconnect());
 
+describe("SkillsService – lazy seeding", () => {
+  it("listConfig on an unseeded school lazy-seeds 2 default domains", async () => {
+    const school = await prisma.school.create({
+      data: { name: "LazySeedTest", slug: `lazy-seed-${Date.now()}` } as never,
+    });
+    const service = new SkillsService(prisma as unknown as PrismaService);
+
+    const result = await TenantContext.run({ schoolId: school.id, userId: null }, async () =>
+      service.listConfig(),
+    );
+
+    expect(result.domains).toHaveLength(2);
+    expect(result.domains[0]!.name).toBe("Affective");
+    expect(result.domains[1]!.name).toBe("Psychomotor");
+    expect(result.scale).toHaveLength(5);
+  });
+});
+
 describe("SkillsService", () => {
   let service: SkillsService;
   let schoolId: string;

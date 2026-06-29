@@ -3,13 +3,19 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import type { CreateSkillDomainDto, UpdateSkillDomainDto, CreateSkillItemDto, UpdateSkillItemDto, ScalePointDto, SaveSkillRatingsDto } from "./dto/skills.dto";
 import { assertNotReleased } from "./release-lock.util";
+import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
 
 @Injectable()
 export class SkillsService {
   constructor(private prisma: PrismaService) {}
 
+  private async ensureSeeded(schoolId: string): Promise<void> {
+    await seedSkillDefaults(this.prisma, schoolId);
+  }
+
   async listConfig() {
     const schoolId = TenantContext.schoolIdOrThrow();
+    await this.ensureSeeded(schoolId);
     const [domains, scale] = await Promise.all([
       this.prisma.skillDomain.findMany({
         where: { schoolId },
@@ -92,6 +98,7 @@ export class SkillsService {
 
   async getGrid(classId: string, termId: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
+    await this.ensureSeeded(schoolId);
 
     // Verify class belongs to this school
     const klass = await this.prisma.class.findFirst({ where: { id: classId, schoolId } });

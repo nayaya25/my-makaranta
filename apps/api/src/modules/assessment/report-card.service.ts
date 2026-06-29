@@ -3,6 +3,7 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { generateVerificationCode } from "./verification.util";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
+import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
 
 @Injectable()
 export class ReportCardService {
@@ -47,6 +48,8 @@ export class ReportCardService {
 
     const termStart = sheet.term.startDate;
     const termEnd = sheet.term.endDate;
+
+    await seedSkillDefaults(this.prisma, schoolId);
 
     const [boundaries, classSize, skillDomains, scalePoints, termRemark, presentCount, absentCount, config] =
       await Promise.all([
