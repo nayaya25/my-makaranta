@@ -67,3 +67,32 @@ export class SetSkillScaleDto {
   @Type(() => ScalePointDto)
   points!: ScalePointDto[];
 }
+
+export class RatingEntryDto {
+  @IsString()
+  @IsNotEmpty()
+  studentId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  skillItemId!: string;
+
+  @IsInt()
+  @Min(1)
+  value!: number;
+}
+
+export class SaveSkillRatingsDto {
+  @IsString()
+  @IsNotEmpty()
+  classId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  termId!: string;
+
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RatingEntryDto)
+  ratings!: RatingEntryDto[];
+}

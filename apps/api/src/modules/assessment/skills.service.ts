@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
-import type { CreateSkillDomainDto, UpdateSkillDomainDto, CreateSkillItemDto, UpdateSkillItemDto, ScalePointDto } from "./dto/skills.dto";
+import type { CreateSkillDomainDto, UpdateSkillDomainDto, CreateSkillItemDto, UpdateSkillItemDto, ScalePointDto, SaveSkillRatingsDto } from "./dto/skills.dto";
+import { assertNotReleased } from "./release-lock.util";
 
 @Injectable()
 export class SkillsService {
@@ -87,5 +88,75 @@ export class SkillsService {
       }),
     ]);
     return this.getScale();
+  }
+
+  async getGrid(classId: string, termId: string) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+
+    // Verify class belongs to this school
+    const klass = await this.prisma.class.findFirst({ where: { id: classId, schoolId } });
+    if (!klass) throw new NotFoundException("Class not found in this school.");
+
+    // Parallel fetches
+    const [enrollments, domains, scale, locked] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: { classId, termId },
+        include: { student: { select: { id: true, firstName: true, lastName: true } } },
+      }),
+      this.prisma.skillDomain.findMany({
+        where: { schoolId },
+        orderBy: { order: "asc" },
+        include: { items: { orderBy: { order: "asc" }, select: { id: true, name: true } } },
+      }),
+      this.prisma.skillScalePoint.findMany({
+        where: { schoolId },
+        orderBy: { order: "asc" },
+        select: { value: true, label: true },
+      }),
+      this.prisma.release.findUnique({ where: { classId_termId: { classId, termId } } }),
+    ]);
+
+    const studentIds = enrollments.map((e) => e.studentId);
+
+    const ratings = await this.prisma.skillRating.findMany({
+      where: { schoolId, termId, studentId: { in: studentIds } },
+      select: { studentId: true, skillItemId: true, value: true },
+    });
+
+    return {
+      locked: locked !== null,
+      scale,
+      domains: domains.map((d) => ({ id: d.id, name: d.name, items: d.items })),
+      students: enrollments.map((e) => ({
+        studentId: e.studentId,
+        name: `${e.student.firstName} ${e.student.lastName}`,
+      })),
+      ratings,
+    };
+  }
+
+  async saveRatings(dto: SaveSkillRatingsDto, recordedBy: string) {
+    await assertNotReleased(this.prisma, dto.classId, dto.termId);
+
+    const schoolId = TenantContext.schoolIdOrThrow();
+
+    const school = await this.prisma.school.findFirst({ where: { id: schoolId }, select: { skillScaleMax: true } });
+    const max = school?.skillScaleMax ?? 5;
+
+    for (const r of dto.ratings) {
+      if (r.value < 1 || r.value > max) {
+        throw new BadRequestException(`Rating value ${r.value} is outside the allowed range (1–${max}).`);
+      }
+    }
+
+    for (const r of dto.ratings) {
+      await this.prisma.skillRating.upsert({
+        where: { studentId_termId_skillItemId: { studentId: r.studentId, termId: dto.termId, skillItemId: r.skillItemId } },
+        create: { schoolId, studentId: r.studentId, termId: dto.termId, skillItemId: r.skillItemId, value: r.value, recordedBy },
+        update: { value: r.value, recordedBy },
+      });
+    }
+
+    return { saved: dto.ratings.length };
   }
 }

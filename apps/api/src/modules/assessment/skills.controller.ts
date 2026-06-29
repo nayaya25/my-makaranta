@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../../core/auth/jwt-auth.guard";
 import { PermissionGuard } from "../../core/auth/permissions/permission.guard";
 import { RequirePermissions } from "../../core/auth/permissions/require-permissions.decorator";
+import { CurrentUser, type RequestUser } from "../../core/auth/current-user.decorator";
 import { SkillsService } from "./skills.service";
 import {
   CreateSkillDomainDto,
@@ -9,6 +10,7 @@ import {
   CreateSkillItemDto,
   UpdateSkillItemDto,
   SetSkillScaleDto,
+  SaveSkillRatingsDto,
 } from "./dto/skills.dto";
 
 @Controller("v1/assessment")
@@ -60,5 +62,17 @@ export class SkillsController {
   @Put("skill-scale")
   setScale(@Body() dto: SetSkillScaleDto) {
     return this.service.setScale(dto.points);
+  }
+
+  @Get("skills/grid")
+  @RequirePermissions("skills.record")
+  getGrid(@Query("classId") classId: string, @Query("termId") termId: string) {
+    return this.service.getGrid(classId, termId);
+  }
+
+  @Put("skills")
+  @RequirePermissions("skills.record")
+  saveRatings(@Body() dto: SaveSkillRatingsDto, @CurrentUser() user: RequestUser) {
+    return this.service.saveRatings(dto, user.id);
   }
 }
