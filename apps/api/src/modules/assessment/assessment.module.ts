@@ -22,10 +22,11 @@ import { RemarksService } from "./remarks.service";
 import { RemarksController } from "./remarks.controller";
 import { ReportCardConfigService } from "./report-card-config.service";
 import { ReportCardConfigController } from "./report-card-config.controller";
+import { ReportCardPdfController } from "./report-card-pdf.controller";
 
 @Module({
   imports: [AuthModule],
-  controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController, ReviewController, ReleaseController, CorrectionController, ReportCardController, SkillsController, RemarksController, ReportCardConfigController],
+  controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController, ReviewController, ReleaseController, CorrectionController, ReportCardController, SkillsController, RemarksController, ReportCardConfigController, ReportCardPdfController],
   providers: [
     AssessmentTypesService,
     GradeBoundariesService,
