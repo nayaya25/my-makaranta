@@ -79,10 +79,10 @@ describe("RemarksService – term remarks with per-field perms + lock", () => {
       ),
     );
 
-    expect(result.formTeacherRemark).toBe("Good student");
-    expect(result.principalRemark).toBeNull();
-    expect(result.studentId).toBe(studentId);
-    expect(result.termId).toBe(termId);
+    expect(result!.formTeacherRemark).toBe("Good student");
+    expect(result!.principalRemark).toBeNull();
+    expect(result!.studentId).toBe(studentId);
+    expect(result!.termId).toBe(termId);
   });
 
   // Test 2: principalRemark without canPrincipal → ForbiddenException
@@ -106,8 +106,8 @@ describe("RemarksService – term remarks with per-field perms + lock", () => {
       ),
     );
 
-    expect(result.formTeacherRemark).toBe("Updated remark");
-    expect(result.principalRemark).toBe("Principal note");
+    expect(result!.formTeacherRemark).toBe("Updated remark");
+    expect(result!.principalRemark).toBe("Principal note");
 
     // Verify no duplicate rows
     const all = await prisma.termRemark.findMany({ where: { studentId, termId } });
@@ -213,10 +213,10 @@ describe("RemarksService – term remarks with per-field perms + lock", () => {
       ),
     );
 
-    expect(result.principalRemark).toBe("Excellent conduct");
-    expect(result.formTeacherRemark).toBeNull();
-    expect(result.studentId).toBe(studentP.id);
-    expect(result.termId).toBe(termP.id);
+    expect(result!.principalRemark).toBe("Excellent conduct");
+    expect(result!.formTeacherRemark).toBeNull();
+    expect(result!.studentId).toBe(studentP.id);
+    expect(result!.termId).toBe(termP.id);
   });
 
   // Test 8: getRemark returns null when no remark exists
@@ -239,5 +239,37 @@ describe("RemarksService – term remarks with per-field perms + lock", () => {
     );
 
     expect(result).toBeNull();
+  });
+
+  // Test 10: canForm=false + canPrincipal=false → ForbiddenException regardless of field
+  it("upsertRemark: {canForm:false, canPrincipal:false} → ForbiddenException", async () => {
+    await expect(
+      TenantContext.run({ schoolId, userId: null }, () =>
+        service.upsertRemark(
+          { studentId, termId, classId, formTeacherRemark: "Sneaky remark" },
+          { canForm: false, canPrincipal: false },
+        ),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  // Test 11: empty body (no fields) with valid caps → no new row / returns existing
+  it("upsertRemark: empty body (no fields provided) → no upsert, row count unchanged", async () => {
+    const before = await prisma.termRemark.count({ where: { studentId, termId } });
+
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.upsertRemark(
+        { studentId, termId, classId },
+        { canForm: true, canPrincipal: true },
+      ),
+    );
+
+    const after = await prisma.termRemark.count({ where: { studentId, termId } });
+    expect(after).toBe(before);
+    // Returns existing row (or null if none exists)
+    if (result !== null) {
+      expect(result.studentId).toBe(studentId);
+      expect(result.termId).toBe(termId);
+    }
   });
 });

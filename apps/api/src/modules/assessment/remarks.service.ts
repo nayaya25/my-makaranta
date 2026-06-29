@@ -15,6 +15,16 @@ export class RemarksService {
     // Lock check — must run first so a released term is always rejected regardless of perms
     await assertNotReleased(this.prisma, classId, termId);
 
+    // Capability gate: reject callers with neither permission
+    if (!caps.canForm && !caps.canPrincipal) {
+      throw new ForbiddenException("You don't have permission to edit remarks.");
+    }
+
+    // No-op guard: nothing to write
+    if (formTeacherRemark === undefined && principalRemark === undefined) {
+      return this.prisma.termRemark.findFirst({ where: { studentId, termId, schoolId } });
+    }
+
     // Per-field permission checks
     if (formTeacherRemark !== undefined && !caps.canForm) {
       throw new ForbiddenException("Requires skills.record permission to set formTeacherRemark.");
