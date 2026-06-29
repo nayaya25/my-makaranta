@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { assertNotReleased } from "./release-lock.util";
@@ -12,6 +12,9 @@ export class RemarksService {
     const { studentId, termId, classId, formTeacherRemark, principalRemark } = dto;
     const schoolId = TenantContext.schoolIdOrThrow();
 
+    // Lock check — must run first so a released term is always rejected regardless of perms
+    await assertNotReleased(this.prisma, classId, termId);
+
     // Per-field permission checks
     if (formTeacherRemark !== undefined && !caps.canForm) {
       throw new ForbiddenException("Requires skills.record permission to set formTeacherRemark.");
@@ -19,9 +22,6 @@ export class RemarksService {
     if (principalRemark !== undefined && !caps.canPrincipal) {
       throw new ForbiddenException("Requires results.review permission to set principalRemark.");
     }
-
-    // Lock check
-    await assertNotReleased(this.prisma, classId, termId);
 
     // IDOR guard 1: class belongs to school
     const klass = await this.prisma.class.findFirst({ where: { id: classId, schoolId } });
@@ -44,6 +44,7 @@ export class RemarksService {
   }
 
   async getRemark(studentId: string, termId: string) {
+    if (!studentId || !termId) throw new BadRequestException("studentId and termId are required");
     const schoolId = TenantContext.schoolIdOrThrow();
     return this.prisma.termRemark.findFirst({ where: { studentId, termId, schoolId } });
   }

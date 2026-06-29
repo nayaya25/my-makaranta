@@ -23,7 +23,6 @@ export class RemarksController {
   }
 
   @Get("remarks")
-  @RequirePermissions("skills.record")
   getRemark(
     @Query("studentId") studentId: string,
     @Query("termId") termId: string,
