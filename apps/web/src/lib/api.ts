@@ -599,6 +599,23 @@ export interface SkillItem { id: string; name: string; order: number; }
 export interface SkillDomain { id: string; name: string; order: number; items: SkillItem[]; }
 export interface SkillScalePoint { value: number; label: string; order: number; }
 export interface SkillConfig { domains: SkillDomain[]; scale: SkillScalePoint[]; }
+
+export interface SkillGridDomain { id: string; name: string; items: Array<{ id: string; name: string }>; }
+export interface SkillGridStudent { studentId: string; name: string; }
+export interface SkillGridRating { studentId: string; skillItemId: string; value: number; }
+export interface SkillsGrid {
+  locked: boolean;
+  scale: Array<{ value: number; label: string }>;
+  domains: SkillGridDomain[];
+  students: SkillGridStudent[];
+  ratings: SkillGridRating[];
+}
+export interface TermRemark {
+  studentId: string;
+  termId: string;
+  formTeacherRemark?: string | null;
+  principalRemark?: string | null;
+}
 export interface ReportCardConfig {
   id: string;
   layout: "classic" | "modern" | "compact";
@@ -961,4 +978,14 @@ export const api = {
   getReportCardConfig: () => authedRequest<ReportCardConfig>("/v1/assessment/report-card-config"),
   putReportCardConfig: (body: Partial<Omit<ReportCardConfig, "id">>) =>
     authedRequest<ReportCardConfig>("/v1/assessment/report-card-config", { method: "PUT", body: JSON.stringify(body) }),
+
+  // Skills grid + remarks (AC-1 Task 10)
+  getSkillsGrid: (classId: string, termId: string) =>
+    authedRequest<SkillsGrid>(`/v1/assessment/skills/grid?classId=${encodeURIComponent(classId)}&termId=${encodeURIComponent(termId)}`),
+  saveSkillRatings: (body: { classId: string; termId: string; ratings: Array<{ studentId: string; skillItemId: string; value: number }> }) =>
+    authedRequest<{ saved: number }>("/v1/assessment/skills", { method: "PUT", body: JSON.stringify(body) }),
+  getRemarks: (studentId: string, termId: string) =>
+    authedRequest<TermRemark | null>(`/v1/assessment/remarks?studentId=${encodeURIComponent(studentId)}&termId=${encodeURIComponent(termId)}`),
+  putRemarks: (body: { studentId: string; termId: string; classId: string; formTeacherRemark?: string; principalRemark?: string }) =>
+    authedRequest<TermRemark>("/v1/assessment/remarks", { method: "PUT", body: JSON.stringify(body) }),
 };
