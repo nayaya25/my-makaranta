@@ -186,6 +186,39 @@ describe("RemarksService – term remarks with per-field perms + lock", () => {
     expect(result!.schoolId).toBe(schoolId);
   });
 
+  // Test 9: principalRemark with only canPrincipal=true (no canForm) → persists principalRemark, formTeacherRemark null
+  it("upsertRemark: principalRemark with only canPrincipal=true (no canForm) → persists principalRemark, formTeacherRemark null", async () => {
+    const ts = Date.now();
+    const levelP = await prisma.classLevel.create({ data: { schoolId, name: `PrincipalLevel-${ts}`, order: 98 } });
+    const classP = await prisma.class.create({ data: { schoolId, name: `PrincipalClass-${ts}`, classLevelId: levelP.id } });
+    const yearP = await prisma.academicYear.create({ data: { schoolId, name: `Principal-${ts}`, startDate: new Date(), endDate: new Date() } });
+    const termP = await prisma.term.create({ data: { schoolId, academicYearId: yearP.id, number: 1, startDate: new Date(), endDate: new Date() } });
+
+    const studentP = await prisma.student.create({
+      data: {
+        schoolId,
+        admissionNo: `P-${ts}`,
+        firstName: "Principal",
+        lastName: "Only",
+        gender: "MALE",
+        dateOfBirth: new Date("2010-06-01"),
+      },
+    });
+    await prisma.enrollment.create({ data: { studentId: studentP.id, classId: classP.id, termId: termP.id } });
+
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.upsertRemark(
+        { studentId: studentP.id, termId: termP.id, classId: classP.id, principalRemark: "Excellent conduct" },
+        { canForm: false, canPrincipal: true },
+      ),
+    );
+
+    expect(result.principalRemark).toBe("Excellent conduct");
+    expect(result.formTeacherRemark).toBeNull();
+    expect(result.studentId).toBe(studentP.id);
+    expect(result.termId).toBe(termP.id);
+  });
+
   // Test 8: getRemark returns null when no remark exists
   it("getRemark: returns null when no remark exists", async () => {
     const ts = Date.now();

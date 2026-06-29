@@ -12,7 +12,6 @@ export class RemarksController {
   constructor(private service: RemarksService) {}
 
   @Put("remarks")
-  @RequirePermissions("skills.record")
   upsertRemark(@Body() dto: UpsertRemarkDto, @CurrentUser() user: RequestUser) {
     const perms = user.perms;
     const caps = {
