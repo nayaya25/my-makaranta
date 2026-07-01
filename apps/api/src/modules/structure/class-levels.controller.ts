@@ -5,7 +5,7 @@ import { RequirePermissions } from "../../core/auth/permissions/require-permissi
 import { ClassLevelsService } from "./class-levels.service";
 import { CreateClassLevelsDto, UpdateClassLevelDto } from "./dto/class-levels.dto";
 
-@Controller("v1/structure/class-levels")
+@Controller("v1/class-levels")
 export class ClassLevelsController {
   constructor(private service: ClassLevelsService) {}
 

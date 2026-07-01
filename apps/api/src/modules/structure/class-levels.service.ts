@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { seedEarlyYearsDefaults } from "../assessment/early-years-defaults";
@@ -24,22 +25,21 @@ export class ClassLevelsService {
   async updateLevel(id: string, dto: UpdateClassLevelDto) {
     const schoolId = TenantContext.schoolIdOrThrow();
 
-    // Tenant-IDOR guard: verify the level belongs to the caller's school
-    const existing = await this.prisma.classLevel.findFirst({ where: { id, schoolId } });
-    if (!existing) throw new NotFoundException(`ClassLevel not found.`);
-
-    const updated = await this.prisma.classLevel.update({
-      where: { id },
+    // Atomic tenant-IDOR guard: updateMany scopes to both id + schoolId in one query,
+    // eliminating the findFirst → update race window.
+    const result = await this.prisma.classLevel.updateMany({
+      where: { id, schoolId },
       data: {
         ...(dto.isEarlyYears !== undefined ? { isEarlyYears: dto.isEarlyYears } : {}),
       },
     });
+    if (result.count === 0) throw new NotFoundException(`ClassLevel ${id} not found`);
 
     // Seed EY defaults whenever isEarlyYears is being set to true (idempotent)
     if (dto.isEarlyYears === true) {
-      await seedEarlyYearsDefaults(this.prisma as never, schoolId);
+      await seedEarlyYearsDefaults(this.prisma as unknown as PrismaClient, schoolId);
     }
 
-    return updated;
+    return this.prisma.classLevel.findFirst({ where: { id, schoolId } });
   }
 }
