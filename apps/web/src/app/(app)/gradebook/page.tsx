@@ -8,6 +8,7 @@ import {
   type AssessmentType,
   type GradeBoundary,
   type Class,
+  type ClassLevel,
   type SubjectAssignment,
 } from "@/lib/api";
 import { type AcademicYear } from "@/lib/api";
@@ -19,6 +20,7 @@ interface TermOpt { id: string; label: string; isCurrent: boolean; }
 
 export default function GradebookPage() {
   const [classes, setClasses] = useState<Class[]>([]);
+  const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
   const [years, setYears] = useState<AcademicYear[]>([]);
   const [terms, setTerms] = useState<TermOpt[]>([]);
   const [classId, setClassId] = useState("");
@@ -35,9 +37,10 @@ export default function GradebookPage() {
 
   useEffect(() => {
     void (async () => {
-      const [cs, yrs] = await Promise.all([api.listClasses(), api.listAcademicYears()]);
+      const [cs, yrs, lvls] = await Promise.all([api.listClasses(), api.listAcademicYears(), api.listClassLevels()]);
       setClasses(cs);
       setYears(yrs);
+      setClassLevels(lvls);
       if (cs[0]) setClassId(cs[0].id);
       const ts: TermOpt[] = yrs.flatMap((y) =>
         (y.terms ?? [])
@@ -88,6 +91,12 @@ export default function GradebookPage() {
   }, [classId, subjectId, termId]);
   useEffect(() => { void loadGradebook(); }, [loadGradebook]);
 
+  const levelEyMap = useMemo(() => new Map(classLevels.map((l) => [l.id, !!l.isEarlyYears])), [classLevels]);
+  const isEarlyYears = useMemo(() => {
+    const classLevelId = classes.find((c) => c.id === classId)?.classLevelId ?? "";
+    return levelEyMap.get(classLevelId) ?? false;
+  }, [classes, classId, levelEyMap]);
+
   const maxById = useMemo(() => new Map(types.map((t) => [t.id, t.maxScore])), [types]);
   const overMax = (typeId: string, v: number) => {
     const m = maxById.get(typeId);
@@ -136,24 +145,36 @@ export default function GradebookPage() {
             {terms.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </label>
-        <label className="text-small text-ink-500 flex flex-col gap-1">Subject
-          <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small">
-            {subjectOpts.length === 0 && <option value="">No subjects assigned</option>}
-            {subjectOpts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-        </label>
-        <div className="flex items-center gap-3 ml-auto">
-          <Button onClick={() => void save()} disabled={saveState === "saving" || hasError || rows.length === 0}>Save scores</Button>
-          <span aria-live="polite" className={cn("text-caption tabular-nums",
-            saveState === "saved" ? "text-success" : saveState === "error" ? "text-error" : "text-ink-500")}>
-            {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : ""}
-          </span>
-        </div>
+        {!isEarlyYears && (
+          <>
+            <label className="text-small text-ink-500 flex flex-col gap-1">Subject
+              <select value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small">
+                {subjectOpts.length === 0 && <option value="">No subjects assigned</option>}
+                {subjectOpts.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </label>
+            <div className="flex items-center gap-3 ml-auto">
+              <Button onClick={() => void save()} disabled={saveState === "saving" || hasError || rows.length === 0}>Save scores</Button>
+              <span aria-live="polite" className={cn("text-caption tabular-nums",
+                saveState === "saved" ? "text-success" : saveState === "error" ? "text-error" : "text-ink-500")}>
+                {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : saveState === "error" ? "Save failed" : ""}
+              </span>
+            </div>
+          </>
+        )}
       </div>
 
       {error && <p className="mb-4 text-small text-error">{error}</p>}
 
-      {loading ? (
+      {isEarlyYears ? (
+        <div className="flex flex-col items-center gap-3">
+          <EmptyState icon={<ClipboardList size={28} />} title="Early Years class"
+            description="This class uses developmental assessment. Use the Skills page to record EY ratings." />
+          <Link href="/skills">
+            <Button variant="outline" size="sm">Go to Skills page</Button>
+          </Link>
+        </div>
+      ) : loading ? (
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       ) : types.length === 0 ? (
         <div className="flex flex-col items-center gap-3">
