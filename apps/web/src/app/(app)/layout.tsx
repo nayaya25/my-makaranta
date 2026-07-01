@@ -70,6 +70,7 @@ const NAV: NavEntry[] = [
       { href: "/messages", label: "Messages", icon: MessageSquare },
     ],
   },
+  { href: "/admissions", label: "Admissions", icon: ClipboardList, perm: "admissions.manage" },
   { href: "/fees", label: "Fees", icon: Wallet, perm: "fees.view" },
   { href: "/settings", label: "Settings", icon: Settings, perm: "school.manage" },
 ];

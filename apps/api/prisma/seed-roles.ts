@@ -27,7 +27,7 @@ const NAMES: Record<PresetKey, string> = {
 // "*" means all permissions
 const ALL = "*" as const;
 
-const GRANTS: Record<PresetKey, string[] | typeof ALL> = {
+export const GRANTS: Record<PresetKey, string[] | typeof ALL> = {
   proprietor: ALL,
   director: ALL,
   principal: [
@@ -51,6 +51,7 @@ const GRANTS: Record<PresetKey, string[] | typeof ALL> = {
     "reports.view",
     "school.manage",
     "skills.record",
+    "admissions.manage",
   ],
   vice_principal: [
     "students.view",
@@ -72,6 +73,7 @@ const GRANTS: Record<PresetKey, string[] | typeof ALL> = {
     "classes.manage",
     "announcements.view",
     "reports.view",
+    "admissions.manage",
   ],
   bursar: [
     "students.view",

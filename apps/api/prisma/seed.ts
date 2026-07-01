@@ -30,6 +30,7 @@ const PERMISSIONS: Array<[string, string]> = [
   ["reports.view.proprietor", "View the proprietor dashboard"],
   ["school.manage", "Manage school settings and structure"],
   ["skills.record", "Record skills & form remarks"],
+  ["admissions.manage", "Manage applicants and admissions workflow"],
 ];
 
 async function main() {
