@@ -31,17 +31,20 @@ export class SubjectsService {
     // IDOR guard: verify subject belongs to this school
     const existing = await this.prisma.subject.findFirst({ where: { id, schoolId } });
     if (!existing) throw new NotFoundException("Subject not found.");
-    if (dto.categoryId) {
-      await this.categories.validateForSchool(dto.categoryId, schoolId);
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.code !== undefined) data.code = dto.code;
+    if ("categoryId" in dto) {
+      if (dto.categoryId) {
+        // non-empty string → validate ownership then set
+        await this.categories.validateForSchool(dto.categoryId, schoolId);
+        data.categoryId = dto.categoryId;
+      } else {
+        // "" or null/undefined but key present → clear the category
+        data.categoryId = null;
+      }
     }
-    return this.prisma.subject.update({
-      where: { id },
-      data: {
-        ...(dto.name !== undefined ? { name: dto.name } : {}),
-        ...(dto.code !== undefined ? { code: dto.code } : {}),
-        ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
-      } as never,
-    });
+    return this.prisma.subject.update({ where: { id }, data: data as never });
   }
 
   async findAll() {

@@ -26,6 +26,52 @@ export class ReviewService {
     return { totals, anomalies: flagAnomalies(totals) };
   }
 
+  // Build a per-level-aware cohort: each student's total is computed using the type-ids for
+  // their class's level, so override classes are not penalised with mismatched type lookups.
+  private async cohortPerLevel(
+    schoolId: string,
+    subjectId: string,
+    termId: string,
+    academicYearId: string,
+  ) {
+    // Load assignments to get classId → classLevelId mapping
+    const assignments = await this.prisma.subjectAssignment.findMany({
+      where: { subjectId, academicYearId },
+      include: { class: { select: { id: true, classLevelId: true } } },
+    });
+
+    // Build classId → classLevelId map
+    const classLevelMap = new Map<string, string>(); // classId → classLevelId
+    for (const a of assignments) classLevelMap.set(a.classId, a.class.classLevelId);
+
+    // Resolve type-ids once per distinct classLevelId
+    const typeIdsByLevel = new Map<string, string[]>(); // classLevelId → typeIds
+    for (const classLevelId of new Set(classLevelMap.values())) {
+      const types = await resolveAssessmentTypes(this.prisma, schoolId, classLevelId);
+      typeIdsByLevel.set(classLevelId, types.map((t) => t.id));
+    }
+
+    // Load all scores for subject+term
+    const allRows = await this.prisma.score.findMany({ where: { schoolId, subjectId, termId } });
+
+    // Group by student; pick classLevelId from the score's classId
+    const byStudent = new Map<string, { classLevelId: string; cells: { assessmentTypeId: string; value: number }[] }>();
+    for (const r of allRows) {
+      const lvl = classLevelMap.get(r.classId) ?? "";
+      if (!byStudent.has(r.studentId)) byStudent.set(r.studentId, { classLevelId: lvl, cells: [] });
+      byStudent.get(r.studentId)!.cells.push({ assessmentTypeId: r.assessmentTypeId, value: r.value });
+    }
+
+    // Compute per-student totals with correct type-ids
+    // Cohort z-scores compare each student's raw total against their own class's format — cross-level totals are comparable because both are out-of-format, but max-score may differ between levels.
+    const totals = [...byStudent.entries()].map(([studentId, { classLevelId, cells }]) => ({
+      studentId,
+      total: computeSubjectResult(cells, typeIdsByLevel.get(classLevelId) ?? [], []).total,
+    }));
+
+    return { totals, anomalies: flagAnomalies(totals) };
+  }
+
   async classMaster(classId: string, termId: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const [klass, term] = await Promise.all([
@@ -104,15 +150,9 @@ export class ReviewService {
     if (!subject) throw new NotFoundException("Subject not found in this school.");
     if (!term) throw new NotFoundException("Term not found in this school.");
 
-    // For the cross-class cohort (anomaly/z-score), use school-default types so totals are
-    // computed on a consistent scale across all classes. Grade lookup is resolved per-class below.
-    const defaultTypes = await this.prisma.assessmentType.findMany({
-      where: { schoolId, classLevelId: null },
-      orderBy: { order: "asc" },
-    });
-    const cohortTypeIds = defaultTypes.map((t) => t.id);
-
-    const { totals, anomalies } = await this.cohort(schoolId, subjectId, termId, cohortTypeIds);
+    // For the cross-class cohort (anomaly/z-score), use per-level type-ids so students in
+    // override-format classes are not scored with mismatched ids. Grade lookup is resolved per-class below.
+    const { totals, anomalies } = await this.cohortPerLevel(schoolId, subjectId, termId, term.academicYearId);
     const totalByStudent = new Map(totals.map((t) => [t.studentId, t.total]));
     const subjectMean = totals.length ? totals.reduce((a, t) => a + t.total, 0) / totals.length : 0;
     const subjectStdDev = totals.length
