@@ -2,9 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { ApplicationStatus, Prisma } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
-import { nextApplicationNo } from "./sequence.util";
+import { nextAdmissionNo, nextApplicationNo } from "./sequence.util";
 import { ALLOWED_TRANSITIONS } from "./transitions";
-import { CreateApplicantDto, ListApplicantsQuery, TransitionDto, UpdateApplicantDto } from "./dto/admissions.dto";
+import { CreateApplicantDto, EnrollApplicantDto, ListApplicantsQuery, TransitionDto, UpdateApplicantDto } from "./dto/admissions.dto";
 
 @Injectable()
 export class AdmissionsService {
@@ -178,5 +178,75 @@ export class AdmissionsService {
       result[g.status] = g._count;
     }
     return result;
+  }
+
+  async enroll(id: string, dto: EnrollApplicantDto): Promise<{ studentId: string; admissionNo: string }> {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    return this.prisma.$transaction(async (tx) => {
+      const applicant = await tx.applicant.findFirst({ where: { id, schoolId } });
+      if (!applicant) throw new NotFoundException("Applicant not found.");
+      if (applicant.status !== "ACCEPTED" || applicant.convertedStudentId) {
+        throw new BadRequestException("Only an accepted applicant that hasn't been enrolled can be admitted.");
+      }
+      const [cls, term] = await Promise.all([
+        tx.class.findFirst({ where: { id: dto.classId, schoolId } }),
+        tx.term.findFirst({ where: { id: dto.termId, schoolId } }),
+      ]);
+      if (!cls || !term) throw new NotFoundException("Class or term not found in this school.");
+
+      const year = new Date().getFullYear();
+      const admissionNo = dto.admissionNo?.trim() || (await nextAdmissionNo(tx, schoolId, year));
+
+      const student = await tx.student.create({
+        data: {
+          schoolId,
+          admissionNo,
+          firstName: applicant.firstName,
+          middleName: applicant.middleName,
+          lastName: applicant.lastName,
+          gender: applicant.gender,
+          dateOfBirth: applicant.dateOfBirth,
+          stateOfOrigin: applicant.stateOfOrigin,
+        },
+      });
+
+      const [gFirst, gLast] = this.splitName(applicant.guardianName);
+      const parent = await tx.parent.upsert({
+        where: { schoolId_phone: { schoolId, phone: applicant.guardianPhone } },
+        create: {
+          schoolId,
+          phone: applicant.guardianPhone,
+          email: applicant.guardianEmail,
+          firstName: gFirst,
+          lastName: gLast,
+        },
+        update: {},
+      });
+      await tx.guardian.create({
+        data: {
+          studentId: student.id,
+          parentId: parent.id,
+          relationship: applicant.guardianRelation,
+          isPrimary: true,
+        },
+      });
+      await tx.enrollment.create({
+        data: { studentId: student.id, classId: dto.classId, termId: dto.termId },
+      });
+
+      await tx.applicant.update({
+        where: { id },
+        data: { status: "ENROLLED", decidedAt: new Date(), convertedStudentId: student.id },
+      });
+      return { studentId: student.id, admissionNo };
+    });
+  }
+
+  private splitName(full: string): [string, string] {
+    const parts = full.trim().split(/\s+/);
+    if (parts.length === 1) return [parts[0]!, parts[0]!];
+    const last = parts[parts.length - 1]!;
+    const first = parts.slice(0, parts.length - 1).join(" ");
+    return [first, last];
   }
 }
