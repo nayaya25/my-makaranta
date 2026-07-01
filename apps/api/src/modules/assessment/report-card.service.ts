@@ -3,7 +3,8 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { generateVerificationCode } from "./verification.util";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
-import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
+import { seedSkillDefaults } from "./skill-defaults";
+import { resolveGradeBoundaries } from "./format-resolution";
 
 @Injectable()
 export class ReportCardService {
@@ -171,10 +172,10 @@ export class ReportCardService {
       where: { schoolId, studentId, termId },
       include: {
         student: { select: { firstName: true, lastName: true, admissionNo: true } },
-        class: { select: { name: true } },
+        class: { select: { name: true, classLevelId: true } },
         term: { select: { number: true, startDate: true, endDate: true, academicYear: { select: { name: true } } } },
         release: { select: { releasedAt: true } },
-        entries: { include: { subject: { select: { name: true } } } },
+        entries: { include: { subject: { select: { name: true, categoryId: true, category: { select: { name: true, order: true } } } } } },
         verification: true,
       },
     });
@@ -206,7 +207,7 @@ export class ReportCardService {
 
     const [boundaries, classSize, skillDomains, scalePoints, termRemark, presentCount, absentCount, config] =
       await Promise.all([
-        this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } }),
+        resolveGradeBoundaries(this.prisma, schoolId, sheet.class.classLevelId),
         this.prisma.resultSheet.count({ where: { schoolId, classId: sheet.classId, termId } }),
         this.prisma.skillDomain.findMany({
           where: { schoolId, kind: "conduct" },
@@ -283,6 +284,36 @@ export class ReportCardService {
     const absent = absentCount;
     const total = present + absent;
 
+    // Build flat entry shape (shared between entries and subjectGroups)
+    type EntryShape = { subjectId: string; subjectName: string; total: number; grade: string };
+    const entryShape = (e: (typeof sheet.entries)[number]): EntryShape => ({
+      subjectId: e.subjectId,
+      subjectName: e.subject.name,
+      total: e.total,
+      grade: e.grade,
+    });
+
+    // Build subjectGroups: group by category, ordered by category.order (null last)
+    const categoryMap = new Map<
+      string | null,
+      { category: string | null; order: number; subjects: EntryShape[] }
+    >();
+    for (const e of sheet.entries) {
+      const cat = e.subject.category;
+      const key = cat ? cat.name : null;
+      if (!categoryMap.has(key)) {
+        categoryMap.set(key, {
+          category: key,
+          order: cat ? cat.order : Infinity,
+          subjects: [],
+        });
+      }
+      categoryMap.get(key)!.subjects.push(entryShape(e));
+    }
+    const subjectGroups = [...categoryMap.values()]
+      .sort((a, b) => a.order - b.order)
+      .map(({ category, subjects }) => ({ category, subjects }));
+
     return {
       mode: "standard" as const,
       school: {
@@ -294,7 +325,7 @@ export class ReportCardService {
       student: { name: `${sheet.student.firstName} ${sheet.student.lastName}`, admissionNo: sheet.student.admissionNo },
       className: sheet.class.name,
       term: { label: termLabel },
-      entries: sheet.entries.map((e) => ({ subjectId: e.subjectId, subjectName: e.subject.name, total: e.total, grade: e.grade })),
+      entries: sheet.entries.map(entryShape),
       average: sheet.average,
       position: sheet.position,
       classSize,
@@ -309,6 +340,7 @@ export class ReportCardService {
       },
       attendance: { present, absent, total },
       config,
+      subjectGroups,
     };
   }
 }

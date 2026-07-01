@@ -7,6 +7,7 @@ import { computePositions } from "./position.util";
 import { CorrectScoreDto } from "./dto/assessment.dto";
 import { generateVerificationCode } from "./verification.util";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
+import { resolveAssessmentTypes, resolveGradeBoundaries } from "./format-resolution";
 
 @Injectable()
 export class CorrectionService {
@@ -30,7 +31,8 @@ export class CorrectionService {
   async getCorrectableScores(classId: string, termId: string, studentId: string, subjectId: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
     await this.assertTarget(schoolId, classId, termId, studentId, subjectId);
-    const types = await this.prisma.assessmentType.findMany({ where: { schoolId }, orderBy: { order: "asc" } });
+    const klassForCorrect = await this.prisma.class.findFirst({ where: { id: classId, schoolId }, select: { classLevelId: true } });
+    const types = await resolveAssessmentTypes(this.prisma, schoolId, klassForCorrect!.classLevelId);
     const rows = await this.prisma.score.findMany({ where: { schoolId, studentId, subjectId, termId } });
     const byType = new Map(rows.map((r) => [r.assessmentTypeId, r.value]));
     return types.map((t) => ({ assessmentTypeId: t.id, name: t.name, maxScore: t.maxScore, value: byType.get(t.id) ?? null }));
@@ -78,13 +80,12 @@ export class CorrectionService {
     const oldTotal = oldEntry?.total ?? 0;
     const oldPosition = sheet.position;
 
-    const types = await this.prisma.assessmentType.findMany({ where: { schoolId }, orderBy: { order: "asc" } });
-    const typeIds = types.map((t) => t.id);
-    const boundaries = await this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } });
-
     // Snapshot data for refreshing public Verification records on re-rank (all tenant-scoped).
     const klass = await this.prisma.class.findFirst({ where: { id: dto.classId, schoolId } });
     const className = klass?.name ?? "";
+    const types = await resolveAssessmentTypes(this.prisma, schoolId, klass!.classLevelId);
+    const typeIds = types.map((t) => t.id);
+    const boundaries = await resolveGradeBoundaries(this.prisma, schoolId, klass!.classLevelId);
     const term = await this.prisma.term.findFirst({ where: { id: dto.termId, schoolId } });
     const ay = await this.prisma.academicYear.findFirst({ where: { id: term!.academicYearId, schoolId } });
     const termLabel = `${ay?.name ?? ""} · Term ${term!.number}`;

@@ -1,18 +1,63 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
-import { GradeBoundaryItemDto } from "./dto/assessment.dto";
+import { GradeBoundaryItemDto, CreateGradeBoundaryDto, ApplyAssessmentFormatsDto } from "./dto/assessment.dto";
 import { GRADE_TEMPLATES } from "./templates";
+import { resolveGradeBoundaries } from "./format-resolution";
 
 @Injectable()
 export class GradeBoundariesService {
   constructor(private prisma: PrismaService) {}
 
+  /** Validates that a classLevelId belongs to the school. Throws BadRequestException if not. */
+  private async validateClassLevel(schoolId: string, classLevelId: string): Promise<void> {
+    const level = await this.prisma.classLevel.findFirst({ where: { id: classLevelId, schoolId } });
+    if (!level) {
+      throw new BadRequestException(`classLevelId "${classLevelId}" does not belong to this school.`);
+    }
+  }
+
   // Explicitly scope every read/delete by schoolId — do NOT rely on the $use middleware
   // (unreliable in the service-level test context and inside an array $transaction; proven in Task 5).
-  list() {
+
+  /**
+   * List grade boundaries for the school.
+   * If classLevelId is provided, use the T2 resolver (overrides → defaults).
+   * Each returned row is augmented with isDefault: boolean (true when classLevelId is null).
+   */
+  async list(classLevelId?: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
-    return this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } });
+    if (classLevelId) {
+      await this.validateClassLevel(schoolId, classLevelId);
+      const rows = await resolveGradeBoundaries(this.prisma, schoolId, classLevelId);
+      return rows.map((r) => ({ ...r, isDefault: r.classLevelId === null }));
+    }
+    const rows = await this.prisma.gradeBoundary.findMany({
+      where: { schoolId, classLevelId: null },
+      orderBy: { minScore: "desc" },
+    });
+    return rows.map((r) => ({ ...r, isDefault: true }));
+  }
+
+  /**
+   * Create a single grade boundary row.
+   * classLevelId is optional; when provided, it must belong to the school.
+   */
+  async create(dto: CreateGradeBoundaryDto) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    if (dto.classLevelId) {
+      await this.validateClassLevel(schoolId, dto.classLevelId);
+    }
+    return this.prisma.gradeBoundary.create({
+      data: {
+        schoolId,
+        grade: dto.grade,
+        minScore: dto.minScore,
+        remark: dto.remark,
+        order: dto.order,
+        classLevelId: dto.classLevelId ?? null,
+      },
+    });
   }
 
   async replace(boundaries: GradeBoundaryItemDto[]) {
@@ -49,5 +94,49 @@ export class GradeBoundariesService {
 
   applyTemplate(template: "WAEC" | "NECO") {
     return this.replace(GRADE_TEMPLATES[template]);
+  }
+
+  /**
+   * Apply (clone) a resolved grade-boundary set from source level → each target level.
+   * sourceClassLevelId=null means use the school defaults.
+   * Validates all target level IDs belong to the school before starting the transaction.
+   */
+  async apply(dto: ApplyAssessmentFormatsDto) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+
+    // Validate all targets belong to the school
+    for (const targetId of dto.targetClassLevelIds) {
+      await this.validateClassLevel(schoolId, targetId);
+    }
+
+    // Validate source belongs to the school (if provided)
+    if (dto.sourceClassLevelId) {
+      await this.validateClassLevel(schoolId, dto.sourceClassLevelId);
+    }
+
+    // Resolve the source rows
+    const sourceRows = dto.sourceClassLevelId
+      ? await resolveGradeBoundaries(this.prisma, schoolId, dto.sourceClassLevelId)
+      : await this.prisma.gradeBoundary.findMany({
+          where: { schoolId, classLevelId: null },
+          orderBy: { minScore: "desc" },
+        });
+
+    // For each target: delete existing overrides then clone source rows
+    const ops = dto.targetClassLevelIds.flatMap((targetId) => [
+      this.prisma.gradeBoundary.deleteMany({ where: { schoolId, classLevelId: targetId } }),
+      this.prisma.gradeBoundary.createMany({
+        data: sourceRows.map((r) => ({
+          schoolId,
+          grade: r.grade,
+          minScore: r.minScore,
+          remark: r.remark,
+          order: r.order,
+          classLevelId: targetId,
+        })),
+      }),
+    ]);
+
+    await this.prisma.$transaction(ops);
   }
 }

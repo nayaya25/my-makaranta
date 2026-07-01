@@ -8,7 +8,8 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { PasswordService } from "../../core/auth/password.service";
 import { validateSlug } from "../../core/tenant/slug";
 import { SignupDto } from "./dto/signup.dto";
-import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
+import { seedSkillDefaults } from "../assessment/skill-defaults";
+import { seedSubjectCategories } from "../structure/subject-category-defaults";
 
 @Injectable()
 export class SignupService {
@@ -120,6 +121,7 @@ export class SignupService {
     });
 
     await seedSkillDefaults(this.prisma, result.schoolId);
+    await seedSubjectCategories(this.prisma, result.schoolId);
     return result;
   }
 }

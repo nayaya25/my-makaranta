@@ -3,7 +3,7 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import type { CreateSkillDomainDto, UpdateSkillDomainDto, CreateSkillItemDto, UpdateSkillItemDto, ScalePointDto, SaveSkillRatingsDto, SkillKind } from "./dto/skills.dto";
 import { assertNotReleased } from "./release-lock.util";
-import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
+import { seedSkillDefaults } from "./skill-defaults";
 import { seedEarlyYearsDefaults } from "./early-years-defaults";
 
 @Injectable()

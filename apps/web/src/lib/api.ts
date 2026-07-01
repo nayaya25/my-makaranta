@@ -137,6 +137,12 @@ export interface Subject {
   id: string;
   name: string;
   code: string;
+  categoryId?: string | null;
+}
+
+export interface SubjectCategory {
+  id: string;
+  name: string;
 }
 
 export interface Student {
@@ -215,6 +221,8 @@ export interface AssessmentType {
   name: string;
   maxScore: number;
   order: number;
+  isDefault?: boolean;
+  classLevelId?: string | null;
 }
 
 export interface GradeBoundary {
@@ -223,6 +231,8 @@ export interface GradeBoundary {
   minScore: number;
   remark: string;
   order: number;
+  isDefault?: boolean;
+  classLevelId?: string | null;
 }
 
 export interface SubjectAssignment {
@@ -368,6 +378,10 @@ export interface ReportCard {
   className: string;
   term: { label: string };
   entries: Array<{ subjectId: string; subjectName: string; total: number; grade: string }>;
+  subjectGroups?: Array<{
+    category: string | null;
+    subjects: Array<{ subjectId: string; subjectName: string; total: number; grade: string }>;
+  }>;
   average: number;
   position: number;
   classSize: number;
@@ -688,6 +702,15 @@ export const api = {
   listSubjects: () => authedRequest<Subject[]>("/v1/subjects"),
   createSubject: (data: { name: string; code: string }) =>
     authedRequest<Subject>("/v1/subjects", { method: "POST", body: JSON.stringify(data) }),
+  updateSubject: (id: string, data: { name?: string; code?: string; categoryId?: string | null }) =>
+    authedRequest<Subject>(`/v1/subjects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  listSubjectCategories: () => authedRequest<SubjectCategory[]>("/v1/subject-categories"),
+  createSubjectCategory: (data: { name: string }) =>
+    authedRequest<SubjectCategory>("/v1/subject-categories", { method: "POST", body: JSON.stringify(data) }),
+  updateSubjectCategory: (id: string, data: { name: string }) =>
+    authedRequest<SubjectCategory>(`/v1/subject-categories/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteSubjectCategory: (id: string) =>
+    authedRequest<{ deleted: boolean }>(`/v1/subject-categories/${id}`, { method: "DELETE" }),
 
   importStudents: (rows: ImportRow[]) =>
     authedRequest<{ jobId: string }>("/v1/imports/students", {
@@ -799,6 +822,43 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ template }),
     }),
+
+  // AC-2: per-level assessment format helpers
+  listAssessmentTypes: (classLevelId?: string) =>
+    authedRequest<AssessmentType[]>(
+      classLevelId
+        ? `/v1/assessment/types?classLevelId=${encodeURIComponent(classLevelId)}`
+        : "/v1/assessment/types",
+    ),
+  createAssessmentType: (body: { name: string; maxScore: number; order: number; classLevelId?: string }) =>
+    authedRequest<AssessmentType>("/v1/assessment/types", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  applyAssessmentFormat: (body: { sourceClassLevelId: string | null; targetClassLevelIds: string[] }) =>
+    authedRequest<{ applied: number }>("/v1/assessment/types/apply", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  // AC-2: per-level grade boundary helpers
+  listGradeBoundaries: (classLevelId?: string) =>
+    authedRequest<GradeBoundary[]>(
+      classLevelId
+        ? `/v1/assessment/grade-boundaries?classLevelId=${encodeURIComponent(classLevelId)}`
+        : "/v1/assessment/grade-boundaries",
+    ),
+  createGradeBoundary: (body: { grade: string; minScore: number; remark: string; order: number; classLevelId?: string }) =>
+    authedRequest<GradeBoundary>("/v1/assessment/grade-boundaries", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  applyGradeFormat: (body: { sourceClassLevelId: string | null; targetClassLevelIds: string[] }) =>
+    authedRequest<{ applied: number }>("/v1/assessment/grade-boundaries/apply", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   listSubjectAssignments: (classId: string, academicYearId: string) =>
     authedRequest<SubjectAssignment[]>(
       `/v1/assessment/subject-assignments?classId=${classId}&academicYearId=${academicYearId}`,

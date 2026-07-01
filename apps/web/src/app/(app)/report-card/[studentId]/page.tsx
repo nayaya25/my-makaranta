@@ -172,13 +172,41 @@ function ClassicLayout({ rc, qr, cfg }: { rc: ReportCard; qr: string; cfg: Repor
             </tr>
           </thead>
           <tbody>
-            {rc.entries.map((e, i) => (
-              <tr key={e.subjectId} className={i % 2 === 0 ? "bg-transparent" : "bg-ink-1000/[0.02] dark:bg-white/[0.02] print:bg-gray-50"}>
-                <td className="py-1.5 px-3 border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.subjectName}</td>
-                <td className="py-1.5 px-3 text-center tabular-nums font-medium border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.total}</td>
-                <td className="py-1.5 px-3 text-center border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.grade || "—"}</td>
-              </tr>
-            ))}
+            {rc.subjectGroups && rc.subjectGroups.length > 0 ? (
+              (() => {
+                const hasNonNull = rc.subjectGroups.some((g) => g.category !== null);
+                let rowIdx = 0;
+                return rc.subjectGroups.map((group) => (
+                  <>
+                    {(group.category !== null || hasNonNull) && (
+                      <tr key={`cat-${group.category ?? "null"}`}>
+                        <td colSpan={3} className="py-1 px-3 text-[0.65rem] font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400 print:text-gray-500 bg-ink-1000/[0.03] dark:bg-white/[0.03] print:bg-gray-50">
+                          {group.category ?? "Subjects"}
+                        </td>
+                      </tr>
+                    )}
+                    {group.subjects.map((e) => {
+                      const i = rowIdx++;
+                      return (
+                        <tr key={e.subjectId} className={i % 2 === 0 ? "bg-transparent" : "bg-ink-1000/[0.02] dark:bg-white/[0.02] print:bg-gray-50"}>
+                          <td className="py-1.5 px-3 border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.subjectName}</td>
+                          <td className="py-1.5 px-3 text-center tabular-nums font-medium border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.total}</td>
+                          <td className="py-1.5 px-3 text-center border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.grade || "—"}</td>
+                        </tr>
+                      );
+                    })}
+                  </>
+                ));
+              })()
+            ) : (
+              rc.entries.map((e, i) => (
+                <tr key={e.subjectId} className={i % 2 === 0 ? "bg-transparent" : "bg-ink-1000/[0.02] dark:bg-white/[0.02] print:bg-gray-50"}>
+                  <td className="py-1.5 px-3 border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.subjectName}</td>
+                  <td className="py-1.5 px-3 text-center tabular-nums font-medium border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.total}</td>
+                  <td className="py-1.5 px-3 text-center border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">{e.grade || "—"}</td>
+                </tr>
+              ))
+            )}
           </tbody>
           <tfoot>
             <tr className="bg-brand-600/5 print:bg-teal-50 font-semibold">
@@ -297,13 +325,37 @@ function ModernLayout({ rc, qr, cfg }: { rc: ReportCard; qr: string; cfg: Report
                 </tr>
               </thead>
               <tbody>
-                {rc.entries.map((e) => (
-                  <tr key={e.subjectId} className="border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">
-                    <td className="py-1.5 pr-3 text-ink-700 dark:text-ink-300 print:text-gray-700">{e.subjectName}</td>
-                    <td className="py-1.5 text-center tabular-nums font-medium">{e.total}</td>
-                    <td className="py-1.5 text-center text-brand-600 dark:text-brand-300 print:text-teal-700 font-semibold">{e.grade || "—"}</td>
-                  </tr>
-                ))}
+                {rc.subjectGroups && rc.subjectGroups.length > 0 ? (
+                  (() => {
+                    const hasNonNull = rc.subjectGroups.some((g) => g.category !== null);
+                    return rc.subjectGroups.map((group) => (
+                      <>
+                        {(group.category !== null || hasNonNull) && (
+                          <tr key={`cat-${group.category ?? "null"}`}>
+                            <td colSpan={3} className="py-1 px-1 text-[0.65rem] font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400 print:text-gray-500 bg-ink-1000/[0.03] dark:bg-white/[0.03] print:bg-gray-50">
+                              {group.category ?? "Subjects"}
+                            </td>
+                          </tr>
+                        )}
+                        {group.subjects.map((e) => (
+                          <tr key={e.subjectId} className="border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">
+                            <td className="py-1.5 pr-3 text-ink-700 dark:text-ink-300 print:text-gray-700">{e.subjectName}</td>
+                            <td className="py-1.5 text-center tabular-nums font-medium">{e.total}</td>
+                            <td className="py-1.5 text-center text-brand-600 dark:text-brand-300 print:text-teal-700 font-semibold">{e.grade || "—"}</td>
+                          </tr>
+                        ))}
+                      </>
+                    ));
+                  })()
+                ) : (
+                  rc.entries.map((e) => (
+                    <tr key={e.subjectId} className="border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-100">
+                      <td className="py-1.5 pr-3 text-ink-700 dark:text-ink-300 print:text-gray-700">{e.subjectName}</td>
+                      <td className="py-1.5 text-center tabular-nums font-medium">{e.total}</td>
+                      <td className="py-1.5 text-center text-brand-600 dark:text-brand-300 print:text-teal-700 font-semibold">{e.grade || "—"}</td>
+                    </tr>
+                  ))
+                )}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-brand-600/30 print:border-teal-300">
@@ -407,13 +459,37 @@ function CompactLayout({ rc, qr, cfg }: { rc: ReportCard; qr: string; cfg: Repor
           </tr>
         </thead>
         <tbody>
-          {rc.entries.map((e) => (
-            <tr key={e.subjectId} className="border-b border-ink-1000/[0.04] dark:border-white/[0.04] print:border-gray-100">
-              <td className="py-0.5 px-2">{e.subjectName}</td>
-              <td className="py-0.5 px-2 text-center tabular-nums">{e.total}</td>
-              <td className="py-0.5 px-2 text-center font-semibold text-brand-600 dark:text-brand-300 print:text-teal-700">{e.grade || "—"}</td>
-            </tr>
-          ))}
+          {rc.subjectGroups && rc.subjectGroups.length > 0 ? (
+            (() => {
+              const hasNonNull = rc.subjectGroups.some((g) => g.category !== null);
+              return rc.subjectGroups.map((group) => (
+                <>
+                  {(group.category !== null || hasNonNull) && (
+                    <tr key={`cat-${group.category ?? "null"}`}>
+                      <td colSpan={3} className="py-0.5 px-2 text-[0.6rem] font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400 print:text-gray-500 bg-ink-1000/[0.03] dark:bg-white/[0.03] print:bg-gray-50">
+                        {group.category ?? "Subjects"}
+                      </td>
+                    </tr>
+                  )}
+                  {group.subjects.map((e) => (
+                    <tr key={e.subjectId} className="border-b border-ink-1000/[0.04] dark:border-white/[0.04] print:border-gray-100">
+                      <td className="py-0.5 px-2">{e.subjectName}</td>
+                      <td className="py-0.5 px-2 text-center tabular-nums">{e.total}</td>
+                      <td className="py-0.5 px-2 text-center font-semibold text-brand-600 dark:text-brand-300 print:text-teal-700">{e.grade || "—"}</td>
+                    </tr>
+                  ))}
+                </>
+              ));
+            })()
+          ) : (
+            rc.entries.map((e) => (
+              <tr key={e.subjectId} className="border-b border-ink-1000/[0.04] dark:border-white/[0.04] print:border-gray-100">
+                <td className="py-0.5 px-2">{e.subjectName}</td>
+                <td className="py-0.5 px-2 text-center tabular-nums">{e.total}</td>
+                <td className="py-0.5 px-2 text-center font-semibold text-brand-600 dark:text-brand-300 print:text-teal-700">{e.grade || "—"}</td>
+              </tr>
+            ))
+          )}
         </tbody>
         <tfoot>
           <tr className="bg-ink-1000/[0.03] dark:bg-white/[0.03] print:bg-gray-50 font-semibold">
