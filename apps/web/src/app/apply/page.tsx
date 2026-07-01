@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button, Field, Input, Select } from "@mymakaranta/ui";
 import { GraduationCap, CheckCircle2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api";
@@ -125,23 +125,25 @@ export default function ApplyPage() {
   }, []);
 
   // Fetch admission meta once we have the slug.
-  useEffect(() => {
+  const fetchMeta = useCallback(async () => {
     if (!slug) return;
     setMetaState("loading");
-    api
-      .publicAdmissionMeta(slug)
-      .then((data) => {
-        setMeta(data);
-        setMetaState("ready");
-      })
-      .catch((err) => {
-        if (err instanceof ApiError && err.status === 404) {
-          setMetaState("not-found");
-        } else {
-          setMetaState("error");
-        }
-      });
+    try {
+      const data = await api.publicAdmissionMeta(slug);
+      setMeta(data);
+      setMetaState("ready");
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setMetaState("not-found");
+      } else {
+        setMetaState("error");
+      }
+    }
   }, [slug]);
+
+  useEffect(() => {
+    fetchMeta();
+  }, [fetchMeta]);
 
   function set<K extends keyof FormData>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -232,7 +234,7 @@ export default function ApplyPage() {
             </p>
             <button
               type="button"
-              onClick={() => slug && setMetaState("loading")}
+              onClick={fetchMeta}
               className="mt-4 text-small font-medium text-brand-500 hover:text-brand-700"
             >
               Retry
