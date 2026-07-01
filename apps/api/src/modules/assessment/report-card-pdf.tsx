@@ -96,6 +96,7 @@ export interface StandardReportCardPayload {
   remarks: { formTeacher: string | null; principal: string | null };
   attendance: { present: number; absent: number; total: number };
   config: ReportCardConfig;
+  subjectGroups: { category: string | null; subjects: ReportCardEntry[] }[];
 }
 
 // Union type — renderReportCardPdf accepts either

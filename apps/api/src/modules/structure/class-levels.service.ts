@@ -1,5 +1,4 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { seedEarlyYearsDefaults } from "../assessment/early-years-defaults";
@@ -37,7 +36,7 @@ export class ClassLevelsService {
 
     // Seed EY defaults whenever isEarlyYears is being set to true (idempotent)
     if (dto.isEarlyYears === true) {
-      await seedEarlyYearsDefaults(this.prisma as unknown as PrismaClient, schoolId);
+      await seedEarlyYearsDefaults(this.prisma, schoolId);
     }
 
     return this.prisma.classLevel.findFirst({ where: { id, schoolId } });
