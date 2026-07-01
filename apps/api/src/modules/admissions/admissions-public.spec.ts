@@ -43,7 +43,7 @@ describe("AdmissionsService — public methods", () => {
   let otherAcademicYearId: string;
 
   beforeAll(async () => {
-    const ts = Date.now();
+    const ts = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     schoolSlug = `pub-adm-test-${ts}`;
     otherSchoolSlug = `pub-adm-test-${ts}-other`;
 
