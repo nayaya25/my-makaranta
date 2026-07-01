@@ -15,6 +15,73 @@ import {
 } from "@/lib/api";
 import { resolveGrade } from "@/lib/grade";
 
+/* ---------------- Early Years toggle panel ---------------- */
+function ClassLevelsEarlyYearsPanel({
+  classLevels,
+  setClassLevels,
+}: {
+  classLevels: ClassLevel[];
+  setClassLevels: React.Dispatch<React.SetStateAction<ClassLevel[]>>;
+}) {
+  const [toggling, setToggling] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const toggle = async (level: ClassLevel) => {
+    setToggling(level.id);
+    setMsg(null);
+    const next = !level.isEarlyYears;
+    try {
+      const updated = await api.updateClassLevel(level.id, { isEarlyYears: next });
+      setClassLevels((prev) => prev.map((l) => (l.id === level.id ? { ...l, isEarlyYears: updated.isEarlyYears } : l)));
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not update class level.");
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  if (classLevels.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Class levels — Early Years</span>
+      </CardHeader>
+      <CardBody>
+        <p className="text-caption text-ink-500 mb-3">
+          Early Years classes use developmental assessment instead of the numeric gradebook.
+        </p>
+        <div className="flex flex-col gap-2">
+          {classLevels.map((level) => (
+            <label
+              key={level.id}
+              className="flex items-center justify-between gap-3 border-b border-ink-100 dark:border-white/10 pb-2 cursor-pointer"
+            >
+              <span className="text-small text-ink-1000 dark:text-ink-100">{level.name}</span>
+              <div className="flex items-center gap-2">
+                {level.isEarlyYears && (
+                  <span className="text-caption text-brand-600 bg-brand-50 dark:bg-brand-900/20 px-2 py-0.5 rounded-full">
+                    Early Years
+                  </span>
+                )}
+                <input
+                  type="checkbox"
+                  checked={!!level.isEarlyYears}
+                  disabled={toggling === level.id}
+                  onChange={() => void toggle(level)}
+                  className="h-4 w-4"
+                  aria-label={`Toggle Early Years for ${level.name}`}
+                />
+              </div>
+            </label>
+          ))}
+        </div>
+        {msg && <p className="mt-2 text-caption text-error">{msg}</p>}
+      </CardBody>
+    </Card>
+  );
+}
+
 export default function AssessmentSettingsPage() {
   const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
   const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
@@ -85,6 +152,7 @@ export default function AssessmentSettingsPage() {
           </CardBody>
         </Card>
 
+        <ClassLevelsEarlyYearsPanel classLevels={classLevels} setClassLevels={setClassLevels} />
         <GradeBoundariesPanel classLevelId={selectedLevelId} classLevels={classLevels} />
         <AssessmentTypesPanel classLevelId={selectedLevelId} classLevels={classLevels} />
         <ApplyToLevelsPanel classLevelId={selectedLevelId} classLevels={classLevels} />
