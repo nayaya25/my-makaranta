@@ -63,6 +63,21 @@ enum PaymentChannel {
   CASH
 }
 
+enum ApplicationStatus {
+  APPLIED
+  UNDER_REVIEW
+  OFFERED
+  ACCEPTED
+  ENROLLED
+  REJECTED
+  WAITLISTED
+}
+
+enum ApplicantSource {
+  PUBLIC
+  STAFF
+}
+
 model School {
   id                 String               @id @default(cuid())
   name               String
@@ -113,6 +128,7 @@ model School {
   termRemarks            TermRemark[]
   reportCardConfig       ReportCardConfig?
   subjectCategories      SubjectCategory[]
+  applicants             Applicant[]
 }
 
 model Conversation {
@@ -154,6 +170,7 @@ model AcademicYear {
   endDate            DateTime
   terms              Term[]
   subjectAssignments SubjectAssignment[]
+  applicants         Applicant[]
 
   @@unique([schoolId, name])
 }
@@ -188,6 +205,7 @@ model ClassLevel {
   invoices        Invoice[]
   assessmentTypes AssessmentType[]
   gradeBoundaries GradeBoundary[]
+  applicants      Applicant[]
 
   @@unique([schoolId, name])
 }
@@ -276,6 +294,7 @@ model Student {
   resultSheets  ResultSheet[]
   corrections   Correction[]
   invoices      Invoice[]
+  applicant     Applicant?
 
   @@unique([schoolId, admissionNo])
 }
@@ -348,6 +367,40 @@ model Enrollment {
   term      Term    @relation(fields: [termId], references: [id])
 
   @@unique([studentId, termId])
+}
+
+model Applicant {
+  id                  String            @id @default(cuid())
+  schoolId            String
+  school              School            @relation(fields: [schoolId], references: [id])
+  applicationNo       String
+  firstName           String
+  middleName          String?
+  lastName            String
+  gender              Gender
+  dateOfBirth         DateTime
+  stateOfOrigin       String?
+  desiredClassLevelId String
+  desiredClassLevel   ClassLevel        @relation(fields: [desiredClassLevelId], references: [id])
+  academicYearId      String
+  academicYear        AcademicYear      @relation(fields: [academicYearId], references: [id])
+  guardianName        String
+  guardianPhone       String
+  guardianEmail       String?
+  guardianRelation    GuardianRelation
+  previousSchool      String?
+  source              ApplicantSource
+  status              ApplicationStatus @default(APPLIED)
+  reviewNote          String?
+  rejectionReason     String?
+  decidedAt           DateTime?
+  convertedStudentId  String?           @unique
+  convertedStudent    Student?          @relation(fields: [convertedStudentId], references: [id])
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([schoolId, applicationNo])
+  @@index([schoolId, status])
 }
 
 // === Auth & RBAC ===
