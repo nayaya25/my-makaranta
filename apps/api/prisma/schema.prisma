@@ -112,6 +112,7 @@ model School {
   skillRatings           SkillRating[]
   termRemarks            TermRemark[]
   reportCardConfig       ReportCardConfig?
+  subjectCategories      SubjectCategory[]
 }
 
 model Conversation {
@@ -211,6 +212,7 @@ model Class {
 model SubjectCategory {
   id       String    @id @default(cuid())
   schoolId String
+  school   School    @relation(fields: [schoolId], references: [id])
   name     String
   order    Int       @default(0)
   subjects Subject[]

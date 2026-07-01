@@ -2,8 +2,7 @@
  * Integration test: per-level assessment formats + SubjectCategory (AC-2 Task 1)
  *
  * Run:
- *   DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/my_makaranta_test?schema=public' \
- *   pnpm exec jest per-level-model --runInBand
+ *   DATABASE_URL=<set in env or .env.test> pnpm exec jest per-level-model --runInBand
  */
 import { PrismaClient } from "@prisma/client";
 
