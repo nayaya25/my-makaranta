@@ -97,6 +97,11 @@ export class AssessmentTypesService {
       await this.validateClassLevel(schoolId, targetId);
     }
 
+    // Validate source belongs to the school (if provided)
+    if (dto.sourceClassLevelId) {
+      await this.validateClassLevel(schoolId, dto.sourceClassLevelId);
+    }
+
     // Resolve the source rows
     const sourceRows = dto.sourceClassLevelId
       ? await resolveAssessmentTypes(this.prisma, schoolId, dto.sourceClassLevelId)

@@ -205,6 +205,14 @@ describe("GradeBoundariesService.apply", () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it("throws BadRequestException when sourceClassLevelId belongs to a foreign school", async () => {
+    await expect(
+      withSchool(schoolId, () =>
+        service.apply({ sourceClassLevelId: foreignLevelId, targetClassLevelIds: [applyTarget] }),
+      ),
+    ).rejects.toThrow(BadRequestException);
+  });
+
   it("can clone from a level override (sourceClassLevelId=L1) to another level", async () => {
     await withSchool(schoolId, () =>
       service.apply({ sourceClassLevelId: L1, targetClassLevelIds: [applyTarget] }),
