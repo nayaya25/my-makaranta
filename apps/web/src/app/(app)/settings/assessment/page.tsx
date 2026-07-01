@@ -5,12 +5,28 @@ import { Button, Card, CardBody, CardHeader, PageContainer, PageHeader, Spinner,
 import {
   api,
   ApiError,
+  type AssessmentType,
+  type GradeBoundary,
+  type ClassLevel,
   type SubjectAssignment,
   type Class,
 } from "@/lib/api";
 import { resolveGrade } from "@/lib/grade";
 
 export default function AssessmentSettingsPage() {
+  const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
+  const [selectedLevelId, setSelectedLevelId] = useState<string | null>(null);
+  const [levelsLoading, setLevelsLoading] = useState(true);
+
+  useEffect(() => {
+    void api.listClassLevels()
+      .then((levels) => {
+        setClassLevels(levels);
+      })
+      .catch(() => {})
+      .finally(() => setLevelsLoading(false));
+  }, []);
+
   return (
     <PageContainer>
       <PageHeader
@@ -18,12 +34,135 @@ export default function AssessmentSettingsPage() {
         description="Configure score components, grade boundaries, and teacher–subject assignments."
       />
       <div className="flex flex-col gap-6">
-        <GradeBoundariesPanel />
-        <AssessmentTypesPanel />
+        {/* Level selector */}
+        <Card>
+          <CardBody>
+            <div className="flex flex-col gap-2">
+              <span className="text-small font-semibold text-ink-700 dark:text-ink-300">
+                Editing format for
+              </span>
+              {levelsLoading ? (
+                <Spinner />
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedLevelId(null)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-small border transition-colors",
+                      selectedLevelId === null
+                        ? "bg-brand-600 text-white border-brand-600"
+                        : "border-ink-300 dark:border-white/15 text-ink-700 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-white/5",
+                    )}
+                  >
+                    Default (all levels)
+                  </button>
+                  {classLevels.map((level) => (
+                    <button
+                      key={level.id}
+                      type="button"
+                      onClick={() => setSelectedLevelId(level.id)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-small border transition-colors",
+                        selectedLevelId === level.id
+                          ? "bg-brand-600 text-white border-brand-600"
+                          : "border-ink-300 dark:border-white/15 text-ink-700 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-white/5",
+                      )}
+                    >
+                      {level.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedLevelId !== null && (
+                <p className="text-caption text-ink-500">
+                  Rows marked &ldquo;Default&rdquo; are inherited from the school-wide format. Click &ldquo;Override for this level&rdquo; to create a level-specific row.
+                </p>
+              )}
+            </div>
+          </CardBody>
+        </Card>
+
+        <GradeBoundariesPanel classLevelId={selectedLevelId} classLevels={classLevels} />
+        <AssessmentTypesPanel classLevelId={selectedLevelId} classLevels={classLevels} />
+        <ApplyToLevelsPanel classLevelId={selectedLevelId} classLevels={classLevels} />
         <CorrectionsPanel />
         <SubjectAssignmentsPanel />
       </div>
     </PageContainer>
+  );
+}
+
+/* ---------------- Apply-to-levels panel ---------------- */
+function ApplyToLevelsPanel({
+  classLevelId,
+  classLevels,
+}: {
+  classLevelId: string | null;
+  classLevels: ClassLevel[];
+}) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [applying, setApplying] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  const toggleLevel = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const applyAll = async () => {
+    if (selected.length === 0) return;
+    setApplying(true);
+    setMsg(null);
+    try {
+      const [at, gb] = await Promise.all([
+        api.applyAssessmentFormat({ sourceClassLevelId: classLevelId, targetClassLevelIds: selected }),
+        api.applyGradeFormat({ sourceClassLevelId: classLevelId, targetClassLevelIds: selected }),
+      ]);
+      setMsg(`Applied: ${at.applied} assessment type(s) and ${gb.applied} grade boundary/ies.`);
+      setSelected([]);
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not apply format.");
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const availableLevels = classLevels.filter((l) => l.id !== classLevelId);
+  if (availableLevels.length === 0) return null;
+
+  const sourceLabel = classLevelId
+    ? (classLevels.find((l) => l.id === classLevelId)?.name ?? "selected level")
+    : "Default";
+
+  return (
+    <Card>
+      <CardHeader>
+        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Apply format to other levels</span>
+      </CardHeader>
+      <CardBody>
+        <p className="text-small text-ink-500 mb-3">
+          Copy the <strong>{sourceLabel}</strong> format (assessment components + grade boundaries) to the selected levels, replacing their existing rows.
+        </p>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {availableLevels.map((level) => (
+            <label key={level.id} className="flex items-center gap-1.5 text-small text-ink-700 dark:text-ink-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.includes(level.id)}
+                onChange={() => toggleLevel(level.id)}
+                className="h-4 w-4"
+              />
+              {level.name}
+            </label>
+          ))}
+        </div>
+        <div className="flex items-center gap-3">
+          <Button onClick={applyAll} disabled={selected.length === 0 || applying}>
+            {applying ? "Applying…" : `Apply to ${selected.length > 0 ? selected.length : ""} selected level${selected.length !== 1 ? "s" : ""}`}
+          </Button>
+          {msg && <span className="text-caption text-ink-500">{msg}</span>}
+        </div>
+      </CardBody>
+    </Card>
   );
 }
 
@@ -71,38 +210,49 @@ function CorrectionsPanel() {
 }
 
 /* ---------------- Grade boundaries ---------------- */
-function GradeBoundariesPanel() {
-  const [rows, setRows] = useState<Array<{ grade: string; minScore: number; remark: string }>>([]);
+function GradeBoundariesPanel({
+  classLevelId,
+  classLevels,
+}: {
+  classLevelId: string | null;
+  classLevels: ClassLevel[];
+}) {
+  const [rows, setRows] = useState<GradeBoundary[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setMsg(null);
     try {
-      const data = await api.getGradeBoundaries();
-      setRows(data.map((b) => ({ grade: b.grade, minScore: b.minScore, remark: b.remark })));
+      const data = classLevelId
+        ? await api.listGradeBoundaries(classLevelId)
+        : await api.getGradeBoundaries();
+      setRows(data);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [classLevelId]);
+
   useEffect(() => { void load(); }, [load]);
 
   const applyTemplate = async (template: "WAEC" | "NECO") => {
     setMsg(null);
     try {
       const data = await api.applyGradeTemplate(template);
-      setRows(data.map((b) => ({ grade: b.grade, minScore: b.minScore, remark: b.remark })));
+      setRows(data);
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : "Could not apply template.");
     }
   };
 
-  const save = async () => {
+  // Default view: bulk-replace via PUT
+  const saveDefault = async () => {
     setSaving(true);
     setMsg(null);
     try {
-      await api.putGradeBoundaries(rows.map((r, i) => ({ ...r, order: i })));
+      await api.putGradeBoundaries(rows.map((r, i) => ({ grade: r.grade, minScore: r.minScore, remark: r.remark, order: i })));
       setMsg("Saved.");
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : "Could not save.");
@@ -111,90 +261,209 @@ function GradeBoundariesPanel() {
     }
   };
 
-  const update = (i: number, patch: Partial<{ grade: string; minScore: number; remark: string }>) =>
+  // Level view: save a specific row via PATCH
+  const saveRow = async (row: GradeBoundary) => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api.updateGradeBoundary(row.id, { grade: row.grade, minScore: row.minScore, remark: row.remark });
+      setMsg("Saved.");
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteRow = async (id: string) => {
+    setMsg(null);
+    try {
+      await api.deleteGradeBoundary(id);
+      await load();
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not delete.");
+    }
+  };
+
+  const overrideRow = async (row: GradeBoundary) => {
+    if (!classLevelId) return;
+    setMsg(null);
+    try {
+      await api.createGradeBoundary({
+        grade: row.grade,
+        minScore: row.minScore,
+        remark: row.remark,
+        order: row.order,
+        classLevelId,
+      });
+      await load();
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not create override.");
+    }
+  };
+
+  const addRow = async () => {
+    if (classLevelId) {
+      setMsg(null);
+      try {
+        await api.createGradeBoundary({ grade: "", minScore: 0, remark: "", order: rows.length, classLevelId });
+        await load();
+      } catch (e) {
+        setMsg(e instanceof ApiError ? e.message : "Could not add boundary.");
+      }
+    } else {
+      setRows((prev) => [...prev, { id: `new-${Date.now()}`, grade: "", minScore: 0, remark: "", order: prev.length }]);
+    }
+  };
+
+  const updateLocal = (i: number, patch: Partial<GradeBoundary>) =>
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  const removeRow = (i: number) => setRows((prev) => prev.filter((_, idx) => idx !== i));
-  const addRow = () => setRows((prev) => [...prev, { grade: "", minScore: 0, remark: "" }]);
+
+  const removeLocalRow = (i: number) =>
+    setRows((prev) => prev.filter((_, idx) => idx !== i));
+
+  const levelName = classLevelId
+    ? (classLevels.find((l) => l.id === classLevelId)?.name ?? "level")
+    : null;
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
-          <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Grade boundaries</span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => applyTemplate("WAEC")}>Apply WAEC</Button>
-            <Button variant="outline" size="sm" onClick={() => applyTemplate("NECO")}>Apply NECO</Button>
+            <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Grade boundaries</span>
+            {levelName && (
+              <span className="text-caption text-brand-600 bg-brand-50 dark:bg-brand-900/20 px-2 py-0.5 rounded-full">
+                {levelName}
+              </span>
+            )}
           </div>
+          {!classLevelId && (
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => applyTemplate("WAEC")}>Apply WAEC</Button>
+              <Button variant="outline" size="sm" onClick={() => applyTemplate("NECO")}>Apply NECO</Button>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardBody>
         {loading ? (
           <div className="py-8 flex justify-center"><Spinner /></div>
         ) : rows.length === 0 ? (
-          <p className="text-small text-ink-500">No grade boundaries yet. Apply WAEC to start, then edit.</p>
+          <p className="text-small text-ink-500">
+            {classLevelId
+              ? "No boundaries for this level. Add one below or apply a template on Default then copy down."
+              : "No grade boundaries yet. Apply WAEC to start, then edit."}
+          </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {rows.map((r, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input
-                  aria-label="grade" value={r.grade} onChange={(e) => update(i, { grade: e.target.value })}
-                  className="h-9 w-20 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
-                />
-                <input
-                  aria-label="min score" type="number" value={r.minScore}
-                  onChange={(e) => update(i, { minScore: Number(e.target.value) })}
-                  className="h-9 w-24 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
-                />
-                <input
-                  aria-label="remark" value={r.remark} onChange={(e) => update(i, { remark: e.target.value })}
-                  className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
-                />
-                <Button variant="ghost" size="sm" onClick={() => removeRow(i)} aria-label="remove">✕</Button>
+            {rows.map((r, i) => {
+              const isInherited = classLevelId !== null && r.isDefault === true;
+              return (
+                <div key={r.id} className={cn("flex items-center gap-2", isInherited && "opacity-60")}>
+                  <input
+                    aria-label="grade"
+                    value={r.grade}
+                    disabled={isInherited}
+                    onChange={(e) => updateLocal(i, { grade: e.target.value })}
+                    className="h-9 w-20 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
+                  />
+                  <input
+                    aria-label="min score"
+                    type="number"
+                    value={r.minScore}
+                    disabled={isInherited}
+                    onChange={(e) => updateLocal(i, { minScore: Number(e.target.value) })}
+                    className="h-9 w-24 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
+                  />
+                  <input
+                    aria-label="remark"
+                    value={r.remark}
+                    disabled={isInherited}
+                    onChange={(e) => updateLocal(i, { remark: e.target.value })}
+                    className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
+                  />
+                  {isInherited ? (
+                    <Button variant="outline" size="sm" onClick={() => overrideRow(r)}>
+                      Override for this level
+                    </Button>
+                  ) : classLevelId ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => saveRow(r)} disabled={saving}>Save</Button>
+                      <Button variant="ghost" size="sm" onClick={() => deleteRow(r.id)} aria-label="remove">✕</Button>
+                    </>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => removeLocalRow(i)} aria-label="remove">✕</Button>
+                  )}
+                </div>
+              );
+            })}
+            {!classLevelId && (
+              <div className="flex items-center justify-between mt-2">
+                <Button variant="ghost" size="sm" onClick={addRow}>+ Add band</Button>
+                <span className="text-caption text-ink-500">
+                  Preview: 82 → {resolveGrade(82, rows)?.grade ?? "—"} · 58 → {resolveGrade(58, rows)?.grade ?? "—"}
+                </span>
               </div>
-            ))}
-            <div className="flex items-center justify-between mt-2">
-              <Button variant="ghost" size="sm" onClick={addRow}>+ Add band</Button>
-              <span className="text-caption text-ink-500">
-                Preview: 82 → {resolveGrade(82, rows)?.grade ?? "—"} · 58 → {resolveGrade(58, rows)?.grade ?? "—"}
-              </span>
-            </div>
+            )}
+            {classLevelId && (
+              <Button variant="ghost" size="sm" onClick={addRow} className="self-start mt-1">+ Add band</Button>
+            )}
           </div>
         )}
-        <div className="mt-4 flex items-center gap-3">
-          <Button onClick={save} disabled={saving || rows.length === 0}>Save boundaries</Button>
-          {msg && <span className="text-caption text-ink-500">{msg}</span>}
-        </div>
+        {!classLevelId && (
+          <div className="mt-4 flex items-center gap-3">
+            <Button onClick={saveDefault} disabled={saving || rows.length === 0}>Save boundaries</Button>
+            {msg && <span className="text-caption text-ink-500">{msg}</span>}
+          </div>
+        )}
+        {classLevelId && msg && (
+          <div className="mt-3">
+            <span className="text-caption text-ink-500">{msg}</span>
+          </div>
+        )}
       </CardBody>
     </Card>
   );
 }
 
 /* ---------------- Assessment types ---------------- */
-function AssessmentTypesPanel() {
-  const [rows, setRows] = useState<Array<{ name: string; maxScore: number }>>([]);
+function AssessmentTypesPanel({
+  classLevelId,
+  classLevels,
+}: {
+  classLevelId: string | null;
+  classLevels: ClassLevel[];
+}) {
+  const [rows, setRows] = useState<AssessmentType[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setMsg(null);
     try {
-      const data = await api.getAssessmentTypes();
-      setRows(data.map((t) => ({ name: t.name, maxScore: t.maxScore })));
+      const data = classLevelId
+        ? await api.listAssessmentTypes(classLevelId)
+        : await api.getAssessmentTypes();
+      setRows(data);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [classLevelId]);
+
   useEffect(() => { void load(); }, [load]);
 
   const total = rows.reduce((acc, r) => acc + (Number(r.maxScore) || 0), 0);
   const valid = total === 100 && rows.length > 0;
 
-  const save = async () => {
+  // Default view: bulk PUT
+  const saveDefault = async () => {
     setSaving(true);
     setMsg(null);
     try {
-      await api.putAssessmentTypes(rows.map((r, i) => ({ ...r, order: i })));
+      await api.putAssessmentTypes(rows.map((r, i) => ({ name: r.name, maxScore: r.maxScore, order: i })));
       setMsg("Saved.");
     } catch (e) {
       setMsg(e instanceof ApiError ? e.message : "Could not save.");
@@ -203,16 +472,82 @@ function AssessmentTypesPanel() {
     }
   };
 
-  const update = (i: number, patch: Partial<{ name: string; maxScore: number }>) =>
+  // Level view: save a specific row via PATCH
+  const saveRow = async (row: AssessmentType) => {
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api.updateAssessmentType(row.id, { name: row.name, maxScore: row.maxScore });
+      setMsg("Saved.");
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not save.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteRow = async (id: string) => {
+    setMsg(null);
+    try {
+      await api.deleteAssessmentType(id);
+      await load();
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not delete.");
+    }
+  };
+
+  const overrideRow = async (row: AssessmentType) => {
+    if (!classLevelId) return;
+    setMsg(null);
+    try {
+      await api.createAssessmentType({
+        name: row.name,
+        maxScore: row.maxScore,
+        order: row.order,
+        classLevelId,
+      });
+      await load();
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not create override.");
+    }
+  };
+
+  const addRow = async () => {
+    if (classLevelId) {
+      setMsg(null);
+      try {
+        await api.createAssessmentType({ name: "", maxScore: 0, order: rows.length, classLevelId });
+        await load();
+      } catch (e) {
+        setMsg(e instanceof ApiError ? e.message : "Could not add component.");
+      }
+    } else {
+      setRows((prev) => [...prev, { id: `new-${Date.now()}`, name: "", maxScore: 0, order: prev.length }]);
+    }
+  };
+
+  const updateLocal = (i: number, patch: Partial<AssessmentType>) =>
     setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
-  const removeRow = (i: number) => setRows((prev) => prev.filter((_, idx) => idx !== i));
-  const addRow = () => setRows((prev) => [...prev, { name: "", maxScore: 0 }]);
+
+  const removeLocalRow = (i: number) =>
+    setRows((prev) => prev.filter((_, idx) => idx !== i));
+
+  const levelName = classLevelId
+    ? (classLevels.find((l) => l.id === classLevelId)?.name ?? "level")
+    : null;
 
   return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-3">
-          <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Assessment components</span>
+          <div className="flex items-center gap-2">
+            <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Assessment components</span>
+            {levelName && (
+              <span className="text-caption text-brand-600 bg-brand-50 dark:bg-brand-900/20 px-2 py-0.5 rounded-full">
+                {levelName}
+              </span>
+            )}
+          </div>
           <span className={cn("text-small font-medium tabular-nums", valid ? "text-success" : "text-error")}>
             Total: {total} {valid ? "✓" : "✗ must equal 100"}
           </span>
@@ -224,30 +559,61 @@ function AssessmentTypesPanel() {
         ) : (
           <div className="flex flex-col gap-2">
             {rows.length === 0 && (
-              <p className="text-small text-ink-500">No components yet. Add CA1, CA2, CA3, Exam… summing to 100.</p>
+              <p className="text-small text-ink-500">
+                {classLevelId
+                  ? "No components for this level. Add one or copy from Default."
+                  : "No components yet. Add CA1, CA2, CA3, Exam… summing to 100."}
+              </p>
             )}
-            {rows.map((r, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <input
-                  aria-label="component name" value={r.name} placeholder="e.g. CA1"
-                  onChange={(e) => update(i, { name: e.target.value })}
-                  className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
-                />
-                <input
-                  aria-label="max score" type="number" value={r.maxScore}
-                  onChange={(e) => update(i, { maxScore: Number(e.target.value) })}
-                  className="h-9 w-24 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
-                />
-                <Button variant="ghost" size="sm" onClick={() => removeRow(i)} aria-label="remove">✕</Button>
-              </div>
-            ))}
+            {rows.map((r, i) => {
+              const isInherited = classLevelId !== null && r.isDefault === true;
+              return (
+                <div key={r.id} className={cn("flex items-center gap-2", isInherited && "opacity-60")}>
+                  <input
+                    aria-label="component name"
+                    value={r.name}
+                    placeholder="e.g. CA1"
+                    disabled={isInherited}
+                    onChange={(e) => updateLocal(i, { name: e.target.value })}
+                    className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
+                  />
+                  <input
+                    aria-label="max score"
+                    type="number"
+                    value={r.maxScore}
+                    disabled={isInherited}
+                    onChange={(e) => updateLocal(i, { maxScore: Number(e.target.value) })}
+                    className="h-9 w-24 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
+                  />
+                  {isInherited ? (
+                    <Button variant="outline" size="sm" onClick={() => overrideRow(r)}>
+                      Override for this level
+                    </Button>
+                  ) : classLevelId ? (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => saveRow(r)} disabled={saving}>Save</Button>
+                      <Button variant="ghost" size="sm" onClick={() => deleteRow(r.id)} aria-label="remove">✕</Button>
+                    </>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => removeLocalRow(i)} aria-label="remove">✕</Button>
+                  )}
+                </div>
+              );
+            })}
             <Button variant="ghost" size="sm" onClick={addRow} className="self-start mt-1">+ Add component</Button>
           </div>
         )}
-        <div className="mt-4 flex items-center gap-3">
-          <Button onClick={save} disabled={!valid || saving}>Save components</Button>
-          {msg && <span className="text-caption text-ink-500">{msg}</span>}
-        </div>
+        {!classLevelId && (
+          <div className="mt-4 flex items-center gap-3">
+            <Button onClick={saveDefault} disabled={!valid || saving}>Save components</Button>
+            {msg && <span className="text-caption text-ink-500">{msg}</span>}
+          </div>
+        )}
+        {classLevelId && msg && (
+          <div className="mt-3">
+            <span className="text-caption text-ink-500">{msg}</span>
+          </div>
+        )}
       </CardBody>
     </Card>
   );
