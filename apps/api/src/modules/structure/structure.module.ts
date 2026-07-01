@@ -10,6 +10,8 @@ import { ClassesController } from "./classes.controller";
 import { ClassesService } from "./classes.service";
 import { SubjectsController } from "./subjects.controller";
 import { SubjectsService } from "./subjects.service";
+import { SubjectCategoriesController } from "./subject-categories.controller";
+import { SubjectCategoriesService } from "./subject-categories.service";
 
 @Module({
   imports: [AuthModule],
@@ -20,12 +22,14 @@ import { SubjectsService } from "./subjects.service";
     ClassLevelsController,
     ClassesController,
     SubjectsController,
+    SubjectCategoriesController,
   ],
   providers: [
     SchoolsService,
     AcademicYearsService,
     ClassLevelsService,
     ClassesService,
+    SubjectCategoriesService,
     SubjectsService,
   ],
 })
