@@ -63,6 +63,7 @@ describe("SignupService.signup", () => {
         await prisma.skillItem.deleteMany({ where: { schoolId: { in: schoolIds } } });
         await prisma.skillDomain.deleteMany({ where: { schoolId: { in: schoolIds } } });
         await prisma.skillScalePoint.deleteMany({ where: { schoolId: { in: schoolIds } } });
+        await prisma.subjectCategory.deleteMany({ where: { schoolId: { in: schoolIds } } });
         await prisma.school.deleteMany({ where: { id: { in: schoolIds } } });
       }
     }

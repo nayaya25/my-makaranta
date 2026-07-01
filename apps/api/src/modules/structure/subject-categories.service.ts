@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
-import { seedSubjectCategories } from "../../../prisma/seed-subject-categories";
+import { seedSubjectCategories } from "./subject-category-defaults";
 import { CreateSubjectCategoryDto, UpdateSubjectCategoryDto } from "./dto/subject-categories.dto";
 
 @Injectable()

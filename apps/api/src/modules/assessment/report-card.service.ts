@@ -3,7 +3,7 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { generateVerificationCode } from "./verification.util";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
-import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
+import { seedSkillDefaults } from "./skill-defaults";
 import { resolveGradeBoundaries } from "./format-resolution";
 
 @Injectable()

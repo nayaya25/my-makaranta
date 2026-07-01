@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { seedSkillDefaults, DEFAULT_DOMAINS } from "./seed-skill-defaults";
+import { seedSkillDefaults, DEFAULT_DOMAINS } from "../src/modules/assessment/skill-defaults";
 
 const prisma = new PrismaClient();
 afterAll(() => prisma.$disconnect());

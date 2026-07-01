@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { seedSubjectCategories, DEFAULT_SUBJECT_CATEGORIES } from "./seed-subject-categories";
+import { seedSubjectCategories, DEFAULT_SUBJECT_CATEGORIES } from "../src/modules/structure/subject-category-defaults";
 
 const prisma = new PrismaClient();
 afterAll(() => prisma.$disconnect());
