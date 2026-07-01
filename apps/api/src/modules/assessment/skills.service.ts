@@ -1,29 +1,34 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
-import type { CreateSkillDomainDto, UpdateSkillDomainDto, CreateSkillItemDto, UpdateSkillItemDto, ScalePointDto, SaveSkillRatingsDto } from "./dto/skills.dto";
+import type { CreateSkillDomainDto, UpdateSkillDomainDto, CreateSkillItemDto, UpdateSkillItemDto, ScalePointDto, SaveSkillRatingsDto, SkillKind } from "./dto/skills.dto";
 import { assertNotReleased } from "./release-lock.util";
 import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
+import { seedEarlyYearsDefaults } from "./early-years-defaults";
 
 @Injectable()
 export class SkillsService {
   constructor(private prisma: PrismaService) {}
 
-  private async ensureSeeded(schoolId: string): Promise<void> {
-    await seedSkillDefaults(this.prisma, schoolId);
+  private async ensureSeeded(schoolId: string, kind: SkillKind = "conduct"): Promise<void> {
+    if (kind === "early_years") {
+      await seedEarlyYearsDefaults(this.prisma, schoolId);
+    } else {
+      await seedSkillDefaults(this.prisma, schoolId);
+    }
   }
 
-  async listConfig() {
+  async listConfig(kind: SkillKind = "conduct") {
     const schoolId = TenantContext.schoolIdOrThrow();
-    await this.ensureSeeded(schoolId);
+    await this.ensureSeeded(schoolId, kind);
     const [domains, scale] = await Promise.all([
       this.prisma.skillDomain.findMany({
-        where: { schoolId },
+        where: { schoolId, kind },
         orderBy: { order: "asc" },
         include: { items: { orderBy: { order: "asc" } } },
       }),
       this.prisma.skillScalePoint.findMany({
-        where: { schoolId },
+        where: { schoolId, kind },
         orderBy: { order: "asc" },
       }),
     ]);
@@ -77,46 +82,46 @@ export class SkillsService {
     await this.prisma.skillItem.deleteMany({ where: { id, schoolId } });
   }
 
-  async getScale() {
+  async getScale(kind: SkillKind = "conduct") {
     const schoolId = TenantContext.schoolIdOrThrow();
     return this.prisma.skillScalePoint.findMany({
-      where: { schoolId },
+      where: { schoolId, kind },
       orderBy: { order: "asc" },
     });
   }
 
-  async setScale(points: ScalePointDto[]) {
+  async setScale(points: ScalePointDto[], kind: SkillKind = "conduct") {
     const schoolId = TenantContext.schoolIdOrThrow();
     await this.prisma.$transaction([
-      this.prisma.skillScalePoint.deleteMany({ where: { schoolId } }),
+      this.prisma.skillScalePoint.deleteMany({ where: { schoolId, kind } }),
       this.prisma.skillScalePoint.createMany({
-        data: points.map((p, i) => ({ schoolId, value: p.value, label: p.label, order: i })),
+        data: points.map((p, i) => ({ schoolId, kind, value: p.value, label: p.label, order: i })),
       }),
     ]);
-    return this.getScale();
+    return this.getScale(kind);
   }
 
-  async getGrid(classId: string, termId: string) {
+  async getGrid(classId: string, termId: string, kind: SkillKind = "conduct") {
     const schoolId = TenantContext.schoolIdOrThrow();
-    await this.ensureSeeded(schoolId);
+    await this.ensureSeeded(schoolId, kind);
 
     // Verify class belongs to this school
     const klass = await this.prisma.class.findFirst({ where: { id: classId, schoolId } });
     if (!klass) throw new NotFoundException("Class not found in this school.");
 
-    // Parallel fetches
+    // Parallel fetches — filter domains and scale by kind
     const [enrollments, domains, scale, locked] = await Promise.all([
       this.prisma.enrollment.findMany({
         where: { classId, termId },
         include: { student: { select: { id: true, firstName: true, lastName: true } } },
       }),
       this.prisma.skillDomain.findMany({
-        where: { schoolId },
+        where: { schoolId, kind },
         orderBy: { order: "asc" },
         include: { items: { orderBy: { order: "asc" }, select: { id: true, name: true } } },
       }),
       this.prisma.skillScalePoint.findMany({
-        where: { schoolId },
+        where: { schoolId, kind },
         orderBy: { order: "asc" },
         select: { value: true, label: true },
       }),
@@ -125,8 +130,16 @@ export class SkillsService {
 
     const studentIds = enrollments.map((e) => e.studentId);
 
+    // Gather item IDs for this kind to scope ratings to the right kind
+    const itemIds = domains.flatMap((d) => d.items.map((i) => i.id));
+
     const ratings = await this.prisma.skillRating.findMany({
-      where: { schoolId, termId, studentId: { in: studentIds } },
+      where: {
+        schoolId,
+        termId,
+        studentId: { in: studentIds },
+        ...(itemIds.length > 0 ? { skillItemId: { in: itemIds } } : {}),
+      },
       select: { studentId: true, skillItemId: true, value: true },
     });
 
@@ -146,32 +159,45 @@ export class SkillsService {
     await assertNotReleased(this.prisma, dto.classId, dto.termId);
 
     const schoolId = TenantContext.schoolIdOrThrow();
+    const kind: SkillKind = dto.kind ?? "conduct";
 
     // Verify class belongs to this school (IDOR guard)
     const klass = await this.prisma.class.findFirst({ where: { id: dto.classId, schoolId } });
     if (!klass) throw new NotFoundException("Class not found in this school.");
 
-    // Build allow-sets: enrolled students and valid skill items for this school
+    // Build allow-sets: enrolled students and valid skill items for this school scoped to kind
     const enrolled = new Set(
       (await this.prisma.enrollment.findMany({
         where: { classId: dto.classId, termId: dto.termId },
         select: { studentId: true },
       })).map((e) => e.studentId),
     );
+
+    // Valid items must belong to domains of the requested kind (cross-kind IDOR guard)
     const validItems = new Set(
       (await this.prisma.skillItem.findMany({
-        where: { schoolId },
+        where: {
+          schoolId,
+          domain: { kind },
+        },
         select: { id: true },
       })).map((i) => i.id),
     );
+
     for (const r of dto.ratings) {
       if (!enrolled.has(r.studentId) || !validItems.has(r.skillItemId)) {
         throw new ForbiddenException("Rating references a student or skill not in this class/school.");
       }
     }
 
-    const school = await this.prisma.school.findFirst({ where: { id: schoolId }, select: { skillScaleMax: true } });
-    const max = school?.skillScaleMax ?? 5;
+    // For EY ratings the max is the EY scale max (3); for conduct use skillScaleMax
+    let max: number;
+    if (kind === "early_years") {
+      max = 3;
+    } else {
+      const school = await this.prisma.school.findFirst({ where: { id: schoolId }, select: { skillScaleMax: true } });
+      max = school?.skillScaleMax ?? 5;
+    }
 
     for (const r of dto.ratings) {
       if (r.value < 1 || r.value > max) {
