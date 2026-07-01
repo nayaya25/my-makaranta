@@ -24,6 +24,7 @@ import { CreateSchoolDto, UpdateBrandingDto, UpdateSchoolDto } from "./dto/schoo
 import { validateSlug } from "../../core/tenant/slug";
 import { PALETTE_KEYS } from "../../core/tenant/palette-keys";
 import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
+import { seedSubjectCategories } from "../../../prisma/seed-subject-categories";
 
 // Raster types only — SVG is excluded deliberately: an uploaded SVG can carry
 // inline scripts and would execute as same-origin stored XSS when its signed
@@ -76,6 +77,7 @@ export class SchoolsService {
     });
 
     await seedSkillDefaults(this.prisma, school.id);
+    await seedSubjectCategories(this.prisma, school.id);
 
     const permissions = await this.prisma.permission.findMany();
 
