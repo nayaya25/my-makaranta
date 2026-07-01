@@ -138,7 +138,7 @@ export class SkillsService {
         schoolId,
         termId,
         studentId: { in: studentIds },
-        ...(itemIds.length > 0 ? { skillItemId: { in: itemIds } } : {}),
+        skillItemId: { in: itemIds },
       },
       select: { studentId: true, skillItemId: true, value: true },
     });
