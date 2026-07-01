@@ -17,7 +17,7 @@ import {
   Tabs,
 } from "@mymakaranta/ui";
 import { api, ApiError, type Student, type Guardian } from "@/lib/api";
-import { ArrowLeft, Camera, UserPlus } from "lucide-react";
+import { ArrowLeft, Camera, FileText, UserPlus } from "lucide-react";
 
 function AddGuardianDialog({
   studentId,
@@ -300,7 +300,16 @@ export default function StudentProfilePage() {
           <Tabs.Trigger value="fees">Fees</Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content value="academic">
-          <PlaceholderTab label="Academic records" />
+          <div className="flex flex-col gap-3 py-6">
+            <p className="text-small text-ink-500">Quick links for this student&apos;s academic records.</p>
+            <Link
+              href={`/report-card/${id}`}
+              className="inline-flex items-center gap-2 text-small font-medium text-brand-700 hover:underline dark:text-brand-300"
+            >
+              <FileText size={14} aria-hidden />
+              View Report Card
+            </Link>
+          </div>
         </Tabs.Content>
         <Tabs.Content value="attendance">
           <PlaceholderTab label="Attendance" />

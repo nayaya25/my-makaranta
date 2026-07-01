@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardBody, CardHeader, PageContainer, PageHeader } from "@mymakaranta/ui";
-import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight } from "lucide-react";
+import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText } from "lucide-react";
 
 const ITEMS = [
   {
@@ -34,6 +34,18 @@ const ITEMS = [
     title: "Staff permissions",
     description: "Grant staff their roles and tool access.",
     icon: ShieldCheck,
+  },
+  {
+    href: "/settings/skills",
+    title: "Skills config",
+    description: "Manage affective & psychomotor skill domains, items, and rating scale.",
+    icon: Star,
+  },
+  {
+    href: "/settings/report-card",
+    title: "Report card",
+    description: "Toggle sections and choose a layout for the printable report card.",
+    icon: FileText,
   },
 ];
 

@@ -27,6 +27,7 @@ import {
   GraduationCap,
   ChevronDown,
   Loader2,
+  Star,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; perm?: string };
@@ -55,6 +56,7 @@ const NAV: NavEntry[] = [
     items: [
       { href: "/attendance", label: "Attendance", icon: CalendarCheck, perm: "attendance.view" },
       { href: "/gradebook", label: "Gradebook", icon: ClipboardList, perm: "results.record" },
+      { href: "/skills", label: "Skills", icon: Star, perm: "skills.record" },
       { href: "/review", label: "Review", icon: BarChart3, perm: "results.review" },
       { href: "/release", label: "Release", icon: Lock, perm: "results.release" },
     ],
