@@ -17,9 +17,11 @@ export class ReportCardService {
   async getReportCard(studentId: string, termId: string): Promise<Record<string, any>> {
     const schoolId = TenantContext.schoolIdOrThrow();
 
-    // Step 1: Look up enrollment to determine the class and whether it's EY
+    // Step 1: Look up enrollment to determine the class and whether it's EY.
+    // Scope by the student's school so a foreign (studentId, termId) pair never
+    // resolves — do not rely on the term lookup as an implicit tenant guard.
     const enrollment = await this.prisma.enrollment.findFirst({
-      where: { studentId, termId },
+      where: { studentId, termId, student: { schoolId } },
       include: {
         class: {
           include: { classLevel: true },
@@ -37,7 +39,8 @@ export class ReportCardService {
     const isEarlyYears = enrollment?.class?.classLevel?.isEarlyYears === true;
 
     if (isEarlyYears) {
-      return this._getEarlyYearsReportCard(studentId, termId, schoolId, enrollment!, term!);
+      if (!enrollment || !term) throw new NotFoundException("Report card not found");
+      return this._getEarlyYearsReportCard(studentId, termId, schoolId, enrollment, term);
     } else {
       return this._getStandardReportCard(studentId, termId, schoolId);
     }
