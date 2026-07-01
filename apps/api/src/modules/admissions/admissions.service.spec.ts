@@ -156,6 +156,70 @@ describe("AdmissionsService", () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
+  // patch — re-point targets must belong to the school
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe("patch tenant validation", () => {
+    let applicantId: string;
+
+    beforeEach(async () => {
+      const ts2 = Date.now();
+      const a = await prisma.applicant.create({
+        data: {
+          schoolId,
+          applicationNo: `APP-PATCH-${ts2}`,
+          firstName: "Patch",
+          lastName: "Target",
+          gender: "MALE",
+          dateOfBirth: new Date("2015-01-01"),
+          desiredClassLevelId: classLevelId,
+          academicYearId,
+          guardianName: "Patch Guardian",
+          guardianPhone: `0805${ts2.toString().slice(-7)}`,
+          guardianRelation: "FATHER",
+          source: "STAFF",
+          status: "APPLIED",
+        },
+      });
+      applicantId = a.id;
+    });
+
+    it("rejects patching desiredClassLevelId to another school's level", async () => {
+      const foreignLevel = await prisma.classLevel.create({
+        data: { schoolId: otherSchoolId, name: `Foreign Patch Level ${Date.now()}`, order: 9 },
+      });
+      await expect(
+        TenantContext.run({ schoolId, userId: null }, () =>
+          service.patch(applicantId, { desiredClassLevelId: foreignLevel.id }),
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("rejects patching academicYearId to another school's year", async () => {
+      const foreignYear = await prisma.academicYear.create({
+        data: {
+          schoolId: otherSchoolId,
+          name: `Foreign Patch Year ${Date.now()}`,
+          startDate: new Date("2026-09-01"),
+          endDate: new Date("2027-07-31"),
+        },
+      });
+      await expect(
+        TenantContext.run({ schoolId, userId: null }, () =>
+          service.patch(applicantId, { academicYearId: foreignYear.id }),
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("allows patching to the school's own level", async () => {
+      const updated = await TenantContext.run({ schoolId, userId: null }, () =>
+        service.patch(applicantId, { desiredClassLevelId: classLevelId, firstName: "Renamed" }),
+      );
+      expect(updated.firstName).toBe("Renamed");
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
   // transition
   // ─────────────────────────────────────────────────────────────────────────
 

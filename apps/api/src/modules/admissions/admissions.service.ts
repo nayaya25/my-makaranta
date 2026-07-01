@@ -60,15 +60,7 @@ export class AdmissionsService {
       });
     };
 
-    try {
-      return await attempt();
-    } catch (err: unknown) {
-      if ((err as { code?: string }).code === "P2002") {
-        // Retry once on duplicate applicationNo
-        return attempt();
-      }
-      throw err;
-    }
+    return this.withUniqueRetry(attempt);
   }
 
   async list(filter: ListApplicantsQuery) {
@@ -103,6 +95,22 @@ export class AdmissionsService {
     const schoolId = TenantContext.schoolIdOrThrow();
     const applicant = await this.prisma.applicant.findFirst({ where: { id, schoolId } });
     if (!applicant) throw new NotFoundException("Applicant not found.");
+
+    // Re-point targets must belong to this school (FK enforces existence only, not tenant).
+    if (dto.desiredClassLevelId !== undefined) {
+      const level = await this.prisma.classLevel.findFirst({
+        where: { id: dto.desiredClassLevelId, schoolId },
+        select: { id: true },
+      });
+      if (!level) throw new NotFoundException("Class level not found in this school.");
+    }
+    if (dto.academicYearId !== undefined) {
+      const year = await this.prisma.academicYear.findFirst({
+        where: { id: dto.academicYearId, schoolId },
+        select: { id: true },
+      });
+      if (!year) throw new NotFoundException("Academic year not found in this school.");
+    }
 
     return this.prisma.applicant.update({
       where: { id },
@@ -184,17 +192,27 @@ export class AdmissionsService {
   async enroll(id: string, dto: EnrollApplicantDto): Promise<{ studentId: string; admissionNo: string }> {
     const schoolId = TenantContext.schoolIdOrThrow();
     return this.prisma.$transaction(async (tx) => {
-      const applicant = await tx.applicant.findFirst({ where: { id, schoolId } });
-      if (!applicant) throw new NotFoundException("Applicant not found.");
-      if (applicant.status !== "ACCEPTED" || applicant.convertedStudentId) {
-        throw new BadRequestException("Only an accepted applicant that hasn't been enrolled can be admitted.");
-      }
+      // Validate the target class + term belong to this school.
       const [cls, term] = await Promise.all([
         tx.class.findFirst({ where: { id: dto.classId, schoolId } }),
         tx.term.findFirst({ where: { id: dto.termId, schoolId } }),
       ]);
       if (!cls || !term) throw new NotFoundException("Class or term not found in this school.");
 
+      // Atomically claim the applicant: only an ACCEPTED, not-yet-converted applicant in this
+      // school flips to ENROLLED. Two concurrent enrolls cannot both pass — the second matches
+      // zero rows — so no double-conversion (two Students for one applicant) is possible.
+      const claim = await tx.applicant.updateMany({
+        where: { id, schoolId, status: "ACCEPTED", convertedStudentId: null },
+        data: { status: "ENROLLED", decidedAt: new Date() },
+      });
+      if (claim.count === 0) {
+        const exists = await tx.applicant.findFirst({ where: { id, schoolId }, select: { id: true } });
+        if (!exists) throw new NotFoundException("Applicant not found.");
+        throw new BadRequestException("Only an accepted applicant that hasn't been enrolled can be admitted.");
+      }
+
+      const applicant = await tx.applicant.findFirstOrThrow({ where: { id, schoolId } });
       const year = new Date().getFullYear();
       const admissionNo = dto.admissionNo?.trim() || (await nextAdmissionNo(tx, schoolId, year));
 
@@ -237,7 +255,7 @@ export class AdmissionsService {
 
       await tx.applicant.update({
         where: { id },
-        data: { status: "ENROLLED", decidedAt: new Date(), convertedStudentId: student.id },
+        data: { convertedStudentId: student.id },
       });
       return { studentId: student.id, admissionNo };
     });
@@ -293,14 +311,7 @@ export class AdmissionsService {
       return { applicationNo };
     };
 
-    try {
-      return await attempt();
-    } catch (err: unknown) {
-      if ((err as { code?: string }).code === "P2002") {
-        return attempt();
-      }
-      throw err;
-    }
+    return this.withUniqueRetry(attempt);
   }
 
   /** Public portal: return school name + class levels + academic years for form dropdowns. */
@@ -326,6 +337,24 @@ export class AdmissionsService {
     ]);
 
     return { schoolName: school.name, classLevels, academicYears };
+  }
+
+  /** Retries a create that races on the (schoolId, applicationNo) unique index. Count-based
+   *  sequencing can hand two concurrent requests the same number; retry re-reads the count. */
+  private async withUniqueRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
+    let lastErr: unknown;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await fn();
+      } catch (err: unknown) {
+        if ((err as { code?: string }).code === "P2002") {
+          lastErr = err;
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastErr;
   }
 
   private splitName(full: string): [string, string] {
