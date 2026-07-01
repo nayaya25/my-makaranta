@@ -184,6 +184,8 @@ model ClassLevel {
   classes  Class[]
   feeItems FeeItem[]
   invoices Invoice[]
+  assessmentTypes AssessmentType[]
+  gradeBoundaries GradeBoundary[]
 
   @@unique([schoolId, name])
 }
@@ -206,12 +208,24 @@ model Class {
   @@unique([schoolId, name])
 }
 
+model SubjectCategory {
+  id       String    @id @default(cuid())
+  schoolId String
+  name     String
+  order    Int       @default(0)
+  subjects Subject[]
+
+  @@unique([schoolId, name])
+}
+
 model Subject {
   id                 String              @id @default(cuid())
   schoolId           String
   school             School              @relation(fields: [schoolId], references: [id])
   name               String
   code               String
+  categoryId         String?
+  category           SubjectCategory?    @relation(fields: [categoryId], references: [id])
   subjectAssignments SubjectAssignment[]
   scores             Score[]
   resultSheetEntries ResultSheetEntry[]
@@ -429,28 +443,34 @@ model AttendanceRecord {
 // === Assessment Config ===
 
 model AssessmentType {
-  id       String  @id @default(cuid())
-  schoolId String
-  school   School  @relation(fields: [schoolId], references: [id])
-  name     String
-  maxScore Int
-  order    Int     @default(0)
-  scores   Score[]
-  corrections Correction[]
+  id           String      @id @default(cuid())
+  schoolId     String
+  school       School      @relation(fields: [schoolId], references: [id])
+  name         String
+  maxScore     Int
+  order        Int         @default(0)
+  classLevelId String?
+  classLevel   ClassLevel? @relation(fields: [classLevelId], references: [id])
+  scores       Score[]
+  corrections  Correction[]
 
-  @@unique([schoolId, name])
+  @@unique([schoolId, classLevelId, name])
+  @@index([schoolId, classLevelId])
 }
 
 model GradeBoundary {
-  id       String @id @default(cuid())
-  schoolId String
-  school   School @relation(fields: [schoolId], references: [id])
-  grade    String
-  minScore Int
-  remark   String
-  order    Int    @default(0)
+  id           String      @id @default(cuid())
+  schoolId     String
+  school       School      @relation(fields: [schoolId], references: [id])
+  grade        String
+  minScore     Int
+  remark       String
+  order        Int         @default(0)
+  classLevelId String?
+  classLevel   ClassLevel? @relation(fields: [classLevelId], references: [id])
 
-  @@unique([schoolId, grade])
+  @@unique([schoolId, classLevelId, grade])
+  @@index([schoolId, classLevelId])
 }
 
 model SubjectAssignment {
