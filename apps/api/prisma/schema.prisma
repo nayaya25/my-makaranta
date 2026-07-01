@@ -176,14 +176,15 @@ model Term {
 }
 
 model ClassLevel {
-  id       String  @id @default(cuid())
-  schoolId String
-  school   School  @relation(fields: [schoolId], references: [id])
-  name     String
-  order    Int
-  classes  Class[]
-  feeItems FeeItem[]
-  invoices Invoice[]
+  id            String    @id @default(cuid())
+  schoolId      String
+  school        School    @relation(fields: [schoolId], references: [id])
+  name          String
+  order         Int
+  isEarlyYears  Boolean   @default(false)
+  classes       Class[]
+  feeItems      FeeItem[]
+  invoices      Invoice[]
 
   @@unique([schoolId, name])
 }
@@ -808,11 +809,12 @@ model SkillDomain {
   id       String      @id @default(cuid())
   schoolId String
   school   School      @relation(fields: [schoolId], references: [id])
+  kind     String      @default("conduct")
   name     String
   order    Int         @default(0)
   items    SkillItem[]
 
-  @@unique([schoolId, name])
+  @@unique([schoolId, kind, name])
 }
 
 model SkillItem {
@@ -833,11 +835,12 @@ model SkillScalePoint {
   id       String @id @default(cuid())
   schoolId String
   school   School @relation(fields: [schoolId], references: [id])
+  kind     String @default("conduct")
   value    Int
   label    String
   order    Int    @default(0)
 
-  @@unique([schoolId, value])
+  @@unique([schoolId, kind, value])
 }
 
 model SkillRating {
