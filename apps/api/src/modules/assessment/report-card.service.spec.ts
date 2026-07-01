@@ -313,3 +313,176 @@ describe("ReportCardService – getReportCard payload composition", () => {
     expect(result.verificationCode).toBeDefined();
   });
 });
+
+describe("ReportCardService – subjectGroups by category", () => {
+  let service: ReportCardService;
+  let schoolId: string;
+  let termId: string;
+  let studentId: string;
+
+  beforeAll(async () => {
+    const ts = `sg${Date.now()}`;
+
+    // School
+    const school = await prisma.school.create({
+      data: {
+        name: `RC-SG-${ts}`,
+        slug: `rc-sg-${ts}`,
+      } as never,
+    });
+    schoolId = school.id;
+
+    // AcademicYear + Term
+    const year = await prisma.academicYear.create({
+      data: {
+        schoolId,
+        name: `AY-${ts}`,
+        startDate: new Date("2025-01-01"),
+        endDate: new Date("2025-12-31"),
+      },
+    });
+    const term = await prisma.term.create({
+      data: {
+        schoolId,
+        academicYearId: year.id,
+        number: 1,
+        startDate: new Date("2025-01-01"),
+        endDate: new Date("2025-06-30"),
+      },
+    });
+    termId = term.id;
+
+    // ClassLevel + Class
+    const level = await prisma.classLevel.create({
+      data: { schoolId, name: `JSS-SG-${ts}`, order: 0 },
+    });
+    const klass = await prisma.class.create({
+      data: { schoolId, name: `JSS-SG-1A-${ts}`, classLevelId: level.id },
+    });
+
+    // Student
+    const student = await prisma.student.create({
+      data: {
+        schoolId,
+        admissionNo: `SG-${ts}`,
+        firstName: "Cat",
+        lastName: "Student",
+        gender: "MALE",
+        dateOfBirth: new Date("2012-01-01"),
+      },
+    });
+    studentId = student.id;
+
+    // Enrollment
+    await prisma.enrollment.create({
+      data: { studentId, classId: klass.id, termId },
+    });
+
+    // AssessmentType
+    await prisma.assessmentType.create({
+      data: { schoolId, name: `CA-SG-${ts}`, maxScore: 100, order: 0 },
+    });
+
+    // Two categories (order matters: Sciences=0, Languages=1) + subjects under each + 1 uncategorised
+    const catSciences = await prisma.subjectCategory.create({
+      data: { schoolId, name: `Sciences-${ts}`, order: 0 },
+    });
+    const catLanguages = await prisma.subjectCategory.create({
+      data: { schoolId, name: `Languages-${ts}`, order: 1 },
+    });
+
+    const subMaths = await prisma.subject.create({
+      data: { schoolId, name: `Maths-${ts}`, code: `MTH-${ts}`, categoryId: catSciences.id },
+    });
+    const subPhysics = await prisma.subject.create({
+      data: { schoolId, name: `Physics-${ts}`, code: `PHY-${ts}`, categoryId: catSciences.id },
+    });
+    const subEnglish = await prisma.subject.create({
+      data: { schoolId, name: `English-${ts}`, code: `ENG-${ts}`, categoryId: catLanguages.id },
+    });
+    const subPE = await prisma.subject.create({
+      data: { schoolId, name: `PE-${ts}`, code: `PE-${ts}` }, // no category
+    });
+
+    // Person + Release
+    const person = await prisma.person.create({ data: {} });
+    const release = await prisma.release.create({
+      data: {
+        schoolId,
+        classId: klass.id,
+        termId,
+        releasedBy: person.id,
+        releasedAt: new Date(),
+      },
+    });
+
+    // ResultSheet + entries for all 4 subjects
+    const sheet = await prisma.resultSheet.create({
+      data: {
+        schoolId,
+        releaseId: release.id,
+        studentId,
+        classId: klass.id,
+        termId,
+        average: 75,
+        position: 2,
+      },
+    });
+    await prisma.resultSheetEntry.createMany({
+      data: [
+        { schoolId, resultSheetId: sheet.id, subjectId: subMaths.id, total: 90, grade: "A" },
+        { schoolId, resultSheetId: sheet.id, subjectId: subPhysics.id, total: 85, grade: "A" },
+        { schoolId, resultSheetId: sheet.id, subjectId: subEnglish.id, total: 70, grade: "B" },
+        { schoolId, resultSheetId: sheet.id, subjectId: subPE.id, total: 60, grade: "C" },
+      ],
+    });
+
+    service = new ReportCardService(prisma as unknown as PrismaService, mockStorage as any);
+  });
+
+  it("includes subjectGroups with 2 named category groups ordered by category.order + null group last", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    );
+
+    expect(result.subjectGroups).toBeDefined();
+    expect(result.subjectGroups.length).toBe(3);
+
+    // First group: Sciences (order 0)
+    expect(result.subjectGroups[0]!.category).toMatch(/Sciences/);
+    expect(result.subjectGroups[0]!.subjects.length).toBe(2);
+
+    // Second group: Languages (order 1)
+    expect(result.subjectGroups[1]!.category).toMatch(/Languages/);
+    expect(result.subjectGroups[1]!.subjects.length).toBe(1);
+
+    // Third group: uncategorised (null)
+    expect(result.subjectGroups[2]!.category).toBeNull();
+    expect(result.subjectGroups[2]!.subjects.length).toBe(1);
+  });
+
+  it("each subjectGroup entry has the same shape as entries (subjectId, subjectName, total, grade)", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    );
+
+    const allGrouped = result.subjectGroups.flatMap((g: { subjects: unknown[] }) => g.subjects);
+    expect(allGrouped.length).toBe(4);
+
+    for (const entry of allGrouped) {
+      expect(entry).toHaveProperty("subjectId");
+      expect(entry).toHaveProperty("subjectName");
+      expect(entry).toHaveProperty("total");
+      expect(entry).toHaveProperty("grade");
+    }
+  });
+
+  it("keeps the flat entries array present (backward-compat)", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    );
+
+    expect(result.entries).toBeDefined();
+    expect(result.entries.length).toBe(4);
+  });
+});

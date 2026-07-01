@@ -4,6 +4,7 @@ import { TenantContext } from "../../core/tenant/tenant.context";
 import { computeSubjectResult } from "./score.util";
 import { computePositions } from "./position.util";
 import { generateVerificationCode } from "./verification.util";
+import { resolveAssessmentTypes, resolveGradeBoundaries } from "./format-resolution";
 
 @Injectable()
 export class ReleaseService {
@@ -21,9 +22,10 @@ export class ReleaseService {
     const existing = await this.prisma.release.findFirst({ where: { classId, termId, schoolId } });
     if (existing) throw new ConflictException("This class has already been released for this term.");
 
-    const types = await this.prisma.assessmentType.findMany({ where: { schoolId }, orderBy: { order: "asc" } });
+    const classLevelId = klass!.classLevelId;
+    const types = await resolveAssessmentTypes(this.prisma, schoolId, classLevelId);
     const typeIds = types.map((t) => t.id);
-    const boundaries = await this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } });
+    const boundaries = await resolveGradeBoundaries(this.prisma, schoolId, classLevelId);
     const assignments = await this.prisma.subjectAssignment.findMany({ where: { classId, academicYearId: term.academicYearId, schoolId } });
     const subjectIds = assignments.map((a) => a.subjectId);
     const enrollments = await this.prisma.enrollment.findMany({ where: { classId, termId }, select: { studentId: true } });

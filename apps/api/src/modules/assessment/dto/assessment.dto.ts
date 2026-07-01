@@ -28,6 +28,36 @@ export class AssessmentTypeItemDto {
   order!: number;
 }
 
+export class CreateAssessmentTypeDto {
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  maxScore!: number;
+
+  @IsInt()
+  @Min(0)
+  order!: number;
+
+  @IsOptional()
+  @IsString()
+  classLevelId?: string;
+}
+
+export class ApplyAssessmentFormatsDto {
+  @IsOptional()
+  @IsString()
+  sourceClassLevelId!: string | null;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  targetClassLevelIds!: string[];
+}
+
 export class ReplaceAssessmentTypesDto {
   @IsArray()
   @ArrayMinSize(1)
@@ -66,6 +96,29 @@ export class ReplaceGradeBoundariesDto {
 export class ApplyTemplateDto {
   @IsIn(["WAEC", "NECO"])
   template!: "WAEC" | "NECO";
+}
+
+export class CreateGradeBoundaryDto {
+  @IsString()
+  @IsNotEmpty()
+  grade!: string;
+
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  minScore!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  remark!: string;
+
+  @IsInt()
+  @Min(0)
+  order!: number;
+
+  @IsOptional()
+  @IsString()
+  classLevelId?: string;
 }
 
 export class CreateSubjectAssignmentDto {

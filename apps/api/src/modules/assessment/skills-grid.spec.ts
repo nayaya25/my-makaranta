@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { SkillsService } from "./skills.service";
-import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
+import { seedSkillDefaults } from "./skill-defaults";
 
 const prisma = new PrismaClient();
 afterAll(() => prisma.$disconnect());
