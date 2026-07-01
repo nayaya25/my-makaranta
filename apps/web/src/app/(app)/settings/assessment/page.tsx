@@ -261,30 +261,6 @@ function GradeBoundariesPanel({
     }
   };
 
-  // Level view: save a specific row via PATCH
-  const saveRow = async (row: GradeBoundary) => {
-    setSaving(true);
-    setMsg(null);
-    try {
-      await api.updateGradeBoundary(row.id, { grade: row.grade, minScore: row.minScore, remark: row.remark });
-      setMsg("Saved.");
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "Could not save.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const deleteRow = async (id: string) => {
-    setMsg(null);
-    try {
-      await api.deleteGradeBoundary(id);
-      await load();
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "Could not delete.");
-    }
-  };
-
   const overrideRow = async (row: GradeBoundary) => {
     if (!classLevelId) return;
     setMsg(null);
@@ -302,16 +278,8 @@ function GradeBoundariesPanel({
     }
   };
 
-  const addRow = async () => {
-    if (classLevelId) {
-      setMsg(null);
-      try {
-        await api.createGradeBoundary({ grade: "", minScore: 0, remark: "", order: rows.length, classLevelId });
-        await load();
-      } catch (e) {
-        setMsg(e instanceof ApiError ? e.message : "Could not add boundary.");
-      }
-    } else {
+  const addRow = () => {
+    if (!classLevelId) {
       setRows((prev) => [...prev, { id: `new-${Date.now()}`, grade: "", minScore: 0, remark: "", order: prev.length }]);
     }
   };
@@ -364,7 +332,7 @@ function GradeBoundariesPanel({
                   <input
                     aria-label="grade"
                     value={r.grade}
-                    disabled={isInherited}
+                    disabled={!!classLevelId}
                     onChange={(e) => updateLocal(i, { grade: e.target.value })}
                     className="h-9 w-20 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
                   />
@@ -372,14 +340,14 @@ function GradeBoundariesPanel({
                     aria-label="min score"
                     type="number"
                     value={r.minScore}
-                    disabled={isInherited}
+                    disabled={!!classLevelId}
                     onChange={(e) => updateLocal(i, { minScore: Number(e.target.value) })}
                     className="h-9 w-24 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
                   />
                   <input
                     aria-label="remark"
                     value={r.remark}
-                    disabled={isInherited}
+                    disabled={!!classLevelId}
                     onChange={(e) => updateLocal(i, { remark: e.target.value })}
                     className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
                   />
@@ -387,12 +355,7 @@ function GradeBoundariesPanel({
                     <Button variant="outline" size="sm" onClick={() => overrideRow(r)}>
                       Override for this level
                     </Button>
-                  ) : classLevelId ? (
-                    <>
-                      <Button variant="outline" size="sm" onClick={() => saveRow(r)} disabled={saving}>Save</Button>
-                      <Button variant="ghost" size="sm" onClick={() => deleteRow(r.id)} aria-label="remove">✕</Button>
-                    </>
-                  ) : (
+                  ) : classLevelId ? null : (
                     <Button variant="ghost" size="sm" onClick={() => removeLocalRow(i)} aria-label="remove">✕</Button>
                   )}
                 </div>
@@ -407,7 +370,9 @@ function GradeBoundariesPanel({
               </div>
             )}
             {classLevelId && (
-              <Button variant="ghost" size="sm" onClick={addRow} className="self-start mt-1">+ Add band</Button>
+              <p className="text-caption text-ink-500 mt-2">
+                To modify this level&apos;s format, use &apos;Apply to levels&apos; below to copy from another level.
+              </p>
             )}
           </div>
         )}
@@ -472,30 +437,6 @@ function AssessmentTypesPanel({
     }
   };
 
-  // Level view: save a specific row via PATCH
-  const saveRow = async (row: AssessmentType) => {
-    setSaving(true);
-    setMsg(null);
-    try {
-      await api.updateAssessmentType(row.id, { name: row.name, maxScore: row.maxScore });
-      setMsg("Saved.");
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "Could not save.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const deleteRow = async (id: string) => {
-    setMsg(null);
-    try {
-      await api.deleteAssessmentType(id);
-      await load();
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : "Could not delete.");
-    }
-  };
-
   const overrideRow = async (row: AssessmentType) => {
     if (!classLevelId) return;
     setMsg(null);
@@ -512,16 +453,8 @@ function AssessmentTypesPanel({
     }
   };
 
-  const addRow = async () => {
-    if (classLevelId) {
-      setMsg(null);
-      try {
-        await api.createAssessmentType({ name: "", maxScore: 0, order: rows.length, classLevelId });
-        await load();
-      } catch (e) {
-        setMsg(e instanceof ApiError ? e.message : "Could not add component.");
-      }
-    } else {
+  const addRow = () => {
+    if (!classLevelId) {
       setRows((prev) => [...prev, { id: `new-${Date.now()}`, name: "", maxScore: 0, order: prev.length }]);
     }
   };
@@ -573,7 +506,7 @@ function AssessmentTypesPanel({
                     aria-label="component name"
                     value={r.name}
                     placeholder="e.g. CA1"
-                    disabled={isInherited}
+                    disabled={!!classLevelId}
                     onChange={(e) => updateLocal(i, { name: e.target.value })}
                     className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
                   />
@@ -581,7 +514,7 @@ function AssessmentTypesPanel({
                     aria-label="max score"
                     type="number"
                     value={r.maxScore}
-                    disabled={isInherited}
+                    disabled={!!classLevelId}
                     onChange={(e) => updateLocal(i, { maxScore: Number(e.target.value) })}
                     className="h-9 w-24 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small disabled:cursor-not-allowed"
                   />
@@ -589,18 +522,20 @@ function AssessmentTypesPanel({
                     <Button variant="outline" size="sm" onClick={() => overrideRow(r)}>
                       Override for this level
                     </Button>
-                  ) : classLevelId ? (
-                    <>
-                      <Button variant="outline" size="sm" onClick={() => saveRow(r)} disabled={saving}>Save</Button>
-                      <Button variant="ghost" size="sm" onClick={() => deleteRow(r.id)} aria-label="remove">✕</Button>
-                    </>
-                  ) : (
+                  ) : classLevelId ? null : (
                     <Button variant="ghost" size="sm" onClick={() => removeLocalRow(i)} aria-label="remove">✕</Button>
                   )}
                 </div>
               );
             })}
-            <Button variant="ghost" size="sm" onClick={addRow} className="self-start mt-1">+ Add component</Button>
+            {!classLevelId && (
+              <Button variant="ghost" size="sm" onClick={addRow} className="self-start mt-1">+ Add component</Button>
+            )}
+            {classLevelId && (
+              <p className="text-caption text-ink-500 mt-2">
+                To modify this level&apos;s format, use &apos;Apply to levels&apos; below to copy from another level.
+              </p>
+            )}
           </div>
         )}
         {!classLevelId && (

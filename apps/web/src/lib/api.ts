@@ -808,23 +808,16 @@ export const api = {
   listAssessmentTypes: (classLevelId?: string) =>
     authedRequest<AssessmentType[]>(
       classLevelId
-        ? `/v1/assessment/assessment-types?classLevelId=${encodeURIComponent(classLevelId)}`
-        : "/v1/assessment/assessment-types",
+        ? `/v1/assessment/types?classLevelId=${encodeURIComponent(classLevelId)}`
+        : "/v1/assessment/types",
     ),
   createAssessmentType: (body: { name: string; maxScore: number; order: number; classLevelId?: string }) =>
-    authedRequest<AssessmentType>("/v1/assessment/assessment-types", {
+    authedRequest<AssessmentType>("/v1/assessment/types", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  updateAssessmentType: (id: string, body: { name?: string; maxScore?: number; order?: number }) =>
-    authedRequest<AssessmentType>(`/v1/assessment/assessment-types/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
-  deleteAssessmentType: (id: string) =>
-    authedRequest<void>(`/v1/assessment/assessment-types/${id}`, { method: "DELETE" }),
   applyAssessmentFormat: (body: { sourceClassLevelId: string | null; targetClassLevelIds: string[] }) =>
-    authedRequest<{ applied: number }>("/v1/assessment/assessment-types/apply", {
+    authedRequest<{ applied: number }>("/v1/assessment/types/apply", {
       method: "POST",
       body: JSON.stringify(body),
     }),
@@ -841,13 +834,6 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  updateGradeBoundary: (id: string, body: { grade?: string; minScore?: number; remark?: string; order?: number }) =>
-    authedRequest<GradeBoundary>(`/v1/assessment/grade-boundaries/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(body),
-    }),
-  deleteGradeBoundary: (id: string) =>
-    authedRequest<void>(`/v1/assessment/grade-boundaries/${id}`, { method: "DELETE" }),
   applyGradeFormat: (body: { sourceClassLevelId: string | null; targetClassLevelIds: string[] }) =>
     authedRequest<{ applied: number }>("/v1/assessment/grade-boundaries/apply", {
       method: "POST",
