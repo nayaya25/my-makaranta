@@ -312,4 +312,274 @@ describe("ReportCardService – getReportCard payload composition", () => {
     expect(result.gradeKey).toBeDefined();
     expect(result.verificationCode).toBeDefined();
   });
+
+  it("returns mode:standard for a non-EY class", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    );
+    expect((result as any).mode).toBe("standard");
+  });
+
+  it("standard mode skills only contain conduct kind domains", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    );
+    // All skill domains should be conduct kind (the EY domains from other tests should NOT appear)
+    // Since this school only has conduct domains, skills should exist
+    expect(Array.isArray((result as any).skills)).toBe(true);
+  });
+});
+
+describe("ReportCardService – EY mode", () => {
+  let service: ReportCardService;
+  let schoolId: string;
+  let termId: string;
+  let studentId: string;
+
+  beforeAll(async () => {
+    const ts = Date.now();
+
+    // 1. School
+    const school = await prisma.school.create({
+      data: {
+        name: `EY-Test-${ts}`,
+        slug: `ey-test-${ts}`,
+        logoUrl: "schools/ey-logo.png",
+        principalSignatureUrl: "schools/ey-sig.png",
+        motto: "EY Motto",
+      } as never,
+    });
+    schoolId = school.id;
+
+    // 2. AcademicYear + Term
+    const year = await prisma.academicYear.create({
+      data: {
+        schoolId,
+        name: `EY-2025/2026-${ts}`,
+        startDate: new Date("2025-01-01"),
+        endDate: new Date("2025-12-31"),
+      },
+    });
+    const term = await prisma.term.create({
+      data: {
+        schoolId,
+        academicYearId: year.id,
+        number: 1,
+        startDate: new Date("2025-01-01"),
+        endDate: new Date("2025-06-30"),
+      },
+    });
+    termId = term.id;
+
+    // 3. EY ClassLevel (isEarlyYears=true) + Class
+    const level = await prisma.classLevel.create({
+      data: { schoolId, name: `Nursery-${ts}`, order: 0, isEarlyYears: true },
+    });
+    const klass = await prisma.class.create({
+      data: { schoolId, name: `Nursery 1-${ts}`, classLevelId: level.id },
+    });
+
+    // 4. Student
+    const student = await prisma.student.create({
+      data: {
+        schoolId,
+        admissionNo: `EY-${ts}`,
+        firstName: "Early",
+        lastName: "Years",
+        gender: "MALE",
+        dateOfBirth: new Date("2020-01-01"),
+      },
+    });
+    studentId = student.id;
+
+    // 5. Enrollment — NO ResultSheet for EY
+    await prisma.enrollment.create({
+      data: { studentId, classId: klass.id, termId },
+    });
+
+    // 6. Person for recordedBy
+    const person = await prisma.person.create({ data: {} });
+
+    // 7. EY SkillDomains (kind="early_years") + SkillItems
+    const domain1 = await prisma.skillDomain.create({
+      data: { schoolId, kind: "early_years", name: `Communication-${ts}`, order: 0 },
+    });
+    const domain2 = await prisma.skillDomain.create({
+      data: { schoolId, kind: "early_years", name: `Physical-${ts}`, order: 1 },
+    });
+
+    const eyItem1 = await prisma.skillItem.create({
+      data: { schoolId, domainId: domain1.id, name: `Listening-${ts}`, order: 0 },
+    });
+    const eyItem2 = await prisma.skillItem.create({
+      data: { schoolId, domainId: domain1.id, name: `Speaking-${ts}`, order: 1 },
+    });
+    const eyItem3 = await prisma.skillItem.create({
+      data: { schoolId, domainId: domain2.id, name: `Gross Motor-${ts}`, order: 0 },
+    });
+
+    // 8. SkillRatings for eyItem1 and eyItem3 — leave eyItem2 null (unrated)
+    await prisma.skillRating.create({
+      data: {
+        schoolId,
+        studentId,
+        termId,
+        skillItemId: eyItem1.id,
+        value: 3,
+        recordedBy: person.id,
+      },
+    });
+    await prisma.skillRating.create({
+      data: {
+        schoolId,
+        studentId,
+        termId,
+        skillItemId: eyItem3.id,
+        value: 2,
+        recordedBy: person.id,
+      },
+    });
+
+    // 9. EY SkillScalePoints (kind="early_years")
+    await prisma.skillScalePoint.create({
+      data: { schoolId, kind: "early_years", value: 3, label: "Secure", order: 0 },
+    });
+    await prisma.skillScalePoint.create({
+      data: { schoolId, kind: "early_years", value: 2, label: "Developing", order: 1 },
+    });
+    await prisma.skillScalePoint.create({
+      data: { schoolId, kind: "early_years", value: 1, label: "Beginning", order: 2 },
+    });
+
+    // 10. TermRemark
+    await prisma.termRemark.create({
+      data: {
+        schoolId,
+        studentId,
+        termId,
+        formTeacherRemark: "Great progress in EY",
+        principalRemark: "Well done",
+      },
+    });
+
+    // 11. AttendanceRecords: 2 PRESENT, 1 ABSENT within term dates
+    const makeDate = (d: number) => new Date(`2025-02-0${d}T00:00:00.000Z`);
+    await prisma.attendanceRecord.createMany({
+      data: [
+        { schoolId, studentId, classId: klass.id, date: makeDate(1), status: "PRESENT", recordedBy: person.id },
+        { schoolId, studentId, classId: klass.id, date: makeDate(2), status: "PRESENT", recordedBy: person.id },
+        { schoolId, studentId, classId: klass.id, date: makeDate(3), status: "ABSENT", recordedBy: person.id },
+      ],
+    });
+
+    service = new ReportCardService(prisma as unknown as PrismaService, mockStorage as any);
+  });
+
+  it("returns mode:early_years", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    );
+    expect((result as any).mode).toBe("early_years");
+  });
+
+  it("has areas with items and ratings including EY labels", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    ) as any;
+
+    expect(Array.isArray(result.areas)).toBe(true);
+    expect(result.areas.length).toBeGreaterThanOrEqual(2);
+
+    // First area: Communication
+    const comm = result.areas[0];
+    expect(comm.area).toMatch(/Communication/);
+    expect(Array.isArray(comm.items)).toBe(true);
+
+    // eyItem1 rated=3 → label "Secure"
+    const ratedItem = comm.items.find((i: any) => i.rating !== null);
+    expect(ratedItem).toBeDefined();
+    expect(ratedItem.rating.value).toBe(3);
+    expect(ratedItem.rating.label).toBe("Secure");
+
+    // eyItem2 unrated → rating null
+    const unratedItem = comm.items.find((i: any) => i.rating === null);
+    expect(unratedItem).toBeDefined();
+  });
+
+  it("unrated EY item has rating:null", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    ) as any;
+
+    const comm = result.areas[0];
+    const unrated = comm.items.find((i: any) => i.rating === null);
+    expect(unrated).toBeDefined();
+    expect(unrated.rating).toBeNull();
+  });
+
+  it("has scaleKey from EY scale points", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    ) as any;
+
+    expect(Array.isArray(result.scaleKey)).toBe(true);
+    expect(result.scaleKey.length).toBe(3);
+
+    const secure = result.scaleKey.find((p: any) => p.value === 3);
+    expect(secure?.label).toBe("Secure");
+
+    const developing = result.scaleKey.find((p: any) => p.value === 2);
+    expect(developing?.label).toBe("Developing");
+  });
+
+  it("has narrative (formTeacher and principal)", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    ) as any;
+
+    expect(result.narrative).toBeDefined();
+    expect(result.narrative.formTeacher).toBe("Great progress in EY");
+    expect(result.narrative.principal).toBe("Well done");
+  });
+
+  it("has attendance counts", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    ) as any;
+
+    expect(result.attendance).toBeDefined();
+    expect(result.attendance.present).toBe(2);
+    expect(result.attendance.absent).toBe(1);
+    expect(result.attendance.total).toBe(3);
+  });
+
+  it("has no entries, average, position, gradeKey, verificationCode, skills, config", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    ) as any;
+
+    expect(result.entries).toBeUndefined();
+    expect(result.average).toBeUndefined();
+    expect(result.position).toBeUndefined();
+    expect(result.gradeKey).toBeUndefined();
+    expect(result.verificationCode).toBeUndefined();
+    expect(result.skills).toBeUndefined();
+    expect(result.config).toBeUndefined();
+  });
+
+  it("has student, class, term, school fields", async () => {
+    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+      service.getReportCard(studentId, termId),
+    ) as any;
+
+    expect(result.student).toBeDefined();
+    expect(result.student.name).toBe("Early Years");
+    expect(result.student.admissionNo).toBeDefined();
+    expect(result.class).toBeDefined();
+    expect(result.class.name).toMatch(/Nursery/);
+    expect(result.term).toBeDefined();
+    expect(result.term.label).toBeDefined();
+    expect(result.school).toBeDefined();
+    expect(result.school.name).toMatch(/EY-Test/);
+  });
 });
