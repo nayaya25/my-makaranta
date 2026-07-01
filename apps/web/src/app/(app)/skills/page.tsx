@@ -6,6 +6,7 @@ import {
   api,
   ApiError,
   type Class,
+  type ClassLevel,
   type AcademicYear,
   type SkillsGrid,
 } from "@/lib/api";
@@ -20,6 +21,9 @@ export default function SkillsPage() {
   const [classId, setClassId] = useState("");
   const [termId, setTermId] = useState("");
 
+  // Map of classLevelId → isEarlyYears
+  const [levelEyMap, setLevelEyMap] = useState<Map<string, boolean>>(new Map());
+
   const [grid, setGrid] = useState<SkillsGrid | null>(null);
   // ratings: map of "studentId:skillItemId" -> value
   const [ratings, setRatings] = useState<Map<string, number>>(new Map());
@@ -30,12 +34,23 @@ export default function SkillsPage() {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
-  // Load classes + terms once
+  // Load classes + terms + class levels once
   useEffect(() => {
     void (async () => {
-      const [cs, yrs] = await Promise.all([api.listClasses(), api.listAcademicYears()]);
+      const [cs, yrs, levels] = await Promise.all([
+        api.listClasses(),
+        api.listAcademicYears(),
+        api.listClassLevels(),
+      ]);
       setClasses(cs);
       setYears(yrs);
+      // Build EY map
+      const eyMap = new Map<string, boolean>();
+      for (const level of levels) {
+        eyMap.set(level.id, !!level.isEarlyYears);
+      }
+      setLevelEyMap(eyMap);
+
       if (cs[0]) setClassId(cs[0].id);
       const ts: TermOpt[] = yrs.flatMap((y) =>
         (y.terms ?? [])
@@ -48,12 +63,21 @@ export default function SkillsPage() {
     })();
   }, []);
 
+  // Determine if selected class is Early Years
+  const isEarlyYears = useMemo(() => {
+    const cls = classes.find((c) => c.id === classId);
+    if (!cls) return false;
+    return levelEyMap.get(cls.classLevelId) ?? false;
+  }, [classes, classId, levelEyMap]);
+
+  const kind = isEarlyYears ? "early_years" as const : undefined;
+
   const loadGrid = useCallback(async () => {
     if (!classId || !termId) return;
     setLoading(true);
     setError(null);
     try {
-      const g = await api.getSkillsGrid(classId, termId);
+      const g = await api.getSkillsGrid(classId, termId, kind);
       setGrid(g);
 
       // Populate ratings from server data
@@ -83,7 +107,7 @@ export default function SkillsPage() {
     } finally {
       setLoading(false);
     }
-  }, [classId, termId]);
+  }, [classId, termId, kind]);
 
   useEffect(() => { void loadGrid(); }, [loadGrid]);
 
@@ -113,7 +137,7 @@ export default function SkillsPage() {
         })
         .filter((r) => r.value >= 1);
 
-      await api.saveSkillRatings({ classId, termId, ratings: ratingsList });
+      await api.saveSkillRatings({ classId, termId, ratings: ratingsList, kind });
 
       // Save form-teacher remarks
       await Promise.all(
@@ -139,9 +163,14 @@ export default function SkillsPage() {
 
   const selClass = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small";
 
+  const pageTitle = isEarlyYears ? "Skills / Development" : "Skills";
+  const pageDesc = isEarlyYears
+    ? "Record developmental area ratings and form-teacher remarks for Early Years classes."
+    : "Record affective/skills ratings and form-teacher remarks.";
+
   return (
     <PageContainer>
-      <PageHeader title="Skills" description="Record affective/skills ratings and form-teacher remarks." />
+      <PageHeader title={pageTitle} description={pageDesc} />
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <label className="text-small text-ink-500 flex flex-col gap-1">
@@ -151,7 +180,14 @@ export default function SkillsPage() {
             onChange={(e) => setClassId(e.target.value)}
             className={selClass}
           >
-            {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {classes.map((c) => {
+              const isEy = levelEyMap.get(c.classLevelId) ?? false;
+              return (
+                <option key={c.id} value={c.id}>
+                  {c.name}{isEy ? " (EY)" : ""}
+                </option>
+              );
+            })}
           </select>
         </label>
         <label className="text-small text-ink-500 flex flex-col gap-1">
@@ -164,6 +200,11 @@ export default function SkillsPage() {
             {terms.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </label>
+        {isEarlyYears && (
+          <span className="text-caption text-brand-600 bg-brand-50 dark:bg-brand-900/20 px-2 py-1 rounded-full self-end mb-0.5">
+            Early Years
+          </span>
+        )}
         <div className="flex items-center gap-3 ml-auto">
           <Button
             onClick={() => void save()}
@@ -188,7 +229,11 @@ export default function SkillsPage() {
       {grid?.locked && (
         <div className="mb-4 flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-small text-warning-700 dark:text-warning-300">
           <Star size={15} className="shrink-0" aria-hidden />
-          <span>Released — locked. Ratings are read-only.</span>
+          <span>
+            {isEarlyYears
+              ? "Released — locked. Developmental ratings are read-only."
+              : "Released — locked. Ratings are read-only."}
+          </span>
         </div>
       )}
 
@@ -197,8 +242,12 @@ export default function SkillsPage() {
       ) : !grid || grid.domains.length === 0 ? (
         <EmptyState
           icon={<Star size={28} />}
-          title="No skill domains configured"
-          description="Configure skill domains and items in Settings → Assessment before recording ratings."
+          title={isEarlyYears ? "No Early Years areas configured" : "No skill domains configured"}
+          description={
+            isEarlyYears
+              ? "Configure Early Years areas in Settings → Skills config (Early Years tab) before recording ratings."
+              : "Configure skill domains and items in Settings → Assessment before recording ratings."
+          }
         />
       ) : grid.students.length === 0 ? (
         <EmptyState
@@ -271,7 +320,7 @@ export default function SkillsPage() {
                                 setRating(student.studentId, item.id, v);
                               }}
                               className={cn(
-                                "h-9 w-16 rounded-input border bg-surface px-1 text-center text-small dark:bg-surface-dark",
+                                "h-9 w-20 rounded-input border bg-surface px-1 text-center text-small dark:bg-surface-dark",
                                 grid.locked
                                   ? "border-ink-200 dark:border-white/10 opacity-60 cursor-not-allowed"
                                   : "border-ink-300 dark:border-white/15",
@@ -280,7 +329,7 @@ export default function SkillsPage() {
                               <option value="">—</option>
                               {grid.scale.map((pt) => (
                                 <option key={pt.value} value={pt.value} title={pt.label}>
-                                  {pt.value}
+                                  {pt.value} — {pt.label}
                                 </option>
                               ))}
                             </select>

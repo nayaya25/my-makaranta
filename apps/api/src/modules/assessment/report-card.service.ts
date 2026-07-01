@@ -13,8 +13,164 @@ export class ReportCardService {
     @Inject(STORAGE_SERVICE) private storage: StorageService,
   ) {}
 
-  async getReportCard(studentId: string, termId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async getReportCard(studentId: string, termId: string): Promise<Record<string, any>> {
     const schoolId = TenantContext.schoolIdOrThrow();
+
+    // Step 1: Look up enrollment to determine the class and whether it's EY.
+    // Scope by the student's school so a foreign (studentId, termId) pair never
+    // resolves — do not rely on the term lookup as an implicit tenant guard.
+    const enrollment = await this.prisma.enrollment.findFirst({
+      where: { studentId, termId, student: { schoolId } },
+      include: {
+        class: {
+          include: { classLevel: true },
+        },
+        student: { select: { firstName: true, lastName: true, admissionNo: true } },
+      },
+    });
+
+    // Load the term for dates/labels regardless of mode
+    const term = await this.prisma.term.findFirst({
+      where: { id: termId, schoolId },
+      include: { academicYear: { select: { name: true } } },
+    });
+
+    const isEarlyYears = enrollment?.class?.classLevel?.isEarlyYears === true;
+
+    if (isEarlyYears) {
+      if (!enrollment || !term) throw new NotFoundException("Report card not found");
+      return this._getEarlyYearsReportCard(studentId, termId, schoolId, enrollment, term);
+    } else {
+      return this._getStandardReportCard(studentId, termId, schoolId);
+    }
+  }
+
+  private async _getEarlyYearsReportCard(
+    studentId: string,
+    termId: string,
+    schoolId: string,
+    enrollment: {
+      class: { name: string; classLevel: { isEarlyYears: boolean } };
+      student: { firstName: string; lastName: string; admissionNo: string } | null;
+    },
+    term: { number: number; startDate: Date; endDate: Date; academicYear: { name: string } },
+  ) {
+    const termStart = term.startDate;
+    const termEnd = term.endDate;
+    const termLabel = `${term.academicYear.name} · Term ${term.number}`;
+
+    const signUrl = async (key: string | null | undefined): Promise<string | null | undefined> => {
+      if (key && !/^https?:\/\//.test(key)) {
+        return this.storage.getSignedUrl(key);
+      }
+      return key;
+    };
+
+    const [school, eyDomains, eyScalePoints, termRemark, presentCount, absentCount] = await Promise.all([
+      this.prisma.school.findUnique({
+        where: { id: schoolId },
+        select: { name: true, logoUrl: true, motto: true, principalSignatureUrl: true },
+      }),
+      this.prisma.skillDomain.findMany({
+        where: { schoolId, kind: "early_years" },
+        orderBy: { order: "asc" },
+        include: {
+          items: {
+            orderBy: { order: "asc" },
+            include: {
+              ratings: {
+                where: { schoolId, studentId, termId },
+                take: 1,
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.skillScalePoint.findMany({
+        where: { schoolId, kind: "early_years" },
+        orderBy: { order: "asc" },
+      }),
+      this.prisma.termRemark.findFirst({
+        where: { schoolId, studentId, termId },
+      }),
+      this.prisma.attendanceRecord.count({
+        where: {
+          schoolId,
+          studentId,
+          date: { gte: termStart, lte: termEnd },
+          status: { in: ["PRESENT", "LATE"] },
+        },
+      }),
+      this.prisma.attendanceRecord.count({
+        where: {
+          schoolId,
+          studentId,
+          date: { gte: termStart, lte: termEnd },
+          status: "ABSENT",
+        },
+      }),
+    ]);
+
+    const student = enrollment.student;
+
+    const [signedLogoUrl, signedPrincipalSig] = await Promise.all([
+      signUrl(school?.logoUrl),
+      signUrl(school?.principalSignatureUrl),
+    ]);
+
+    // Build scale lookup map for labels
+    const scaleLookup = new Map<number, string>(eyScalePoints.map((sp) => [sp.value, sp.label]));
+
+    // Build areas with items and ratings
+    const areas = eyDomains.map((domain) => ({
+      area: domain.name,
+      items: domain.items.map((item) => {
+        const rating = item.ratings[0];
+        return {
+          name: item.name,
+          rating: rating
+            ? { value: rating.value, label: scaleLookup.get(rating.value) ?? String(rating.value) }
+            : null,
+        };
+      }),
+    }));
+
+    const scaleKey = eyScalePoints.map((sp) => ({ value: sp.value, label: sp.label }));
+
+    const present = presentCount;
+    const absent = absentCount;
+    const total = present + absent;
+
+    return {
+      mode: "early_years" as const,
+      student: {
+        name: `${student?.firstName ?? ""} ${student?.lastName ?? ""}`.trim(),
+        admissionNo: student?.admissionNo ?? "",
+      },
+      class: { name: enrollment.class.name },
+      term: { label: termLabel },
+      school: {
+        name: school?.name ?? "",
+        logoUrl: signedLogoUrl ?? null,
+        motto: school?.motto ?? null,
+        principalSignatureUrl: signedPrincipalSig ?? null,
+      },
+      areas,
+      scaleKey,
+      narrative: {
+        formTeacher: termRemark?.formTeacherRemark ?? null,
+        principal: termRemark?.principalRemark ?? null,
+      },
+      attendance: { present, absent, total },
+    };
+  }
+
+  private async _getStandardReportCard(
+    studentId: string,
+    termId: string,
+    schoolId: string,
+  ) {
     const sheet = await this.prisma.resultSheet.findFirst({
       where: { schoolId, studentId, termId },
       include: {
@@ -57,7 +213,7 @@ export class ReportCardService {
         resolveGradeBoundaries(this.prisma, schoolId, sheet.class.classLevelId),
         this.prisma.resultSheet.count({ where: { schoolId, classId: sheet.classId, termId } }),
         this.prisma.skillDomain.findMany({
-          where: { schoolId },
+          where: { schoolId, kind: "conduct" },
           orderBy: { order: "asc" },
           include: {
             items: {
@@ -72,7 +228,7 @@ export class ReportCardService {
           },
         }),
         this.prisma.skillScalePoint.findMany({
-          where: { schoolId },
+          where: { schoolId, kind: "conduct" },
           orderBy: { order: "asc" },
         }),
         this.prisma.termRemark.findFirst({
@@ -114,7 +270,7 @@ export class ReportCardService {
       signUrl(school?.principalSignatureUrl),
     ]);
 
-    // Build skills payload
+    // Build skills payload — conduct kind only
     const skills = skillDomains.map((domain) => ({
       domain: domain.name,
       items: domain.items.map((item) => ({
@@ -162,6 +318,7 @@ export class ReportCardService {
       .map(({ category, subjects }) => ({ category, subjects }));
 
     return {
+      mode: "standard" as const,
       school: {
         name: school?.name ?? "",
         logoUrl: signedLogoUrl ?? null,

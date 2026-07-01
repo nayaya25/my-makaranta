@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, IsInt, IsString, ValidateNested } from "class-validator";
+import { IsArray, IsBoolean, IsInt, IsOptional, IsString, ValidateNested } from "class-validator";
 
 export class ClassLevelItemDto {
   @IsString()
@@ -14,4 +14,10 @@ export class CreateClassLevelsDto {
   @ValidateNested({ each: true })
   @Type(() => ClassLevelItemDto)
   items!: ClassLevelItemDto[];
+}
+
+export class UpdateClassLevelDto {
+  @IsOptional()
+  @IsBoolean()
+  isEarlyYears?: boolean;
 }

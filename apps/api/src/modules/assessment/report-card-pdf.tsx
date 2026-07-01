@@ -52,7 +52,29 @@ interface ReportCardConfig {
   [key: string]: unknown;
 }
 
-export interface ReportCardPayload {
+// Early-Years payload shape (produced by T5)
+export interface EarlyYearsReportCardPayload {
+  mode: "early_years";
+  student: { name: string; admissionNo: string };
+  class: { name: string };
+  term: { label: string };
+  school: {
+    name: string;
+    logoUrl: string | null | undefined;
+    motto: string | null;
+    principalSignatureUrl: string | null | undefined;
+  };
+  areas: {
+    area: string;
+    items: { name: string; rating: { value: number; label: string } | null }[];
+  }[];
+  scaleKey: ScalePoint[];
+  narrative: { formTeacher: string | null; principal: string | null };
+  attendance: { present: number; absent: number; total: number };
+}
+
+export interface StandardReportCardPayload {
+  mode?: "standard";
   school: {
     name: string;
     logoUrl: string | null | undefined;
@@ -75,6 +97,9 @@ export interface ReportCardPayload {
   attendance: { present: number; absent: number; total: number };
   config: ReportCardConfig;
 }
+
+// Union type — renderReportCardPdf accepts either
+export type ReportCardPayload = StandardReportCardPayload | EarlyYearsReportCardPayload;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -363,10 +388,164 @@ function GradeKeyOnly({ gradeKey }: { gradeKey: GradeKey[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Main document component
+// Early-Years document component
 // ---------------------------------------------------------------------------
 
-export function ReportCardPdf({ payload }: { payload: ReportCardPayload }) {
+function EarlyYearsReportCardPdf({ payload }: { payload: EarlyYearsReportCardPayload }) {
+  const { school, student, class: cls, term, areas, scaleKey, narrative, attendance } = payload;
+
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          {school.logoUrl ? <Image src={school.logoUrl} style={styles.logo} /> : null}
+          <View style={styles.headerText}>
+            <Text style={styles.schoolName}>{school.name}</Text>
+            {school.motto ? <Text style={styles.motto}>{school.motto}</Text> : null}
+            <Text style={styles.reportTitle}>EARLY YEARS DEVELOPMENTAL REPORT</Text>
+          </View>
+          <View style={styles.headerRight}>
+            <Text style={styles.headerRightLabel}>Term</Text>
+            <Text style={styles.headerRightValue}>{term.label}</Text>
+          </View>
+        </View>
+
+        {/* ── Student Info Bar ── */}
+        <View style={styles.infoBar}>
+          <View style={styles.infoCell}>
+            <Text style={styles.infoCellLabel}>Student</Text>
+            <Text style={styles.infoCellValue}>{student.name}</Text>
+          </View>
+          <View style={styles.infoCell}>
+            <Text style={styles.infoCellLabel}>Admission No.</Text>
+            <Text style={styles.infoCellValue}>{student.admissionNo}</Text>
+          </View>
+          <View style={styles.infoCell}>
+            <Text style={styles.infoCellLabel}>Class</Text>
+            <Text style={styles.infoCellValue}>{cls.name}</Text>
+          </View>
+        </View>
+
+        {/* ── Developmental Areas ── */}
+        <Text style={styles.sectionLabel}>DEVELOPMENTAL AREAS</Text>
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <View style={[styles.thCell, { flex: 3 }] as any}>
+              <Text>Area / Item</Text>
+            </View>
+            <View style={[styles.thCell, { flex: 2, textAlign: "center" }] as any}>
+              <Text>Rating</Text>
+            </View>
+          </View>
+          {areas.map((areaBlock) => (
+            <React.Fragment key={areaBlock.area}>
+              {/* Area header row */}
+              <View style={styles.skillDomainRow}>
+                <Text style={[styles.skillDomainLabel, { flex: 3 }] as any}>{areaBlock.area}</Text>
+                <Text style={[styles.skillDomainLabel, { flex: 2 }] as any}></Text>
+              </View>
+              {/* Item rows */}
+              {areaBlock.items.map((item, idx) => {
+                const isLast = idx === areaBlock.items.length - 1;
+                return (
+                  <AnyView key={item.name} style={isLast ? styles.skillRowLast : styles.skillRow}>
+                    <Text style={[styles.skillName, { flex: 3 }] as any}>{item.name}</Text>
+                    <Text style={[styles.skillValue, { flex: 2 }] as any}>
+                      {item.rating ? item.rating.label : "—"}
+                    </Text>
+                  </AnyView>
+                );
+              })}
+            </React.Fragment>
+          ))}
+        </View>
+
+        {/* ── Scale Key ── */}
+        <Text style={styles.sectionLabelMt}>SCALE KEY</Text>
+        <View style={styles.twoCol}>
+          <View style={styles.col}>
+            {scaleKey.map((sp) => (
+              <AnyView key={sp.value} style={styles.scaleKeyEntry}>
+                <Text style={styles.scaleKeyValue}>{sp.value}</Text>
+                <Text style={styles.scaleKeyLabel}>– {sp.label}</Text>
+              </AnyView>
+            ))}
+          </View>
+        </View>
+
+        {/* ── Attendance ── */}
+        <Text style={styles.sectionLabelMt}>ATTENDANCE</Text>
+        <View style={styles.attendanceBox}>
+          <View style={styles.attendanceRow}>
+            <View style={styles.attendanceCell}>
+              <Text style={styles.attendanceCellLabel}>Days Present</Text>
+              <Text style={styles.attendanceCellValue}>{attendance.present}</Text>
+            </View>
+            <View style={styles.attendanceCell}>
+              <Text style={styles.attendanceCellLabel}>Days Absent</Text>
+              <Text style={styles.attendanceCellValue}>{attendance.absent}</Text>
+            </View>
+            <View style={styles.attendanceCellLast}>
+              <Text style={styles.attendanceCellLabel}>Total Days</Text>
+              <Text style={styles.attendanceCellValue}>{attendance.total}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* ── Narrative ── */}
+        {(narrative.formTeacher || narrative.principal) ? (
+          <>
+            <Text style={styles.sectionLabelMt}>TEACHER NARRATIVE</Text>
+            <View style={styles.remarksBox}>
+              {narrative.formTeacher ? (
+                <View style={narrative.principal ? styles.remarkEntry : styles.remarkEntryLast}>
+                  <Text style={styles.remarkLabel}>Form Teacher</Text>
+                  <Text style={styles.remarkText}>{narrative.formTeacher}</Text>
+                </View>
+              ) : null}
+              {narrative.principal ? (
+                <View style={styles.remarkEntryLast}>
+                  <Text style={styles.remarkLabel}>Principal</Text>
+                  <Text style={styles.remarkText}>{narrative.principal}</Text>
+                </View>
+              ) : null}
+            </View>
+          </>
+        ) : null}
+
+        {/* ── Principal Signature ── */}
+        {school.principalSignatureUrl ? (
+          <View style={styles.signatureSection}>
+            <Image src={school.principalSignatureUrl} style={styles.signatureImage} />
+            <Text style={styles.signatureLabel}>Principal's Signature</Text>
+          </View>
+        ) : null}
+
+        {/* ── Footer ── */}
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>
+            {school.name} · {term.label}
+          </Text>
+          <View style={styles.footerMid}>
+            <Text style={styles.footerText}>Early Years Developmental Report</Text>
+          </View>
+          <Text style={styles.footerText}>
+            Printed: {new Date().toLocaleDateString("en-GB")}
+          </Text>
+        </View>
+
+      </Page>
+    </Document>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Standard document component
+// ---------------------------------------------------------------------------
+
+export function ReportCardPdf({ payload }: { payload: StandardReportCardPayload }) {
   const {
     school,
     student,
@@ -532,5 +711,8 @@ export function ReportCardPdf({ payload }: { payload: ReportCardPayload }) {
 // ---------------------------------------------------------------------------
 
 export async function renderReportCardPdf(payload: ReportCardPayload): Promise<Buffer> {
+  if (payload.mode === "early_years") {
+    return renderToBuffer(<EarlyYearsReportCardPdf payload={payload} />);
+  }
   return renderToBuffer(<ReportCardPdf payload={payload} />);
 }

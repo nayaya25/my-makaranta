@@ -1,10 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, CardBody, CardHeader, PageContainer, PageHeader, Spinner } from "@mymakaranta/ui";
+import { Button, Card, CardBody, CardHeader, PageContainer, PageHeader, Spinner, cn } from "@mymakaranta/ui";
 import { api, ApiError, type SkillDomain, type SkillScalePoint } from "@/lib/api";
 
+type SkillKind = "conduct" | "early_years";
+
 export default function SkillsConfigPage() {
+  const [kind, setKind] = useState<SkillKind>("conduct");
+
   return (
     <PageContainer>
       <PageHeader
@@ -12,8 +16,36 @@ export default function SkillsConfigPage() {
         description="Manage affective and psychomotor skill domains, items, and the rating scale."
       />
       <div className="flex flex-col gap-6">
-        <DomainsPanel />
-        <ScalePanel />
+        {/* Kind tab selector */}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setKind("conduct")}
+            className={cn(
+              "px-4 py-1.5 rounded-full text-small border transition-colors",
+              kind === "conduct"
+                ? "bg-brand-600 text-white border-brand-600"
+                : "border-ink-300 dark:border-white/15 text-ink-700 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-white/5",
+            )}
+          >
+            Conduct skills
+          </button>
+          <button
+            type="button"
+            onClick={() => setKind("early_years")}
+            className={cn(
+              "px-4 py-1.5 rounded-full text-small border transition-colors",
+              kind === "early_years"
+                ? "bg-brand-600 text-white border-brand-600"
+                : "border-ink-300 dark:border-white/15 text-ink-700 dark:text-ink-300 hover:bg-ink-50 dark:hover:bg-white/5",
+            )}
+          >
+            Early Years areas
+          </button>
+        </div>
+
+        <DomainsPanel kind={kind} />
+        <ScalePanel kind={kind} />
       </div>
     </PageContainer>
   );
@@ -21,7 +53,7 @@ export default function SkillsConfigPage() {
 
 /* ── Domains & Items ─────────────────────────────────────────────────────── */
 
-function DomainsPanel() {
+function DomainsPanel({ kind }: { kind: SkillKind }) {
   const [domains, setDomains] = useState<SkillDomain[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,14 +65,14 @@ function DomainsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getSkillConfig();
+      const data = await api.getSkillConfig(kind);
       setDomains(data.domains);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load skill domains.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [kind]);
 
   useEffect(() => {
     void load();
@@ -52,7 +84,7 @@ function DomainsPanel() {
     setAdding(true);
     setMsg(null);
     try {
-      const domain = await api.createSkillDomain({ name, order: domains.length });
+      const domain = await api.createSkillDomain({ name, order: domains.length, kind });
       setDomains((prev) => [...prev, { ...domain, items: [] }]);
       setNewDomainName("");
     } catch (e) {
@@ -126,10 +158,15 @@ function DomainsPanel() {
     }
   };
 
+  const domainLabel = kind === "early_years" ? "area" : "domain";
+  const itemLabel = kind === "early_years" ? "developmental item" : "item";
+
   return (
     <Card>
       <CardHeader>
-        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Domains &amp; Items</span>
+        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">
+          {kind === "early_years" ? "Early Years Areas & Items" : "Domains & Items"}
+        </span>
       </CardHeader>
       <CardBody>
         {loading ? (
@@ -139,13 +176,14 @@ function DomainsPanel() {
         ) : error ? (
           <p className="text-small text-error">{error}</p>
         ) : domains.length === 0 ? (
-          <p className="text-small text-ink-500">No skill domains yet. Add one below.</p>
+          <p className="text-small text-ink-500">No {domainLabel}s yet. Add one below.</p>
         ) : (
           <div className="flex flex-col gap-4">
             {domains.map((domain) => (
               <DomainRow
                 key={domain.id}
                 domain={domain}
+                itemLabel={itemLabel}
                 onRename={renameDomain}
                 onDelete={deleteDomain}
                 onAddItem={addItem}
@@ -159,17 +197,17 @@ function DomainsPanel() {
         {/* Add domain */}
         <div className="mt-4 flex items-center gap-2">
           <input
-            aria-label="new domain name"
+            aria-label={`new ${domainLabel} name`}
             value={newDomainName}
             onChange={(e) => setNewDomainName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") void addDomain();
             }}
-            placeholder="New domain name…"
+            placeholder={`New ${domainLabel} name…`}
             className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
           />
           <Button onClick={() => void addDomain()} disabled={adding || !newDomainName.trim()}>
-            Add domain
+            Add {domainLabel}
           </Button>
         </div>
         {msg && <p className="mt-2 text-caption text-error">{msg}</p>}
@@ -180,6 +218,7 @@ function DomainsPanel() {
 
 interface DomainRowProps {
   domain: SkillDomain;
+  itemLabel: string;
   onRename: (id: string, name: string) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onAddItem: (domainId: string, name: string) => Promise<void>;
@@ -187,7 +226,7 @@ interface DomainRowProps {
   onDeleteItem: (domainId: string, itemId: string) => Promise<void>;
 }
 
-function DomainRow({ domain, onRename, onDelete, onAddItem, onRenameItem, onDeleteItem }: DomainRowProps) {
+function DomainRow({ domain, itemLabel, onRename, onDelete, onAddItem, onRenameItem, onDeleteItem }: DomainRowProps) {
   const [editName, setEditName] = useState(domain.name);
   const [newItemName, setNewItemName] = useState("");
 
@@ -231,7 +270,7 @@ function DomainRow({ domain, onRename, onDelete, onAddItem, onRenameItem, onDele
       {/* Items */}
       <div className="flex flex-col gap-1.5 pl-3">
         {domain.items.length === 0 && (
-          <p className="text-caption text-ink-400">No items yet.</p>
+          <p className="text-caption text-ink-400">No {itemLabel}s yet.</p>
         )}
         {domain.items.map((item) => (
           <ItemRow
@@ -251,7 +290,7 @@ function DomainRow({ domain, onRename, onDelete, onAddItem, onRenameItem, onDele
             onKeyDown={(e) => {
               if (e.key === "Enter") handleAddItem();
             }}
-            placeholder="New item…"
+            placeholder={`New ${itemLabel}…`}
             className="h-8 flex-1 rounded-input border border-ink-200 dark:border-white/10 bg-surface dark:bg-surface-dark px-2 text-caption"
           />
           <Button
@@ -311,7 +350,7 @@ function ItemRow({ domainId, item, onRename, onDelete }: ItemRowProps) {
 
 /* ── Scale labels ────────────────────────────────────────────────────────── */
 
-function ScalePanel() {
+function ScalePanel({ kind }: { kind: SkillKind }) {
   const [points, setPoints] = useState<Array<{ value: number; label: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -322,14 +361,14 @@ function ScalePanel() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getSkillScale();
+      const data = await api.getSkillScale(kind);
       setPoints(data.map((p: SkillScalePoint) => ({ value: p.value, label: p.label })));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Could not load scale.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [kind]);
 
   useEffect(() => {
     void load();
@@ -347,7 +386,7 @@ function ScalePanel() {
     setSaving(true);
     setMsg(null);
     try {
-      const updated = await api.setSkillScale(points);
+      const updated = await api.setSkillScale(points, kind);
       setPoints(updated.map((p: SkillScalePoint) => ({ value: p.value, label: p.label })));
       setMsg("Saved.");
     } catch (e) {
@@ -360,7 +399,9 @@ function ScalePanel() {
   return (
     <Card>
       <CardHeader>
-        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Rating scale labels</span>
+        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">
+          {kind === "early_years" ? "Early Years rating scale" : "Rating scale labels"}
+        </span>
       </CardHeader>
       <CardBody>
         {loading ? (
@@ -387,7 +428,7 @@ function ScalePanel() {
                   aria-label="scale label"
                   value={p.label}
                   onChange={(e) => update(i, { label: e.target.value })}
-                  placeholder="e.g. Excellent"
+                  placeholder={kind === "early_years" ? "e.g. Secure" : "e.g. Excellent"}
                   className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
                 />
                 <Button variant="ghost" size="sm" onClick={() => removePoint(i)} aria-label="remove">
