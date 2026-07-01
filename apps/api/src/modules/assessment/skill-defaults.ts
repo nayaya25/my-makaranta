@@ -14,19 +14,19 @@ const DEFAULT_SCALE = [
 ];
 
 export async function seedSkillDefaults(prisma: PrismaClient, schoolId: string): Promise<void> {
-  const existing = await prisma.skillDomain.count({ where: { schoolId } });
+  const existing = await prisma.skillDomain.count({ where: { schoolId, kind: "conduct" } });
   if (existing === 0) {
     for (const [di, d] of DEFAULT_DOMAINS.entries()) {
-      const domain = await prisma.skillDomain.create({ data: { schoolId, name: d.name, order: di } });
+      const domain = await prisma.skillDomain.create({ data: { schoolId, kind: "conduct", name: d.name, order: di } });
       await prisma.skillItem.createMany({
         data: d.items.map((name, i) => ({ schoolId, domainId: domain.id, name, order: i })),
       });
     }
   }
-  const scaleCount = await prisma.skillScalePoint.count({ where: { schoolId } });
+  const scaleCount = await prisma.skillScalePoint.count({ where: { schoolId, kind: "conduct" } });
   if (scaleCount === 0) {
     await prisma.skillScalePoint.createMany({
-      data: DEFAULT_SCALE.map((p, i) => ({ schoolId, value: p.value, label: p.label, order: i })),
+      data: DEFAULT_SCALE.map((p, i) => ({ schoolId, kind: "conduct", value: p.value, label: p.label, order: i })),
     });
   }
 }

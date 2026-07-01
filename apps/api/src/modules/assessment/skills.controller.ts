@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../../core/auth/jwt-auth.guard";
 import { PermissionGuard } from "../../core/auth/permissions/permission.guard";
 import { RequirePermissions } from "../../core/auth/permissions/require-permissions.decorator";
@@ -11,7 +11,17 @@ import {
   UpdateSkillItemDto,
   SetSkillScaleDto,
   SaveSkillRatingsDto,
+  SKILL_KINDS,
+  type SkillKind,
 } from "./dto/skills.dto";
+
+function parseKind(raw: string | undefined): SkillKind {
+  const k = raw ?? "conduct";
+  if (!SKILL_KINDS.includes(k as SkillKind)) {
+    throw new BadRequestException(`Invalid kind '${k}'. Must be one of: ${SKILL_KINDS.join(", ")}.`);
+  }
+  return k as SkillKind;
+}
 
 @Controller("v1/assessment")
 @UseGuards(JwtAuthGuard, PermissionGuard)
@@ -20,8 +30,8 @@ export class SkillsController {
   constructor(private service: SkillsService) {}
 
   @Get("skill-domains")
-  listConfig() {
-    return this.service.listConfig();
+  listConfig(@Query("kind") kind?: string) {
+    return this.service.listConfig(parseKind(kind));
   }
 
   @Post("skill-domains")
@@ -55,19 +65,23 @@ export class SkillsController {
   }
 
   @Get("skill-scale")
-  getScale() {
-    return this.service.getScale();
+  getScale(@Query("kind") kind?: string) {
+    return this.service.getScale(parseKind(kind));
   }
 
   @Put("skill-scale")
-  setScale(@Body() dto: SetSkillScaleDto) {
-    return this.service.setScale(dto.points);
+  setScale(@Body() dto: SetSkillScaleDto, @Query("kind") kind?: string) {
+    return this.service.setScale(dto.points, parseKind(kind));
   }
 
   @Get("skills/grid")
   @RequirePermissions("skills.record")
-  getGrid(@Query("classId") classId: string, @Query("termId") termId: string) {
-    return this.service.getGrid(classId, termId);
+  getGrid(
+    @Query("classId") classId: string,
+    @Query("termId") termId: string,
+    @Query("kind") kind?: string,
+  ) {
+    return this.service.getGrid(classId, termId, parseKind(kind));
   }
 
   @Put("skills")

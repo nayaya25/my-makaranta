@@ -4,7 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { Button, Spinner } from "@mymakaranta/ui";
-import { api, ApiError, type ReportCard, type ReportCardConfig } from "@/lib/api";
+import {
+  api,
+  ApiError,
+  type StandardReportCard,
+  type EarlyYearsReportCard,
+  type ReportCard,
+  type ReportCardConfig,
+} from "@/lib/api";
 import { ResultReveal } from "../ResultReveal";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -25,8 +32,8 @@ function AttendancePill({ label, value, accent }: { label: string; value: number
 // ─── section components ────────────────────────────────────────────────────────
 
 function SkillsSection({ skills, scaleKey }: {
-  skills: NonNullable<ReportCard["skills"]>;
-  scaleKey: NonNullable<ReportCard["scaleKey"]>;
+  skills: NonNullable<StandardReportCard["skills"]>;
+  scaleKey: NonNullable<StandardReportCard["scaleKey"]>;
 }) {
   const sortedScale = [...scaleKey].sort((a, b) => b.value - a.value);
   return (
@@ -65,7 +72,7 @@ function SkillsSection({ skills, scaleKey }: {
   );
 }
 
-function AttendanceSection({ attendance }: { attendance: NonNullable<ReportCard["attendance"]> }) {
+function AttendanceSection({ attendance }: { attendance: { present: number; absent: number; total: number } }) {
   return (
     <section className="mb-5">
       <h3 className="mb-2 text-[0.65rem] font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400 print:text-gray-500">
@@ -80,7 +87,7 @@ function AttendanceSection({ attendance }: { attendance: NonNullable<ReportCard[
   );
 }
 
-function RemarksSection({ remarks }: { remarks: NonNullable<ReportCard["remarks"]> }) {
+function RemarksSection({ remarks }: { remarks: { formTeacher: string | null; principal: string | null } }) {
   return (
     <section className="mb-5">
       <h3 className="mb-2 text-[0.65rem] font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400 print:text-gray-500">
@@ -124,9 +131,117 @@ function SignatureSection({ signatureUrl, releasedAt }: { signatureUrl?: string 
   );
 }
 
+// ─── Early Years layout ───────────────────────────────────────────────────────
+
+function EarlyYearsLayout({ rc, cfg }: { rc: EarlyYearsReportCard; cfg: ReportCardConfig }) {
+  const sortedScale = [...rc.scaleKey].sort((a, b) => b.value - a.value);
+
+  return (
+    <div className="rounded-[4px] border border-ink-200 dark:border-white/10 print:border-0 bg-surface dark:bg-surface-dark p-8 print:p-0 font-sans text-ink-1000 dark:text-ink-100 print:text-black print:bg-white">
+      {/* Header */}
+      <header className="flex items-center gap-4 mb-6 pb-4 border-b-2 border-brand-600 print:border-teal-700">
+        {rc.school.logoUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={rc.school.logoUrl} alt="School logo" className="h-16 w-16 object-contain shrink-0" />
+        )}
+        <div className="text-center flex-1">
+          <h1 className="font-display text-[1.25rem] font-bold text-ink-1000 dark:text-ink-100 print:text-black uppercase tracking-wide">
+            {rc.school.name}
+          </h1>
+          {rc.school.motto && (
+            <p className="text-[0.75rem] italic text-ink-500 dark:text-ink-400 print:text-gray-500 mt-0.5">
+              &quot;{rc.school.motto}&quot;
+            </p>
+          )}
+          <p className="mt-1 text-[0.7rem] font-semibold uppercase tracking-widest text-brand-600 print:text-teal-700">
+            Early Years Report
+          </p>
+        </div>
+      </header>
+
+      {/* Student info */}
+      <section className="grid grid-cols-2 gap-x-6 gap-y-1 text-[0.8rem] mb-5 bg-ink-1000/[0.02] dark:bg-white/[0.02] print:bg-gray-50 rounded-lg p-3">
+        <div><span className="text-ink-500 dark:text-ink-400 print:text-gray-500">Student:</span> <span className="font-medium">{rc.student.name}</span></div>
+        <div><span className="text-ink-500 dark:text-ink-400 print:text-gray-500">Admission No:</span> <span className="font-medium tabular-nums">{rc.student.admissionNo}</span></div>
+        <div><span className="text-ink-500 dark:text-ink-400 print:text-gray-500">Class:</span> <span className="font-medium">{rc.class.name}</span></div>
+        <div><span className="text-ink-500 dark:text-ink-400 print:text-gray-500">Term:</span> <span className="font-medium">{rc.term.label}</span></div>
+      </section>
+
+      {/* Developmental areas */}
+      <section className="mb-5">
+        <h3 className="mb-2 text-[0.65rem] font-semibold uppercase tracking-widest text-ink-500 dark:text-ink-400 print:text-gray-500">
+          Developmental Assessment
+        </h3>
+        {rc.areas.map((area) => (
+          <div key={area.area} className="mb-4">
+            <p className="mb-1 text-[0.75rem] font-semibold text-brand-700 dark:text-brand-300 print:text-teal-700">
+              {area.area}
+            </p>
+            <table className="w-full text-[0.75rem] border-collapse">
+              <tbody>
+                {area.items.map((item) => (
+                  <tr key={item.name} className="border-b border-ink-1000/[0.05] dark:border-white/[0.05] print:border-gray-200">
+                    <td className="py-0.5 pr-3 text-ink-700 dark:text-ink-300 print:text-gray-700 w-[55%]">{item.name}</td>
+                    <td className="py-0.5 text-center tabular-nums font-medium text-ink-1000 dark:text-ink-100 print:text-black">
+                      {item.rating ? item.rating.value : "—"}
+                    </td>
+                    <td className="py-0.5 pl-2 text-ink-500 dark:text-ink-400 print:text-gray-500">
+                      {item.rating ? item.rating.label : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </section>
+
+      {/* Scale key */}
+      {sortedScale.length > 0 && (
+        <p className="mb-5 text-[0.625rem] text-ink-400 dark:text-ink-500 print:text-gray-400">
+          Scale: {sortedScale.map((s) => `${s.value} = ${s.label}`).join("  ·  ")}
+        </p>
+      )}
+
+      {/* Attendance */}
+      {cfg.showAttendance && (
+        <AttendanceSection attendance={rc.attendance} />
+      )}
+
+      {/* Narrative / remarks */}
+      {cfg.showRemarks && (
+        <RemarksSection remarks={rc.narrative} />
+      )}
+
+      {/* Next term */}
+      {cfg.nextTermBegins && (
+        <p className="mb-4 text-[0.75rem] text-ink-500 dark:text-ink-400 print:text-gray-500">
+          Next term begins: <span className="font-medium">{fmtDate(cfg.nextTermBegins)}</span>
+        </p>
+      )}
+
+      {/* Footer */}
+      <footer className="flex items-end justify-between pt-4 border-t border-ink-1000/10 dark:border-white/10 print:border-gray-200">
+        <div className="text-[0.65rem] text-ink-400 dark:text-ink-500 print:text-gray-400">
+          <p>{rc.school.name}</p>
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          {rc.school.principalSignatureUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={rc.school.principalSignatureUrl} alt="Principal signature" className="h-10 object-contain" />
+          )}
+          <div className="w-32 border-t border-ink-1000/20 dark:border-white/20 print:border-gray-400 pt-0.5 text-center text-[0.625rem] text-ink-400 dark:text-ink-500 print:text-gray-400">
+            Principal&apos;s Signature
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
 // ─── layout variants ───────────────────────────────────────────────────────────
 
-function ClassicLayout({ rc, qr, cfg }: { rc: ReportCard; qr: string; cfg: ReportCardConfig }) {
+function ClassicLayout({ rc, qr, cfg }: { rc: StandardReportCard; qr: string; cfg: ReportCardConfig }) {
   return (
     <div className="rounded-[4px] border border-ink-200 dark:border-white/10 print:border-0 bg-surface dark:bg-surface-dark p-8 print:p-0 font-sans text-ink-1000 dark:text-ink-100 print:text-black print:bg-white">
       {/* Header */}
@@ -270,7 +385,7 @@ function ClassicLayout({ rc, qr, cfg }: { rc: ReportCard; qr: string; cfg: Repor
   );
 }
 
-function ModernLayout({ rc, qr, cfg }: { rc: ReportCard; qr: string; cfg: ReportCardConfig }) {
+function ModernLayout({ rc, qr, cfg }: { rc: StandardReportCard; qr: string; cfg: ReportCardConfig }) {
   return (
     <div className="overflow-hidden rounded-[4px] border border-ink-200 dark:border-white/10 print:border-0 bg-surface dark:bg-surface-dark print:bg-white font-sans text-ink-1000 dark:text-ink-100 print:text-black">
       {/* Accent header bar */}
@@ -423,7 +538,7 @@ function ModernLayout({ rc, qr, cfg }: { rc: ReportCard; qr: string; cfg: Report
   );
 }
 
-function CompactLayout({ rc, qr, cfg }: { rc: ReportCard; qr: string; cfg: ReportCardConfig }) {
+function CompactLayout({ rc, qr, cfg }: { rc: StandardReportCard; qr: string; cfg: ReportCardConfig }) {
   return (
     <div className="rounded-[4px] border border-ink-200 dark:border-white/10 print:border-0 bg-surface dark:bg-surface-dark print:bg-white font-sans text-ink-1000 dark:text-ink-100 print:text-black p-5 print:p-4 text-[0.78rem]">
       {/* Compact single-line header */}
@@ -658,8 +773,12 @@ export default function ReportCardPage() {
       .catch((e) => setErr(e instanceof ApiError ? e.message : "Could not load the report card."));
   }, [params.studentId, termId]);
 
+  // QR code only for standard mode (has verificationCode)
   const verifyUrl = useMemo(
-    () => (rc && typeof window !== "undefined" ? `${window.location.origin}/verify/${rc.verificationCode}` : ""),
+    () =>
+      rc && rc.mode === "standard" && typeof window !== "undefined"
+        ? `${window.location.origin}/verify/${rc.verificationCode}`
+        : "",
     [rc],
   );
   useEffect(() => {
@@ -683,6 +802,32 @@ export default function ReportCardPage() {
   if (!rc) return <div className="flex justify-center p-16"><Spinner size="lg" /></div>;
 
   const cfg: ReportCardConfig = rc.config ?? DEFAULT_CFG;
+
+  // ── Early Years mode ──────────────────────────────────────────────────────
+  if (rc.mode === "early_years") {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-6 print:p-0 print:max-w-none">
+        {/* Toolbar — hidden on print */}
+        <div className="mb-6 flex items-center justify-between print:hidden">
+          <h1 className="font-display text-h2 font-semibold text-ink-1000 dark:text-ink-100">
+            Report Card
+          </h1>
+          <div className="flex items-center gap-3">
+            {dlErr && <span className="text-small text-error">{dlErr}</span>}
+            <Button variant="outline" onClick={handleDownload} disabled={downloading}>
+              {downloading ? "Downloading…" : "Download PDF"}
+            </Button>
+            <Button onClick={() => window.print()}>Print</Button>
+          </div>
+        </div>
+        <div id="report-card-printable" className="print-a4-wrapper">
+          <EarlyYearsLayout rc={rc} cfg={cfg} />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Standard mode ─────────────────────────────────────────────────────────
   const layout = cfg.layout ?? "classic";
 
   return (

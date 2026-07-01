@@ -124,6 +124,7 @@ export interface ClassLevel {
   id: string;
   name: string;
   order: number;
+  isEarlyYears?: boolean;
 }
 
 export interface Class {
@@ -372,7 +373,8 @@ export interface CorrectScorePayload {
   otpCode?: string;
 }
 
-export interface ReportCard {
+export interface StandardReportCard {
+  mode: "standard";
   school: { name: string; logoUrl?: string | null; motto?: string | null; principalSignatureUrl?: string | null };
   student: { name: string; admissionNo: string };
   className: string;
@@ -395,6 +397,21 @@ export interface ReportCard {
   attendance?: { present: number; absent: number; total: number };
   config?: ReportCardConfig;
 }
+
+export interface EarlyYearsReportCard {
+  mode: "early_years";
+  school: { name: string; logoUrl?: string | null; motto?: string | null; principalSignatureUrl?: string | null };
+  student: { name: string; admissionNo: string };
+  class: { name: string };
+  term: { label: string };
+  areas: Array<{ area: string; items: Array<{ name: string; rating: { value: number; label: string } | null }> }>;
+  scaleKey: Array<{ value: number; label: string }>;
+  narrative: { formTeacher: string | null; principal: string | null };
+  attendance: { present: number; absent: number; total: number };
+  config?: ReportCardConfig;
+}
+
+export type ReportCard = StandardReportCard | EarlyYearsReportCard;
 
 export type VerifyResult =
   | { valid: false }
@@ -1061,8 +1078,9 @@ export const api = {
   getMyPermissions: () => authedRequest<{ keys: string[] }>("/v1/me/permissions"),
 
   // Skills config (AC-1 Task 3)
-  getSkillConfig: () => authedRequest<SkillConfig>("/v1/assessment/skill-domains"),
-  createSkillDomain: (body: { name: string; order?: number }) =>
+  getSkillConfig: (kind?: "conduct" | "early_years") =>
+    authedRequest<SkillConfig>(kind ? `/v1/assessment/skill-domains?kind=${encodeURIComponent(kind)}` : "/v1/assessment/skill-domains"),
+  createSkillDomain: (body: { name: string; order?: number; kind?: "conduct" | "early_years" }) =>
     authedRequest<SkillDomain>("/v1/assessment/skill-domains", { method: "POST", body: JSON.stringify(body) }),
   updateSkillDomain: (id: string, body: { name?: string; order?: number }) =>
     authedRequest<SkillDomain>(`/v1/assessment/skill-domains/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
@@ -1074,19 +1092,24 @@ export const api = {
     authedRequest<SkillItem>(`/v1/assessment/skill-items/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteSkillItem: (id: string) =>
     authedRequest<void>(`/v1/assessment/skill-items/${id}`, { method: "DELETE" }),
-  getSkillScale: () => authedRequest<SkillScalePoint[]>("/v1/assessment/skill-scale"),
-  setSkillScale: (points: Array<{ value: number; label: string }>) =>
-    authedRequest<SkillScalePoint[]>("/v1/assessment/skill-scale", { method: "PUT", body: JSON.stringify({ points }) }),
+  getSkillScale: (kind?: "conduct" | "early_years") =>
+    authedRequest<SkillScalePoint[]>(kind ? `/v1/assessment/skill-scale?kind=${encodeURIComponent(kind)}` : "/v1/assessment/skill-scale"),
+  setSkillScale: (points: Array<{ value: number; label: string }>, kind?: "conduct" | "early_years") =>
+    authedRequest<SkillScalePoint[]>("/v1/assessment/skill-scale", { method: "PUT", body: JSON.stringify({ points, ...(kind ? { kind } : {}) }) }),
 
   // Report-card config (AC-1 Task 6)
   getReportCardConfig: () => authedRequest<ReportCardConfig>("/v1/assessment/report-card-config"),
   putReportCardConfig: (body: Partial<Omit<ReportCardConfig, "id">>) =>
     authedRequest<ReportCardConfig>("/v1/assessment/report-card-config", { method: "PUT", body: JSON.stringify(body) }),
 
+  // Class-level update (AC-3)
+  updateClassLevel: (id: string, body: { isEarlyYears?: boolean }) =>
+    authedRequest<ClassLevel>(`/v1/class-levels/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+
   // Skills grid + remarks (AC-1 Task 10)
-  getSkillsGrid: (classId: string, termId: string) =>
-    authedRequest<SkillsGrid>(`/v1/assessment/skills/grid?classId=${encodeURIComponent(classId)}&termId=${encodeURIComponent(termId)}`),
-  saveSkillRatings: (body: { classId: string; termId: string; ratings: Array<{ studentId: string; skillItemId: string; value: number }> }) =>
+  getSkillsGrid: (classId: string, termId: string, kind?: "conduct" | "early_years") =>
+    authedRequest<SkillsGrid>(`/v1/assessment/skills/grid?classId=${encodeURIComponent(classId)}&termId=${encodeURIComponent(termId)}${kind ? `&kind=${encodeURIComponent(kind)}` : ""}`),
+  saveSkillRatings: (body: { classId: string; termId: string; ratings: Array<{ studentId: string; skillItemId: string; value: number }>; kind?: "conduct" | "early_years" }) =>
     authedRequest<{ saved: number }>("/v1/assessment/skills", { method: "PUT", body: JSON.stringify(body) }),
   getRemarks: (studentId: string, termId: string) =>
     authedRequest<TermRemark | null>(`/v1/assessment/remarks?studentId=${encodeURIComponent(studentId)}&termId=${encodeURIComponent(termId)}`),

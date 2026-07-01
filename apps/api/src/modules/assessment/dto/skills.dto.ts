@@ -1,5 +1,8 @@
 import { Type } from "class-transformer";
-import { IsArray, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min, ValidateNested } from "class-validator";
+import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min, ValidateNested } from "class-validator";
+
+export type SkillKind = "conduct" | "early_years";
+export const SKILL_KINDS: SkillKind[] = ["conduct", "early_years"];
 
 export class CreateSkillDomainDto {
   @IsString()
@@ -10,6 +13,10 @@ export class CreateSkillDomainDto {
   @IsInt()
   @Min(0)
   order?: number;
+
+  @IsOptional()
+  @IsIn(SKILL_KINDS)
+  kind?: SkillKind;
 }
 
 export class UpdateSkillDomainDto {
@@ -91,6 +98,10 @@ export class SaveSkillRatingsDto {
   @IsString()
   @IsNotEmpty()
   termId!: string;
+
+  @IsOptional()
+  @IsIn(SKILL_KINDS)
+  kind?: SkillKind;
 
   @IsArray()
   @ValidateNested({ each: true })
