@@ -4,7 +4,7 @@ import { JwtAuthGuard } from "../../core/auth/jwt-auth.guard";
 import { PermissionGuard } from "../../core/auth/permissions/permission.guard";
 import { RequirePermissions } from "../../core/auth/permissions/require-permissions.decorator";
 import { ReportCardService } from "./report-card.service";
-import { renderReportCardPdf, ReportCardPayload } from "./report-card-pdf";
+import { renderReportCardPdf } from "./report-card-pdf";
 
 @Controller("v1/assessment/report-card.pdf")
 export class ReportCardPdfController {
@@ -19,7 +19,7 @@ export class ReportCardPdfController {
     @Res() res: Response,
   ): Promise<void> {
     const payload = await this.reportCardService.getReportCard(studentId, termId);
-    const buffer = await renderReportCardPdf(payload as ReportCardPayload);
+    const buffer = await renderReportCardPdf(payload);
 
     const rawFilename = `report-card-${payload.student.admissionNo}-${payload.term.label}.pdf`;
     const filename = rawFilename.replace(/[^a-zA-Z0-9.\-_]/g, "-");

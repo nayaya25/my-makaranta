@@ -5,6 +5,11 @@ import { generateVerificationCode } from "./verification.util";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
 import { seedSkillDefaults } from "./skill-defaults";
 import { resolveGradeBoundaries } from "./format-resolution";
+import type {
+  ReportCardPayload,
+  StandardReportCardPayload,
+  EarlyYearsReportCardPayload,
+} from "./report-card-pdf";
 
 @Injectable()
 export class ReportCardService {
@@ -13,8 +18,7 @@ export class ReportCardService {
     @Inject(STORAGE_SERVICE) private storage: StorageService,
   ) {}
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  async getReportCard(studentId: string, termId: string): Promise<Record<string, any>> {
+  async getReportCard(studentId: string, termId: string): Promise<ReportCardPayload> {
     const schoolId = TenantContext.schoolIdOrThrow();
 
     // Step 1: Look up enrollment to determine the class and whether it's EY.
@@ -55,7 +59,7 @@ export class ReportCardService {
       student: { firstName: string; lastName: string; admissionNo: string } | null;
     },
     term: { number: number; startDate: Date; endDate: Date; academicYear: { name: string } },
-  ) {
+  ): Promise<EarlyYearsReportCardPayload> {
     const termStart = term.startDate;
     const termEnd = term.endDate;
     const termLabel = `${term.academicYear.name} · Term ${term.number}`;
@@ -170,7 +174,7 @@ export class ReportCardService {
     studentId: string,
     termId: string,
     schoolId: string,
-  ) {
+  ): Promise<StandardReportCardPayload> {
     const sheet = await this.prisma.resultSheet.findFirst({
       where: { schoolId, studentId, termId },
       include: {

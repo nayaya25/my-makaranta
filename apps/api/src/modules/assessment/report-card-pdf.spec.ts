@@ -106,6 +106,7 @@ const samplePayload = {
     createdAt: new Date(),
     updatedAt: new Date(),
   },
+  subjectGroups: [],
 };
 
 describe("renderReportCardPdf", () => {

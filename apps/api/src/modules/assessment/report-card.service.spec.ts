@@ -2,6 +2,13 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { ReportCardService } from "./report-card.service";
+import type { StandardReportCardPayload } from "./report-card-pdf";
+
+/** Narrows a report-card payload to standard mode for assertions in standard-only tests. */
+const asStandard = (r: Awaited<ReturnType<ReportCardService["getReportCard"]>>): StandardReportCardPayload => {
+  if (r.mode === "early_years") throw new Error("expected standard-mode report card");
+  return r;
+};
 
 const prisma = new PrismaClient();
 afterAll(() => prisma.$disconnect());
@@ -205,9 +212,9 @@ describe("ReportCardService – getReportCard payload composition", () => {
   });
 
   it("returns skills grouped by domain with items and ratings (null for unrated)", async () => {
-    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+    const result = asStandard(await TenantContext.run({ schoolId, userId: null }, () =>
       service.getReportCard(studentId, termId),
-    );
+    ));
 
     expect(result.skills).toBeDefined();
     expect(result.skills.length).toBeGreaterThanOrEqual(2);
@@ -249,9 +256,9 @@ describe("ReportCardService – getReportCard payload composition", () => {
   });
 
   it("returns remarks with formTeacher and principal", async () => {
-    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+    const result = asStandard(await TenantContext.run({ schoolId, userId: null }, () =>
       service.getReportCard(studentId, termId),
-    );
+    ));
 
     expect(result.remarks).toBeDefined();
     expect(result.remarks.formTeacher).toBe("Very attentive student");
@@ -271,9 +278,9 @@ describe("ReportCardService – getReportCard payload composition", () => {
   });
 
   it("returns config with schoolId", async () => {
-    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+    const result = asStandard(await TenantContext.run({ schoolId, userId: null }, () =>
       service.getReportCard(studentId, termId),
-    );
+    ));
 
     expect(result.config).toBeDefined();
     expect(result.config.schoolId).toBe(schoolId);
@@ -306,9 +313,9 @@ describe("ReportCardService – getReportCard payload composition", () => {
   });
 
   it("preserves existing fields (scores, position, gradeKey, verificationCode)", async () => {
-    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+    const result = asStandard(await TenantContext.run({ schoolId, userId: null }, () =>
       service.getReportCard(studentId, termId),
-    );
+    ));
 
     expect(result.average).toBe(80);
     expect(result.position).toBe(1);
@@ -719,9 +726,9 @@ describe("ReportCardService – subjectGroups by category", () => {
   });
 
   it("includes subjectGroups with 2 named category groups ordered by category.order + null group last", async () => {
-    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+    const result = asStandard(await TenantContext.run({ schoolId, userId: null }, () =>
       service.getReportCard(studentId, termId),
-    );
+    ));
 
     expect(result.subjectGroups).toBeDefined();
     expect(result.subjectGroups.length).toBe(3);
@@ -740,9 +747,9 @@ describe("ReportCardService – subjectGroups by category", () => {
   });
 
   it("each subjectGroup entry has the same shape as entries (subjectId, subjectName, total, grade)", async () => {
-    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+    const result = asStandard(await TenantContext.run({ schoolId, userId: null }, () =>
       service.getReportCard(studentId, termId),
-    );
+    ));
 
     const allGrouped = result.subjectGroups.flatMap((g: { subjects: unknown[] }) => g.subjects);
     expect(allGrouped.length).toBe(4);
@@ -756,9 +763,9 @@ describe("ReportCardService – subjectGroups by category", () => {
   });
 
   it("keeps the flat entries array present (backward-compat)", async () => {
-    const result = await TenantContext.run({ schoolId, userId: null }, () =>
+    const result = asStandard(await TenantContext.run({ schoolId, userId: null }, () =>
       service.getReportCard(studentId, termId),
-    );
+    ));
 
     expect(result.entries).toBeDefined();
     expect(result.entries.length).toBe(4);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, CardBody, CardHeader, PageContainer, PageHeader, Spinner, cn } from "@mymakaranta/ui";
+import { Button, Card, CardBody, CardHeader, PageContainer, PageHeader, Spinner, Switch, cn } from "@mymakaranta/ui";
 import {
   api,
   ApiError,
@@ -53,9 +53,9 @@ function ClassLevelsEarlyYearsPanel({
         </p>
         <div className="flex flex-col gap-2">
           {classLevels.map((level) => (
-            <label
+            <div
               key={level.id}
-              className="flex items-center justify-between gap-3 border-b border-ink-100 dark:border-white/10 pb-2 cursor-pointer"
+              className="flex items-center justify-between gap-3 border-b border-ink-100 dark:border-white/10 pb-2"
             >
               <span className="text-small text-ink-1000 dark:text-ink-100">{level.name}</span>
               <div className="flex items-center gap-2">
@@ -64,16 +64,14 @@ function ClassLevelsEarlyYearsPanel({
                     Early Years
                   </span>
                 )}
-                <input
-                  type="checkbox"
+                <Switch
                   checked={!!level.isEarlyYears}
                   disabled={toggling === level.id}
-                  onChange={() => void toggle(level)}
-                  className="h-4 w-4"
+                  onCheckedChange={() => void toggle(level)}
                   aria-label={`Toggle Early Years for ${level.name}`}
                 />
               </div>
-            </label>
+            </div>
           ))}
         </div>
         {msg && <p className="mt-2 text-caption text-error">{msg}</p>}
