@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { SubjectCategoriesService } from "./subject-categories.service";
@@ -28,6 +28,9 @@ export class SubjectsService {
 
   async update(id: string, dto: UpdateSubjectDto) {
     const schoolId = TenantContext.schoolIdOrThrow();
+    // IDOR guard: verify subject belongs to this school
+    const existing = await this.prisma.subject.findFirst({ where: { id, schoolId } });
+    if (!existing) throw new NotFoundException("Subject not found.");
     if (dto.categoryId) {
       await this.categories.validateForSchool(dto.categoryId, schoolId);
     }

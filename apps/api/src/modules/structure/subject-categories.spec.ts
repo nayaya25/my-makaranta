@@ -146,3 +146,51 @@ describe("SubjectsService — categoryId validation", () => {
     expect(subject.categoryId).toBeNull();
   });
 });
+
+describe("SubjectsService — update() IDOR guard", () => {
+  let schoolAId: string;
+  let schoolBId: string;
+  let subjectInSchoolA: { id: string };
+  const catSvc = makeCatService();
+  const subjectSvc = makeSubjectService(catSvc);
+
+  beforeAll(async () => {
+    const ts = Date.now();
+    const schoolA = await prisma.school.create({
+      data: { name: "IDORSubjA", slug: `idor-subj-a-${ts}` } as never,
+    });
+    const schoolB = await prisma.school.create({
+      data: { name: "IDORSubjB", slug: `idor-subj-b-${ts}` } as never,
+    });
+    schoolAId = schoolA.id;
+    schoolBId = schoolB.id;
+
+    subjectInSchoolA = await prisma.subject.create({
+      data: { schoolId: schoolAId, name: "Biology", code: "BIO" } as never,
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.subject.deleteMany({ where: { schoolId: { in: [schoolAId, schoolBId] } } });
+    await prisma.subjectCategory.deleteMany({
+      where: { schoolId: { in: [schoolAId, schoolBId] } },
+    });
+    await prisma.school.deleteMany({ where: { id: { in: [schoolAId, schoolBId] } } });
+  });
+
+  it("update() throws NotFoundException when subject belongs to a different school", async () => {
+    // schoolBId tries to update a subject that belongs to schoolAId — IDOR attempt
+    await expect(
+      withSchool(schoolBId, () =>
+        subjectSvc.update(subjectInSchoolA.id, { name: "Hacked" }),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("update() succeeds when subject belongs to the correct school", async () => {
+    const updated = await withSchool(schoolAId, () =>
+      subjectSvc.update(subjectInSchoolA.id, { name: "Biology (Updated)" }),
+    );
+    expect((updated as any).name).toBe("Biology (Updated)");
+  });
+});
