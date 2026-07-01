@@ -26,7 +26,7 @@ describe("ReleaseService – EY class release", () => {
   let personId: string;
 
   beforeAll(async () => {
-    const ts = Date.now();
+    const ts = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const school = await prisma.school.create({
       data: { name: `EYRelease-${ts}`, slug: `ey-rel-${ts}` } as never,
@@ -116,7 +116,7 @@ describe("ReleaseService – EY lock (assertNotReleased)", () => {
   let personId: string;
 
   beforeAll(async () => {
-    const ts = Date.now() + 1;
+    const ts = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const school = await prisma.school.create({
       data: { name: `EYLock-${ts}`, slug: `ey-lock-${ts}` } as never,
@@ -202,7 +202,7 @@ describe("ReleaseService – standard numeric class release (regression)", () =>
   let studentId: string;
 
   beforeAll(async () => {
-    const ts = Date.now() + 2;
+    const ts = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const school = await prisma.school.create({
       data: { name: `NumRelease-${ts}`, slug: `num-rel-${ts}` } as never,
@@ -332,6 +332,10 @@ describe("ReleaseService – standard numeric class release (regression)", () =>
     const sheetCount = await prisma.resultSheet.count({ where: { classId, termId, schoolId } });
     expect(sheetCount).toBe(1);
 
+    // ResultSheetEntry rows created (one per subject per student)
+    const entryCount = await prisma.resultSheetEntry.count({ where: { schoolId } });
+    expect(entryCount).toBeGreaterThan(0);
+
     // Release row exists
     const releaseCount = await prisma.release.count({ where: { classId, termId, schoolId } });
     expect(releaseCount).toBe(1);
@@ -349,7 +353,7 @@ describe("ReleaseService – getStatus for EY class", () => {
   let personId: string;
 
   beforeAll(async () => {
-    const ts = Date.now() + 3;
+    const ts = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
     const school = await prisma.school.create({
       data: { name: `EYStatus-${ts}`, slug: `ey-status-${ts}` } as never,
