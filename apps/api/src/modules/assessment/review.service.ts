@@ -34,9 +34,9 @@ export class ReviewService {
     termId: string,
     academicYearId: string,
   ) {
-    // Load assignments to get classId → classLevelId mapping
+    // Load assignments to get classId → classLevelId mapping (schoolId-scoped per tenant rule)
     const assignments = await this.prisma.subjectAssignment.findMany({
-      where: { subjectId, academicYearId },
+      where: { subjectId, academicYearId, class: { schoolId } },
       include: { class: { select: { id: true, classLevelId: true } } },
     });
 
@@ -159,9 +159,9 @@ export class ReviewService {
       ? Math.sqrt(totals.reduce((a, t) => a + (t.total - subjectMean) ** 2, 0) / totals.length)
       : 0;
 
-    // Classes offering this subject this year, that have enrollments this term.
+    // Classes offering this subject this year, that have enrollments this term (schoolId-scoped).
     const assignments = await this.prisma.subjectAssignment.findMany({
-      where: { subjectId, academicYearId: term.academicYearId },
+      where: { subjectId, academicYearId: term.academicYearId, class: { schoolId } },
       include: { class: { select: { id: true, name: true, classLevelId: true } } },
     });
     const classes = [];
