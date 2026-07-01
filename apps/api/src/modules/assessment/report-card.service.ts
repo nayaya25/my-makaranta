@@ -4,6 +4,7 @@ import { TenantContext } from "../../core/tenant/tenant.context";
 import { generateVerificationCode } from "./verification.util";
 import { STORAGE_SERVICE, type StorageService } from "../../core/storage/storage.types";
 import { seedSkillDefaults } from "../../../prisma/seed-skill-defaults";
+import { resolveGradeBoundaries } from "./format-resolution";
 
 @Injectable()
 export class ReportCardService {
@@ -18,7 +19,7 @@ export class ReportCardService {
       where: { schoolId, studentId, termId },
       include: {
         student: { select: { firstName: true, lastName: true, admissionNo: true } },
-        class: { select: { name: true } },
+        class: { select: { name: true, classLevelId: true } },
         term: { select: { number: true, startDate: true, endDate: true, academicYear: { select: { name: true } } } },
         release: { select: { releasedAt: true } },
         entries: { include: { subject: { select: { name: true } } } },
@@ -53,7 +54,7 @@ export class ReportCardService {
 
     const [boundaries, classSize, skillDomains, scalePoints, termRemark, presentCount, absentCount, config] =
       await Promise.all([
-        this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } }),
+        resolveGradeBoundaries(this.prisma, schoolId, sheet.class.classLevelId),
         this.prisma.resultSheet.count({ where: { schoolId, classId: sheet.classId, termId } }),
         this.prisma.skillDomain.findMany({
           where: { schoolId },

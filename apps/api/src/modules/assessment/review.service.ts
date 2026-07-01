@@ -3,6 +3,7 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { computeSubjectResult } from "./score.util";
 import { flagAnomalies, type AnomalyInfo } from "./anomaly.util";
+import { resolveAssessmentTypes, resolveGradeBoundaries } from "./format-resolution";
 
 @Injectable()
 export class ReviewService {
@@ -34,9 +35,10 @@ export class ReviewService {
     if (!klass) throw new NotFoundException("Class not found in this school.");
     if (!term) throw new NotFoundException("Term not found in this school.");
 
-    const types = await this.prisma.assessmentType.findMany({ where: { schoolId }, orderBy: { order: "asc" } });
+    const classLevelId = klass!.classLevelId;
+    const types = await resolveAssessmentTypes(this.prisma, schoolId, classLevelId);
     const typeIds = types.map((t) => t.id);
-    const boundaries = await this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } });
+    const boundaries = await resolveGradeBoundaries(this.prisma, schoolId, classLevelId);
 
     const assignments = await this.prisma.subjectAssignment.findMany({
       where: { classId, academicYearId: term.academicYearId },
@@ -102,11 +104,15 @@ export class ReviewService {
     if (!subject) throw new NotFoundException("Subject not found in this school.");
     if (!term) throw new NotFoundException("Term not found in this school.");
 
-    const types = await this.prisma.assessmentType.findMany({ where: { schoolId } });
-    const typeIds = types.map((t) => t.id);
-    const boundaries = await this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } });
+    // For the cross-class cohort (anomaly/z-score), use school-default types so totals are
+    // computed on a consistent scale across all classes. Grade lookup is resolved per-class below.
+    const defaultTypes = await this.prisma.assessmentType.findMany({
+      where: { schoolId, classLevelId: null },
+      orderBy: { order: "asc" },
+    });
+    const cohortTypeIds = defaultTypes.map((t) => t.id);
 
-    const { totals, anomalies } = await this.cohort(schoolId, subjectId, termId, typeIds);
+    const { totals, anomalies } = await this.cohort(schoolId, subjectId, termId, cohortTypeIds);
     const totalByStudent = new Map(totals.map((t) => [t.studentId, t.total]));
     const subjectMean = totals.length ? totals.reduce((a, t) => a + t.total, 0) / totals.length : 0;
     const subjectStdDev = totals.length
@@ -116,7 +122,7 @@ export class ReviewService {
     // Classes offering this subject this year, that have enrollments this term.
     const assignments = await this.prisma.subjectAssignment.findMany({
       where: { subjectId, academicYearId: term.academicYearId },
-      include: { class: { select: { id: true, name: true } } },
+      include: { class: { select: { id: true, name: true, classLevelId: true } } },
     });
     const classes = [];
     for (const a of assignments) {
@@ -125,6 +131,8 @@ export class ReviewService {
         include: { student: { select: { id: true, firstName: true, lastName: true } } },
       });
       if (enrollments.length === 0) continue;
+      // Resolve grade boundaries for this class's level
+      const classBoundaries = await resolveGradeBoundaries(this.prisma, schoolId, a.class.classLevelId);
       // Only students with a score in this subject/term — keeps class mean on the same
       // (scored-only) population as subjectMean, so drift compares like with like and
       // un-scored enrollees don't appear as phantom 0s during partial entry.
@@ -134,7 +142,7 @@ export class ReviewService {
           const total = totalByStudent.get(e.studentId)!;
           const grade = computeSubjectResult(
             [{ assessmentTypeId: "_", value: total }], // total already summed; map via boundaries directly
-            ["_"], boundaries,
+            ["_"], classBoundaries,
           ).grade;
           const info = anomalies.get(e.studentId);
           return { studentId: e.studentId, name: `${e.student.firstName} ${e.student.lastName}`, total, grade, z: info?.z ?? 0, anomaly: info?.anomaly ?? false };

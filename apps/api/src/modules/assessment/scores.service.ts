@@ -3,6 +3,7 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { computeSubjectResult } from "./score.util";
 import { SaveScoresDto } from "./dto/assessment.dto";
+import { resolveAssessmentTypes, resolveGradeBoundaries } from "./format-resolution";
 
 @Injectable()
 export class ScoresService {
@@ -23,9 +24,12 @@ export class ScoresService {
     const schoolId = TenantContext.schoolIdOrThrow();
     await this.assertContext(schoolId, classId, subjectId, termId);
 
+    const klass = await this.prisma.class.findFirst({ where: { id: classId, schoolId }, select: { classLevelId: true } });
+    const classLevelId = klass!.classLevelId;
+
     const [assessmentTypes, gradeBoundaries, enrollments] = await Promise.all([
-      this.prisma.assessmentType.findMany({ where: { schoolId }, orderBy: { order: "asc" } }),
-      this.prisma.gradeBoundary.findMany({ where: { schoolId }, orderBy: { minScore: "desc" } }),
+      resolveAssessmentTypes(this.prisma, schoolId, classLevelId),
+      resolveGradeBoundaries(this.prisma, schoolId, classLevelId),
       this.prisma.enrollment.findMany({
         where: { classId, termId },
         include: { student: { select: { id: true, firstName: true, lastName: true } } },
@@ -68,7 +72,8 @@ export class ScoresService {
       throw new ConflictException("Results released for this class/term; correction required.");
     }
 
-    const types = await this.prisma.assessmentType.findMany({ where: { schoolId } });
+    const klassForSave = await this.prisma.class.findFirst({ where: { id: dto.classId, schoolId }, select: { classLevelId: true } });
+    const types = await resolveAssessmentTypes(this.prisma, schoolId, klassForSave!.classLevelId);
     const maxById = new Map(types.map((t) => [t.id, t.maxScore]));
     const enrolled = new Set(
       (
