@@ -5,6 +5,7 @@ import { TenantContext } from "../../core/tenant/tenant.context";
 import { nextAdmissionNo, nextApplicationNo } from "./sequence.util";
 import { ALLOWED_TRANSITIONS } from "./transitions";
 import { CreateApplicantDto, EnrollApplicantDto, ListApplicantsQuery, TransitionDto, UpdateApplicantDto } from "./dto/admissions.dto";
+import { PublicApplicationDto } from "./dto/public-application.dto";
 
 @Injectable()
 export class AdmissionsService {
@@ -240,6 +241,91 @@ export class AdmissionsService {
       });
       return { studentId: student.id, admissionNo };
     });
+  }
+
+  /** Public portal: resolve school by slug, create source=PUBLIC applicant. No JWT/tenant context used. */
+  async createPublic(dto: PublicApplicationDto): Promise<{ applicationNo: string }> {
+    const school = await this.prisma.school.findUnique({ where: { slug: dto.schoolSlug } });
+    if (!school) throw new NotFoundException("School not found.");
+
+    const schoolId = school.id;
+    const year = new Date().getFullYear();
+
+    const level = await this.prisma.classLevel.findFirst({
+      where: { id: dto.desiredClassLevelId, schoolId },
+      select: { id: true },
+    });
+    if (!level) throw new NotFoundException("Class level not found in this school.");
+
+    const academicYear = await this.prisma.academicYear.findFirst({
+      where: { id: dto.academicYearId, schoolId },
+      select: { id: true },
+    });
+    if (!academicYear) throw new NotFoundException("Academic year not found in this school.");
+
+    const attempt = async () => {
+      const applicationNo = await nextApplicationNo(
+        this.prisma as unknown as Prisma.TransactionClient,
+        schoolId,
+        year,
+      );
+      await this.prisma.applicant.create({
+        data: {
+          schoolId,
+          applicationNo,
+          firstName: dto.firstName,
+          middleName: dto.middleName,
+          lastName: dto.lastName,
+          gender: dto.gender,
+          dateOfBirth: new Date(dto.dateOfBirth),
+          stateOfOrigin: dto.stateOfOrigin,
+          desiredClassLevelId: dto.desiredClassLevelId,
+          academicYearId: dto.academicYearId,
+          guardianName: dto.guardianName,
+          guardianPhone: dto.guardianPhone,
+          guardianEmail: dto.guardianEmail,
+          guardianRelation: dto.guardianRelation,
+          previousSchool: dto.previousSchool,
+          source: "PUBLIC",
+          status: "APPLIED",
+        },
+      });
+      return { applicationNo };
+    };
+
+    try {
+      return await attempt();
+    } catch (err: unknown) {
+      if ((err as { code?: string }).code === "P2002") {
+        return attempt();
+      }
+      throw err;
+    }
+  }
+
+  /** Public portal: return school name + class levels + academic years for form dropdowns. */
+  async publicMeta(slug: string): Promise<{
+    schoolName: string;
+    classLevels: { id: string; name: string }[];
+    academicYears: { id: string; name: string }[];
+  }> {
+    const school = await this.prisma.school.findUnique({ where: { slug } });
+    if (!school) throw new NotFoundException("School not found.");
+
+    const [classLevels, academicYears] = await Promise.all([
+      this.prisma.classLevel.findMany({
+        where: { schoolId: school.id },
+        select: { id: true, name: true },
+        orderBy: { order: "asc" },
+      }),
+      this.prisma.academicYear.findMany({
+        where: { schoolId: school.id },
+        select: { id: true, name: true },
+        orderBy: { startDate: "desc" },
+      }),
+    ]);
+
+    return { schoolName: school.name, classLevels, academicYears };
   }
 
   private splitName(full: string): [string, string] {
