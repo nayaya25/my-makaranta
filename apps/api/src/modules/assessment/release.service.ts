@@ -13,7 +13,10 @@ export class ReleaseService {
   async release(classId: string, termId: string, releasedBy: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const [klass, term] = await Promise.all([
-      this.prisma.class.findFirst({ where: { id: classId, schoolId } }),
+      this.prisma.class.findFirst({
+        where: { id: classId, schoolId },
+        include: { classLevel: { select: { isEarlyYears: true } } },
+      }),
       this.prisma.term.findFirst({ where: { id: termId, schoolId } }),
     ]);
     if (!klass) throw new NotFoundException("Class not found in this school.");
@@ -21,6 +24,12 @@ export class ReleaseService {
 
     const existing = await this.prisma.release.findFirst({ where: { classId, termId, schoolId } });
     if (existing) throw new ConflictException("This class has already been released for this term.");
+
+    if (klass.classLevel.isEarlyYears) {
+      // EY path: just create the Release row — no ResultSheet, no numeric computation
+      await this.prisma.release.create({ data: { schoolId, classId, termId, releasedBy } });
+      return { released: 0, classId, termId };
+    }
 
     const classLevelId = klass!.classLevelId;
     const types = await resolveAssessmentTypes(this.prisma, schoolId, classLevelId);
