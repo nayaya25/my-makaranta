@@ -125,12 +125,16 @@ describe("ReportCardService – getReportCard payload composition", () => {
       },
     });
 
-    // 11. SkillDomain x2 (ordered), SkillItem per domain (ordered)
+    // 11. SkillDomain x2 conduct (ordered) + 1 early_years leak-test domain
     const domain1 = await prisma.skillDomain.create({
       data: { schoolId, name: `Affective-${ts}`, order: 0 },
     });
     const domain2 = await prisma.skillDomain.create({
       data: { schoolId, name: `Psychomotor-${ts}`, order: 1 },
+    });
+    // Leak-test: an early_years domain that must NOT appear in standard mode skills
+    await prisma.skillDomain.create({
+      data: { schoolId, kind: "early_years", name: `EY-Domain-leak-test-${ts}`, order: 2 },
     });
 
     const item1 = await prisma.skillItem.create({
@@ -323,10 +327,14 @@ describe("ReportCardService – getReportCard payload composition", () => {
   it("standard mode skills only contain conduct kind domains", async () => {
     const result = await TenantContext.run({ schoolId, userId: null }, () =>
       service.getReportCard(studentId, termId),
+    ) as any;
+    expect(Array.isArray(result.skills)).toBe(true);
+    // The early_years leak-test domain seeded in beforeAll must NOT appear here,
+    // proving the kind:"conduct" filter is actually operative.
+    const leakDomain = result.skills.find((d: { domain: string }) =>
+      d.domain.includes("EY-Domain-leak-test"),
     );
-    // All skill domains should be conduct kind (the EY domains from other tests should NOT appear)
-    // Since this school only has conduct domains, skills should exist
-    expect(Array.isArray((result as any).skills)).toBe(true);
+    expect(leakDomain).toBeUndefined();
   });
 });
 

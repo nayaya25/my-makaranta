@@ -23,6 +23,7 @@ export class ReportCardService {
         class: {
           include: { classLevel: true },
         },
+        student: { select: { firstName: true, lastName: true, admissionNo: true } },
       },
     });
 
@@ -37,7 +38,7 @@ export class ReportCardService {
     if (isEarlyYears) {
       return this._getEarlyYearsReportCard(studentId, termId, schoolId, enrollment!, term!);
     } else {
-      return this._getStandardReportCard(studentId, termId, schoolId, term!);
+      return this._getStandardReportCard(studentId, termId, schoolId);
     }
   }
 
@@ -47,6 +48,7 @@ export class ReportCardService {
     schoolId: string,
     enrollment: {
       class: { name: string; classLevel: { isEarlyYears: boolean } };
+      student: { firstName: string; lastName: string; admissionNo: string } | null;
     },
     term: { number: number; startDate: Date; endDate: Date; academicYear: { name: string } },
   ) {
@@ -106,10 +108,7 @@ export class ReportCardService {
       }),
     ]);
 
-    const student = await this.prisma.student.findFirst({
-      where: { id: studentId, schoolId },
-      select: { firstName: true, lastName: true, admissionNo: true },
-    });
+    const student = enrollment.student;
 
     const [signedLogoUrl, signedPrincipalSig] = await Promise.all([
       signUrl(school?.logoUrl),
@@ -167,7 +166,6 @@ export class ReportCardService {
     studentId: string,
     termId: string,
     schoolId: string,
-    _term: unknown,
   ) {
     const sheet = await this.prisma.resultSheet.findFirst({
       where: { schoolId, studentId, termId },
