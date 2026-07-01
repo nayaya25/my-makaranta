@@ -29,6 +29,7 @@ import { StaffAccessModule } from "./modules/staff-access/staff-access.module";
 import { ProfileModule } from "./modules/profile/profile.module";
 import { IdentityModule } from "./core/identity/identity.module";
 import { SignupModule } from "./modules/signup/signup.module";
+import { AdmissionsModule } from "./modules/admissions/admissions.module";
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { SignupModule } from "./modules/signup/signup.module";
     ProfileModule,
     IdentityModule,
     SignupModule,
+    AdmissionsModule,
   ],
   controllers: [AppController],
   providers: [
