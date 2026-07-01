@@ -137,6 +137,12 @@ export interface Subject {
   id: string;
   name: string;
   code: string;
+  categoryId?: string | null;
+}
+
+export interface SubjectCategory {
+  id: string;
+  name: string;
 }
 
 export interface Student {
@@ -372,6 +378,10 @@ export interface ReportCard {
   className: string;
   term: { label: string };
   entries: Array<{ subjectId: string; subjectName: string; total: number; grade: string }>;
+  subjectGroups?: Array<{
+    category: string | null;
+    subjects: Array<{ subjectId: string; subjectName: string; total: number; grade: string }>;
+  }>;
   average: number;
   position: number;
   classSize: number;
@@ -692,6 +702,15 @@ export const api = {
   listSubjects: () => authedRequest<Subject[]>("/v1/subjects"),
   createSubject: (data: { name: string; code: string }) =>
     authedRequest<Subject>("/v1/subjects", { method: "POST", body: JSON.stringify(data) }),
+  updateSubject: (id: string, data: { name?: string; code?: string; categoryId?: string | null }) =>
+    authedRequest<Subject>(`/v1/subjects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  listSubjectCategories: () => authedRequest<SubjectCategory[]>("/v1/subject-categories"),
+  createSubjectCategory: (data: { name: string }) =>
+    authedRequest<SubjectCategory>("/v1/subject-categories", { method: "POST", body: JSON.stringify(data) }),
+  updateSubjectCategory: (id: string, data: { name: string }) =>
+    authedRequest<SubjectCategory>(`/v1/subject-categories/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteSubjectCategory: (id: string) =>
+    authedRequest<{ deleted: boolean }>(`/v1/subject-categories/${id}`, { method: "DELETE" }),
 
   importStudents: (rows: ImportRow[]) =>
     authedRequest<{ jobId: string }>("/v1/imports/students", {

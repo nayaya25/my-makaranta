@@ -10,6 +10,8 @@ import {
   type ClassLevel,
   type SubjectAssignment,
   type Class,
+  type Subject,
+  type SubjectCategory,
 } from "@/lib/api";
 import { resolveGrade } from "@/lib/grade";
 
@@ -87,6 +89,8 @@ export default function AssessmentSettingsPage() {
         <AssessmentTypesPanel classLevelId={selectedLevelId} classLevels={classLevels} />
         <ApplyToLevelsPanel classLevelId={selectedLevelId} classLevels={classLevels} />
         <CorrectionsPanel />
+        <SubjectCategoriesPanel />
+        <SubjectsPanel />
         <SubjectAssignmentsPanel />
       </div>
     </PageContainer>
@@ -549,6 +553,210 @@ function AssessmentTypesPanel({
             <span className="text-caption text-ink-500">{msg}</span>
           </div>
         )}
+      </CardBody>
+    </Card>
+  );
+}
+
+/* ---------------- Subject categories ---------------- */
+function SubjectCategoriesPanel() {
+  const [categories, setCategories] = useState<SubjectCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      setCategories(await api.listSubjectCategories());
+    } catch {
+      // silently ignore load errors
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const add = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    setAdding(true);
+    setMsg(null);
+    try {
+      const created = await api.createSubjectCategory({ name });
+      setCategories((prev) => [...prev, created]);
+      setNewName("");
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not add category.");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const startRename = (cat: SubjectCategory) => {
+    setRenamingId(cat.id);
+    setRenameValue(cat.name);
+    setMsg(null);
+  };
+
+  const saveRename = async (id: string) => {
+    const name = renameValue.trim();
+    if (!name) return;
+    setMsg(null);
+    try {
+      const updated = await api.updateSubjectCategory(id, { name });
+      setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
+      setRenamingId(null);
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not rename category.");
+    }
+  };
+
+  const remove = async (id: string) => {
+    setMsg(null);
+    try {
+      await api.deleteSubjectCategory(id);
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : "Could not delete category.");
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Subject categories</span>
+      </CardHeader>
+      <CardBody>
+        {loading ? (
+          <Spinner />
+        ) : (
+          <div className="flex flex-col gap-2">
+            {categories.length === 0 && (
+              <p className="text-small text-ink-500">No categories yet. Add one below.</p>
+            )}
+            {categories.map((cat) => (
+              <div key={cat.id} className="flex items-center justify-between gap-2 border-b border-ink-100 dark:border-white/10 pb-2">
+                {renamingId === cat.id ? (
+                  <div className="flex items-center gap-2 flex-1">
+                    <input
+                      value={renameValue}
+                      onChange={(e) => setRenameValue(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") void saveRename(cat.id); if (e.key === "Escape") setRenamingId(null); }}
+                      className="h-9 flex-1 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
+                      autoFocus
+                    />
+                    <Button size="sm" onClick={() => saveRename(cat.id)}>Save</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setRenamingId(null)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="text-small text-ink-1000 dark:text-ink-100">{cat.name}</span>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => startRename(cat)}>Rename</Button>
+                      <Button variant="ghost" size="sm" onClick={() => remove(cat.id)} aria-label="delete">✕</Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void add(); }}
+                placeholder="Category name"
+                className="h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
+              />
+              <Button onClick={add} disabled={!newName.trim() || adding}>
+                {adding ? "Adding…" : "Add category"}
+              </Button>
+              {msg && <span className="text-caption text-error">{msg}</span>}
+            </div>
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+/* ---------------- Subjects + category assignment ---------------- */
+function SubjectsPanel() {
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [categories, setCategories] = useState<SubjectCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [rowMsg, setRowMsg] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [ss, cats] = await Promise.all([api.listSubjects(), api.listSubjectCategories()]);
+        setSubjects(ss);
+        setCategories(cats);
+      } catch {
+        // silently ignore
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleCategoryChange = async (subject: Subject, categoryId: string | null) => {
+    setMsg(null);
+    setRowMsg((prev) => ({ ...prev, [subject.id]: "" }));
+    try {
+      const updated = await api.updateSubject(subject.id, { categoryId });
+      setSubjects((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setRowMsg((prev) => ({ ...prev, [subject.id]: "Saved" }));
+      setTimeout(() => setRowMsg((prev) => ({ ...prev, [subject.id]: "" })), 2000);
+    } catch (e) {
+      const errMsg = e instanceof ApiError ? e.message : "Could not update.";
+      setRowMsg((prev) => ({ ...prev, [subject.id]: errMsg }));
+    }
+  };
+
+  if (loading) return null;
+  if (subjects.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <span className="text-body font-semibold text-ink-1000 dark:text-ink-100">Subject categories assignment</span>
+      </CardHeader>
+      <CardBody>
+        {msg && <span className="text-caption text-error mb-2 block">{msg}</span>}
+        <div className="flex flex-col gap-2">
+          {subjects.map((subject) => (
+            <div key={subject.id} className="flex items-center justify-between gap-3 border-b border-ink-100 dark:border-white/10 pb-2">
+              <span className="text-small text-ink-1000 dark:text-ink-100 flex-1">
+                {subject.name}
+                {subject.code && <span className="ml-2 text-caption text-ink-400 dark:text-ink-500">{subject.code}</span>}
+              </span>
+              <div className="flex items-center gap-2">
+                <select
+                  aria-label={`category for ${subject.name}`}
+                  value={subject.categoryId ?? ""}
+                  onChange={(e) => void handleCategoryChange(subject, e.target.value || null)}
+                  className="h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small"
+                >
+                  <option value="">— None —</option>
+                  {categories.map((cat) => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+                {rowMsg[subject.id] && (
+                  <span className="text-caption text-ink-400 dark:text-ink-500 min-w-[3rem]">{rowMsg[subject.id]}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </CardBody>
     </Card>
   );
