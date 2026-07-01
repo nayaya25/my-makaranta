@@ -13,6 +13,10 @@ export class CreateSkillDomainDto {
   @IsInt()
   @Min(0)
   order?: number;
+
+  @IsOptional()
+  @IsIn(SKILL_KINDS)
+  kind?: SkillKind;
 }
 
 export class UpdateSkillDomainDto {

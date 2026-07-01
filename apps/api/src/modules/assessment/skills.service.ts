@@ -38,7 +38,7 @@ export class SkillsService {
   async createDomain(dto: CreateSkillDomainDto) {
     const schoolId = TenantContext.schoolIdOrThrow();
     return this.prisma.skillDomain.create({
-      data: { schoolId, name: dto.name, order: dto.order ?? 0 },
+      data: { schoolId, name: dto.name, order: dto.order ?? 0, kind: dto.kind ?? "conduct" },
     });
   }
 
@@ -112,7 +112,7 @@ export class SkillsService {
     // Parallel fetches — filter domains and scale by kind
     const [enrollments, domains, scale, locked] = await Promise.all([
       this.prisma.enrollment.findMany({
-        where: { classId, termId },
+        where: { classId, termId, student: { schoolId } },
         include: { student: { select: { id: true, firstName: true, lastName: true } } },
       }),
       this.prisma.skillDomain.findMany({
@@ -168,7 +168,7 @@ export class SkillsService {
     // Build allow-sets: enrolled students and valid skill items for this school scoped to kind
     const enrolled = new Set(
       (await this.prisma.enrollment.findMany({
-        where: { classId: dto.classId, termId: dto.termId },
+        where: { classId: dto.classId, termId: dto.termId, student: { schoolId } },
         select: { studentId: true },
       })).map((e) => e.studentId),
     );
@@ -190,7 +190,9 @@ export class SkillsService {
       }
     }
 
-    // For EY ratings the max is the EY scale max (3); for conduct use skillScaleMax
+    // For EY ratings the max is spec-mandated 3 (EY scale is fixed as {3=Secure,2=Developing,1=Beginning}
+    // per AC-3 spec; no school-level override is supported for EY). For conduct, read school.skillScaleMax.
+    // TODO: if dynamic EY scale support is added later, query MAX(value) from skillScalePoint where { schoolId, kind:"early_years" }.
     let max: number;
     if (kind === "early_years") {
       max = 3;
