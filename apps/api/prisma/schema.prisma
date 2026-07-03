@@ -63,6 +63,21 @@ enum PaymentChannel {
   CASH
 }
 
+enum ApplicationStatus {
+  APPLIED
+  UNDER_REVIEW
+  OFFERED
+  ACCEPTED
+  ENROLLED
+  REJECTED
+  WAITLISTED
+}
+
+enum ApplicantSource {
+  PUBLIC
+  STAFF
+}
+
 model School {
   id                 String               @id @default(cuid())
   name               String
@@ -113,6 +128,9 @@ model School {
   termRemarks            TermRemark[]
   reportCardConfig       ReportCardConfig?
   subjectCategories      SubjectCategory[]
+  applicants             Applicant[]
+  periods                Period[]
+  timetableEntries       TimetableEntry[]
 }
 
 model Conversation {
@@ -154,6 +172,8 @@ model AcademicYear {
   endDate            DateTime
   terms              Term[]
   subjectAssignments SubjectAssignment[]
+  applicants         Applicant[]
+  timetableEntries   TimetableEntry[]
 
   @@unique([schoolId, name])
 }
@@ -188,6 +208,7 @@ model ClassLevel {
   invoices        Invoice[]
   assessmentTypes AssessmentType[]
   gradeBoundaries GradeBoundary[]
+  applicants      Applicant[]
 
   @@unique([schoolId, name])
 }
@@ -206,6 +227,7 @@ model Class {
   releases           Release[]
   resultSheets       ResultSheet[]
   corrections        Correction[]
+  timetableEntries   TimetableEntry[]
 
   @@unique([schoolId, name])
 }
@@ -276,6 +298,7 @@ model Student {
   resultSheets  ResultSheet[]
   corrections   Correction[]
   invoices      Invoice[]
+  applicant     Applicant?
 
   @@unique([schoolId, admissionNo])
 }
@@ -348,6 +371,40 @@ model Enrollment {
   term      Term    @relation(fields: [termId], references: [id])
 
   @@unique([studentId, termId])
+}
+
+model Applicant {
+  id                  String            @id @default(cuid())
+  schoolId            String
+  school              School            @relation(fields: [schoolId], references: [id])
+  applicationNo       String
+  firstName           String
+  middleName          String?
+  lastName            String
+  gender              Gender
+  dateOfBirth         DateTime
+  stateOfOrigin       String?
+  desiredClassLevelId String
+  desiredClassLevel   ClassLevel        @relation(fields: [desiredClassLevelId], references: [id])
+  academicYearId      String
+  academicYear        AcademicYear      @relation(fields: [academicYearId], references: [id])
+  guardianName        String
+  guardianPhone       String
+  guardianEmail       String?
+  guardianRelation    GuardianRelation
+  previousSchool      String?
+  source              ApplicantSource
+  status              ApplicationStatus @default(APPLIED)
+  reviewNote          String?
+  rejectionReason     String?
+  decidedAt           DateTime?
+  convertedStudentId  String?           @unique
+  convertedStudent    Student?          @relation(fields: [convertedStudentId], references: [id])
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([schoolId, applicationNo])
+  @@index([schoolId, status])
 }
 
 // === Auth & RBAC ===
@@ -477,17 +534,18 @@ model GradeBoundary {
 }
 
 model SubjectAssignment {
-  id             String       @id @default(cuid())
-  schoolId       String
-  school         School       @relation(fields: [schoolId], references: [id])
-  subjectId      String
-  subject        Subject      @relation(fields: [subjectId], references: [id])
-  classId        String
-  class          Class        @relation(fields: [classId], references: [id])
-  staffId        String
-  staff          Staff        @relation(fields: [staffId], references: [id])
-  academicYearId String
-  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  id               String           @id @default(cuid())
+  schoolId         String
+  school           School           @relation(fields: [schoolId], references: [id])
+  subjectId        String
+  subject          Subject          @relation(fields: [subjectId], references: [id])
+  classId          String
+  class            Class            @relation(fields: [classId], references: [id])
+  staffId          String
+  staff            Staff            @relation(fields: [staffId], references: [id])
+  academicYearId   String
+  academicYear     AcademicYear     @relation(fields: [academicYearId], references: [id])
+  timetableEntries TimetableEntry[]
 
   @@unique([subjectId, classId, academicYearId])
   @@index([schoolId, academicYearId])
@@ -906,4 +964,39 @@ model ReportCardConfig {
   showGradingKey Boolean   @default(true)
   showPosition   Boolean   @default(true)
   nextTermBegins DateTime?
+}
+
+// === Timetable (OP-2) ===
+
+model Period {
+  id        String           @id @default(cuid())
+  schoolId  String
+  school    School           @relation(fields: [schoolId], references: [id])
+  label     String
+  startTime String
+  endTime   String
+  order     Int
+  isBreak   Boolean          @default(false)
+  entries   TimetableEntry[]
+
+  @@unique([schoolId, order])
+}
+
+model TimetableEntry {
+  id                  String            @id @default(cuid())
+  schoolId            String
+  school              School            @relation(fields: [schoolId], references: [id])
+  academicYearId      String
+  academicYear        AcademicYear      @relation(fields: [academicYearId], references: [id])
+  classId             String
+  class               Class             @relation(fields: [classId], references: [id])
+  dayOfWeek           Int
+  periodId            String
+  period              Period            @relation(fields: [periodId], references: [id])
+  subjectAssignmentId String
+  subjectAssignment   SubjectAssignment @relation(fields: [subjectAssignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, academicYearId, dayOfWeek, periodId])
+  @@index([schoolId, academicYearId])
+  @@index([subjectAssignmentId])
 }

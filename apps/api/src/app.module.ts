@@ -29,6 +29,8 @@ import { StaffAccessModule } from "./modules/staff-access/staff-access.module";
 import { ProfileModule } from "./modules/profile/profile.module";
 import { IdentityModule } from "./core/identity/identity.module";
 import { SignupModule } from "./modules/signup/signup.module";
+import { AdmissionsModule } from "./modules/admissions/admissions.module";
+import { TimetableModule } from "./modules/timetable/timetable.module";
 
 @Module({
   imports: [
@@ -61,6 +63,8 @@ import { SignupModule } from "./modules/signup/signup.module";
     ProfileModule,
     IdentityModule,
     SignupModule,
+    AdmissionsModule,
+    TimetableModule,
   ],
   controllers: [AppController],
   providers: [

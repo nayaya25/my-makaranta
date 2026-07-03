@@ -632,6 +632,49 @@ export interface Messageable { staffId?: string; staffName?: string; childName?:
 export interface ConversationRow { id: string; counterpartName: string; lastMessageAt: string | null; unreadCount: number; }
 export interface ChatMessage { id: string; senderType: "PARENT" | "STAFF"; body: string; sentAt: string; readAt: string | null; }
 
+// ─── Admissions ──────────────────────────────────────────────────────────────
+
+export type ApplicationStatus =
+  | "APPLIED"
+  | "UNDER_REVIEW"
+  | "OFFERED"
+  | "ACCEPTED"
+  | "ENROLLED"
+  | "REJECTED"
+  | "WAITLISTED";
+
+export type ApplicantSource = "PUBLIC" | "STAFF";
+
+export interface Applicant {
+  id: string;
+  schoolId: string;
+  applicationNo: string;
+  firstName: string;
+  middleName?: string | null;
+  lastName: string;
+  gender: string;
+  dateOfBirth: string;
+  stateOfOrigin?: string | null;
+  desiredClassLevelId: string;
+  academicYearId: string;
+  guardianName: string;
+  guardianPhone: string;
+  guardianEmail?: string | null;
+  guardianRelation: string;
+  previousSchool?: string | null;
+  source: ApplicantSource;
+  status: ApplicationStatus;
+  reviewNote?: string | null;
+  rejectionReason?: string | null;
+  decidedAt?: string | null;
+  convertedStudentId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Partial record — statuses with 0 applicants are omitted by the API. */
+export type ApplicantStats = Partial<Record<ApplicationStatus, number>>;
+
 export interface SkillItem { id: string; name: string; order: number; }
 export interface SkillDomain { id: string; name: string; order: number; items: SkillItem[]; }
 export interface SkillScalePoint { value: number; label: string; order: number; }
@@ -662,6 +705,39 @@ export interface ReportCardConfig {
   showGradingKey: boolean;
   showPosition: boolean;
   nextTermBegins: string | null;
+}
+
+// ─── Timetable (OP-2) ────────────────────────────────────────────────────────
+
+export interface Period {
+  id: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  order: number;
+  isBreak: boolean;
+}
+
+export interface ClassTimetable {
+  periods: Period[];
+  entries: {
+    id: string;
+    dayOfWeek: number;
+    periodId: string;
+    subjectAssignmentId: string;
+    subjectName: string;
+    teacherName: string;
+  }[];
+}
+
+export interface TeacherTimetable {
+  periods: Period[];
+  entries: {
+    dayOfWeek: number;
+    periodId: string;
+    className: string;
+    subjectName: string;
+  }[];
 }
 
 export const api = {
@@ -1115,4 +1191,90 @@ export const api = {
     authedRequest<TermRemark | null>(`/v1/assessment/remarks?studentId=${encodeURIComponent(studentId)}&termId=${encodeURIComponent(termId)}`),
   putRemarks: (body: { studentId: string; termId: string; classId: string; formTeacherRemark?: string; principalRemark?: string }) =>
     authedRequest<TermRemark>("/v1/assessment/remarks", { method: "PUT", body: JSON.stringify(body) }),
+
+  // ─── Admissions — staff (OP-1 Task 7) ──────────────────────────────────────
+  listApplicants: (q?: { status?: ApplicationStatus; level?: string; year?: string; q?: string }) => {
+    const params = new URLSearchParams();
+    if (q?.status) params.set("status", q.status);
+    if (q?.level) params.set("level", q.level);
+    if (q?.year) params.set("year", q.year);
+    if (q?.q) params.set("q", q.q);
+    const qs = params.toString();
+    return authedRequest<Applicant[]>(`/v1/admissions/applicants${qs ? `?${qs}` : ""}`);
+  },
+  getApplicant: (id: string) =>
+    authedRequest<Applicant>(`/v1/admissions/applicants/${encodeURIComponent(id)}`),
+  createApplicant: (dto: {
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    gender: string;
+    dateOfBirth: string;
+    stateOfOrigin?: string;
+    desiredClassLevelId: string;
+    academicYearId: string;
+    guardianName: string;
+    guardianPhone: string;
+    guardianEmail?: string;
+    guardianRelation: string;
+    previousSchool?: string;
+  }) =>
+    authedRequest<Applicant>("/v1/admissions/applicants", {
+      method: "POST",
+      body: JSON.stringify(dto),
+    }),
+  transitionApplicant: (id: string, body: { to: ApplicationStatus; reason?: string }) =>
+    authedRequest<Applicant>(`/v1/admissions/applicants/${encodeURIComponent(id)}/transition`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  enrollApplicant: (id: string, body: { classId: string; termId: string; admissionNo?: string }) =>
+    authedRequest<{ studentId: string; admissionNo: string }>(
+      `/v1/admissions/applicants/${encodeURIComponent(id)}/enroll`,
+      { method: "POST", body: JSON.stringify(body) },
+    ),
+  admissionsStats: () => authedRequest<ApplicantStats>("/v1/admissions/stats"),
+
+  // ─── Timetable (OP-2) ────────────────────────────────────────────────────────
+  listPeriods: () => authedRequest<Period[]>("/v1/timetable/periods"),
+  createPeriod: (dto: { label: string; startTime: string; endTime: string; order: number; isBreak?: boolean }) =>
+    authedRequest<Period>("/v1/timetable/periods", { method: "POST", body: JSON.stringify(dto) }),
+  updatePeriod: (id: string, dto: { label?: string; startTime?: string; endTime?: string; order?: number; isBreak?: boolean }) =>
+    authedRequest<Period>(`/v1/timetable/periods/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(dto) }),
+  deletePeriod: (id: string) =>
+    authedRequest<void>(`/v1/timetable/periods/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  getClassTimetable: (classId: string, academicYearId: string) =>
+    authedRequest<ClassTimetable>(`/v1/timetable/class/${encodeURIComponent(classId)}?academicYearId=${encodeURIComponent(academicYearId)}`),
+  getTeacherTimetable: (staffId: string, academicYearId: string) =>
+    authedRequest<TeacherTimetable>(`/v1/timetable/teacher/${encodeURIComponent(staffId)}?academicYearId=${encodeURIComponent(academicYearId)}`),
+  putTimetableEntry: (dto: { classId: string; academicYearId: string; dayOfWeek: number; periodId: string; subjectAssignmentId: string }) =>
+    authedRequest<{ id: string }>("/v1/timetable/entry", { method: "PUT", body: JSON.stringify(dto) }),
+  deleteTimetableEntry: (id: string) =>
+    authedRequest<void>(`/v1/timetable/entry/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // ─── Admissions — public (unauthenticated, no bearer token) ─────────────────
+  publicApply: (dto: {
+    schoolSlug: string;
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    gender: string;
+    dateOfBirth: string;
+    stateOfOrigin?: string;
+    desiredClassLevelId: string;
+    academicYearId: string;
+    guardianName: string;
+    guardianPhone: string;
+    guardianEmail?: string;
+    guardianRelation: string;
+    previousSchool?: string;
+  }) =>
+    request<{ applicationNo: string }>("/v1/public/applications", {
+      method: "POST",
+      body: JSON.stringify(dto),
+    }),
+  publicAdmissionMeta: (slug: string) =>
+    request<{ schoolName: string; classLevels: { id: string; name: string }[]; academicYears: { id: string; name: string }[] }>(
+      `/v1/public/schools/${encodeURIComponent(slug)}/admission-meta`,
+    ),
 };

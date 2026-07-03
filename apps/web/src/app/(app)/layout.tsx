@@ -28,6 +28,7 @@ import {
   ChevronDown,
   Loader2,
   Star,
+  Calendar,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; perm?: string };
@@ -61,6 +62,7 @@ const NAV: NavEntry[] = [
       { href: "/release", label: "Release", icon: Lock, perm: "results.release" },
     ],
   },
+  { href: "/timetable", label: "Timetable", icon: Calendar, perm: "classes.view" },
   {
     section: "Communication",
     icon: Megaphone,
@@ -70,6 +72,7 @@ const NAV: NavEntry[] = [
       { href: "/messages", label: "Messages", icon: MessageSquare },
     ],
   },
+  { href: "/admissions", label: "Admissions", icon: ClipboardList, perm: "admissions.manage" },
   { href: "/fees", label: "Fees", icon: Wallet, perm: "fees.view" },
   { href: "/settings", label: "Settings", icon: Settings, perm: "school.manage" },
 ];
