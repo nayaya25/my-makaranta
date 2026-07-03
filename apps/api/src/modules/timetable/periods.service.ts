@@ -52,7 +52,7 @@ export class PeriodsService {
     }
 
     return this.prisma.period.update({
-      where: { id },
+      where: { id, schoolId },
       data: dto,
     });
   }
