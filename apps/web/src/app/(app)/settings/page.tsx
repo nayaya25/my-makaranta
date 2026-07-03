@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardBody, CardHeader, PageContainer, PageHeader } from "@mymakaranta/ui";
-import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText } from "lucide-react";
+import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText, Clock } from "lucide-react";
 
 const ITEMS = [
   {
@@ -46,6 +46,12 @@ const ITEMS = [
     title: "Report card",
     description: "Toggle sections and choose a layout for the printable report card.",
     icon: FileText,
+  },
+  {
+    href: "/settings/timetable",
+    title: "Bell schedule",
+    description: "Define daily periods — start/end times and break slots for the timetable.",
+    icon: Clock,
   },
 ];
 

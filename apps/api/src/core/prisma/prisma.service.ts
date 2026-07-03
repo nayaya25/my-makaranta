@@ -31,6 +31,8 @@ export const TENANT_MODELS = new Set([
   "Conversation",
   "Message",
   "Applicant",
+  "Period",
+  "TimetableEntry",
 ]);
 
 @Injectable()
