@@ -30,6 +30,7 @@ import { ProfileModule } from "./modules/profile/profile.module";
 import { IdentityModule } from "./core/identity/identity.module";
 import { SignupModule } from "./modules/signup/signup.module";
 import { AdmissionsModule } from "./modules/admissions/admissions.module";
+import { TimetableModule } from "./modules/timetable/timetable.module";
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { AdmissionsModule } from "./modules/admissions/admissions.module";
     IdentityModule,
     SignupModule,
     AdmissionsModule,
+    TimetableModule,
   ],
   controllers: [AppController],
   providers: [
