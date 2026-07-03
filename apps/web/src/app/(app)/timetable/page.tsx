@@ -19,8 +19,35 @@ import {
   type Class,
   type ClassTimetable,
   type Period,
+  type School,
   type SubjectAssignment,
 } from "@/lib/api";
+
+// ─── Print CSS ────────────────────────────────────────────────────────────────
+
+const PRINT_CSS = `
+@media print {
+  body > *:not(#__next):not([data-nextjs-scroll-focus-boundary]) { display: none !important; }
+  #__next > * { display: none !important; }
+  #class-timetable-printable { display: block !important; }
+  #class-timetable-printable * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  @page {
+    size: A4 landscape;
+    margin: 10mm 14mm;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-size: 10pt;
+    background: white !important;
+    color: black !important;
+  }
+
+  #class-timetable-printable { page-break-inside: avoid; }
+}
+`;
 
 const DAYS = [
   { label: "Mon", value: 1 },
@@ -44,6 +71,7 @@ export default function TimetablePage() {
 
   const [timetable, setTimetable] = useState<ClassTimetable | null>(null);
   const [assignments, setAssignments] = useState<SubjectAssignment[]>([]);
+  const [school, setSchool] = useState<School | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,13 +81,29 @@ export default function TimetablePage() {
   const [cellErrors, setCellErrors] = useState<Record<string, string>>({});
   const [openDropdown, setOpenDropdown] = useState<{ day: DayOfWeek; periodId: string } | null>(null);
 
+  // Inject print CSS
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "class-tt-print-css";
+    style.textContent = PRINT_CSS;
+    if (!document.getElementById("class-tt-print-css")) {
+      document.head.appendChild(style);
+    }
+    return () => { document.getElementById("class-tt-print-css")?.remove(); };
+  }, []);
+
   // Load classes + years on mount
   useEffect(() => {
     void (async () => {
       try {
-        const [cs, yrs] = await Promise.all([api.listClasses(), api.listAcademicYears()]);
+        const [cs, yrs, sc] = await Promise.all([
+          api.listClasses(),
+          api.listAcademicYears(),
+          api.getMySchool().catch((): School | null => null),
+        ]);
         setClasses(cs);
         setYears(yrs);
+        setSchool(sc);
         if (cs[0]) setClassId(cs[0].id);
         if (yrs[0]) setYearId(yrs[0].id);
       } catch {
@@ -158,6 +202,9 @@ export default function TimetablePage() {
   }
 
   const periods = timetable ? [...timetable.periods].sort((a, b) => a.order - b.order) : [];
+  const selectedClass = classes.find((c) => c.id === classId);
+  const selectedYear = years.find((y) => y.id === yearId);
+  const hasPrintableGrid = !!(timetable && periods.length > 0);
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -166,6 +213,13 @@ export default function TimetablePage() {
       <PageHeader
         title="Timetable"
         description="Build the weekly class timetable by assigning subjects to periods."
+        actions={
+          hasPrintableGrid ? (
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              Print
+            </Button>
+          ) : undefined
+        }
       />
 
       {/* Selects row */}
@@ -231,7 +285,8 @@ export default function TimetablePage() {
           </Link>
         </div>
       ) : timetable ? (
-        <Card className="overflow-hidden">
+        <>
+        <Card className="overflow-hidden print:hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-small">
               <thead>
@@ -383,6 +438,89 @@ export default function TimetablePage() {
             </table>
           </div>
         </Card>
+
+          {/* Print-only layout */}
+          <div id="class-timetable-printable" className="hidden print:block">
+            <div className="mb-4 border-b-2 pb-3" style={{ borderColor: "#066666" }}>
+              <h1 className="text-[1.1rem] font-bold uppercase tracking-wide text-black">
+                {school?.name ?? "Timetable"}
+              </h1>
+              <p className="mt-0.5 text-[0.8rem] text-gray-600">
+                {selectedClass?.name ?? ""}
+                {selectedYear ? ` — ${selectedYear.name}` : ""}
+              </p>
+            </div>
+
+            <table className="w-full border-collapse text-[0.75rem]">
+              <thead>
+                <tr style={{ backgroundColor: "#f0fafa" }}>
+                  <th className="border border-gray-300 px-2 py-1.5 text-left font-semibold text-gray-700">
+                    Period
+                  </th>
+                  {DAYS.map((d) => (
+                    <th
+                      key={d.value}
+                      className="border border-gray-300 px-2 py-1.5 text-center font-semibold text-gray-700"
+                    >
+                      {d.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {periods.map((period) => {
+                  if (period.isBreak) {
+                    return (
+                      <tr key={period.id} style={{ backgroundColor: "#f9f9f9" }}>
+                        <td
+                          colSpan={6}
+                          className="border border-gray-300 px-2 py-1 text-left text-gray-500"
+                        >
+                          <span className="font-medium">{period.label}</span>
+                          <span className="ml-2 text-gray-400">
+                            {period.startTime}–{period.endTime}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr key={period.id}>
+                      <td className="border border-gray-300 px-2 py-1.5 align-top">
+                        <p className="font-semibold text-gray-800">{period.label}</p>
+                        <p className="text-[0.65rem] text-gray-500">
+                          {period.startTime}–{period.endTime}
+                        </p>
+                      </td>
+                      {DAYS.map((d) => {
+                        const day = d.value as DayOfWeek;
+                        const entry = timetable.entries.find(
+                          (e) => e.dayOfWeek === day && e.periodId === period.id,
+                        );
+                        return (
+                          <td
+                            key={day}
+                            className="border border-gray-300 px-2 py-1.5 align-top text-center"
+                          >
+                            {entry ? (
+                              <>
+                                <p className="font-semibold text-gray-800">{entry.subjectName}</p>
+                                <p className="text-[0.65rem] text-gray-500">{entry.teacherName}</p>
+                              </>
+                            ) : (
+                              <span className="text-gray-300">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       ) : null}
     </PageContainer>
   );
