@@ -345,7 +345,7 @@ export default function TimetablePage() {
                                         setOpenDropdown(null);
                                       }
                                     }}
-                                    onBlur={() => setOpenDropdown(null)}
+                                    onBlur={() => setTimeout(() => setOpenDropdown(null), 150)}
                                     className="h-9 w-full rounded-input border border-brand-400 bg-surface dark:bg-surface-dark px-2 text-small focus:outline-none"
                                   >
                                     <option value="">Select subject…</option>
