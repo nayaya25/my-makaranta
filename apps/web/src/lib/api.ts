@@ -707,6 +707,39 @@ export interface ReportCardConfig {
   nextTermBegins: string | null;
 }
 
+// ─── Timetable (OP-2) ────────────────────────────────────────────────────────
+
+export interface Period {
+  id: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  order: number;
+  isBreak: boolean;
+}
+
+export interface ClassTimetable {
+  periods: Period[];
+  entries: {
+    id: string;
+    dayOfWeek: number;
+    periodId: string;
+    subjectAssignmentId: string;
+    subjectName: string;
+    teacherName: string;
+  }[];
+}
+
+export interface TeacherTimetable {
+  periods: Period[];
+  entries: {
+    dayOfWeek: number;
+    periodId: string;
+    className: string;
+    subjectName: string;
+  }[];
+}
+
 export const api = {
   requestOtp: (target: { phone?: string; email?: string }) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify(target) }),
@@ -1201,6 +1234,23 @@ export const api = {
       { method: "POST", body: JSON.stringify(body) },
     ),
   admissionsStats: () => authedRequest<ApplicantStats>("/v1/admissions/stats"),
+
+  // ─── Timetable (OP-2) ────────────────────────────────────────────────────────
+  listPeriods: () => authedRequest<Period[]>("/v1/timetable/periods"),
+  createPeriod: (dto: { label: string; startTime: string; endTime: string; order: number; isBreak?: boolean }) =>
+    authedRequest<Period>("/v1/timetable/periods", { method: "POST", body: JSON.stringify(dto) }),
+  updatePeriod: (id: string, dto: { label?: string; startTime?: string; endTime?: string; order?: number; isBreak?: boolean }) =>
+    authedRequest<Period>(`/v1/timetable/periods/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(dto) }),
+  deletePeriod: (id: string) =>
+    authedRequest<void>(`/v1/timetable/periods/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  getClassTimetable: (classId: string, academicYearId: string) =>
+    authedRequest<ClassTimetable>(`/v1/timetable/class/${encodeURIComponent(classId)}?academicYearId=${encodeURIComponent(academicYearId)}`),
+  getTeacherTimetable: (staffId: string, academicYearId: string) =>
+    authedRequest<TeacherTimetable>(`/v1/timetable/teacher/${encodeURIComponent(staffId)}?academicYearId=${encodeURIComponent(academicYearId)}`),
+  putTimetableEntry: (dto: { classId: string; academicYearId: string; dayOfWeek: number; periodId: string; subjectAssignmentId: string }) =>
+    authedRequest<{ id: string }>("/v1/timetable/entry", { method: "PUT", body: JSON.stringify(dto) }),
+  deleteTimetableEntry: (id: string) =>
+    authedRequest<void>(`/v1/timetable/entry/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   // ─── Admissions — public (unauthenticated, no bearer token) ─────────────────
   publicApply: (dto: {
