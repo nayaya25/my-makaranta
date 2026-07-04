@@ -31,6 +31,8 @@ const PERMISSIONS: Array<[string, string]> = [
   ["school.manage", "Manage school settings and structure"],
   ["skills.record", "Record skills & form remarks"],
   ["admissions.manage", "Manage applicants and admissions workflow"],
+  ["lessonplans.record", "Author own lesson plans"],
+  ["lessonplans.review", "Review and approve/return lesson plans"],
 ];
 
 async function main() {
