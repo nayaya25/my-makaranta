@@ -39,19 +39,37 @@ export class LessonPlansService {
     });
   }
 
-  async getForAssignment(assignmentId: string, termId: string) {
+  async getForAssignment(assignmentId: string, termId: string, canReviewAll = false) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const assignment = await this.prisma.subjectAssignment.findFirst({ where: { id: assignmentId, schoolId } });
     if (!assignment) throw new NotFoundException("Subject assignment not found in this school.");
+    // A reviewer may read any assignment's plans; otherwise the caller must own the assignment.
+    if (!canReviewAll) {
+      const staffId = await this.resolveCallerStaffId();
+      if (!staffId || staffId !== assignment.staffId) {
+        throw new ForbiddenException("You can only view lesson plans for your own classes.");
+      }
+    }
     return this.prisma.lessonPlan.findMany({
       where: { subjectAssignmentId: assignmentId, termId, schoolId },
       orderBy: { weekNumber: "asc" },
     });
   }
 
-  async getOne(id: string) {
+  async getOne(id: string, canReviewAll = false) {
     const schoolId = TenantContext.schoolIdOrThrow();
-    return this.loadPlanScoped(id, schoolId);
+    const plan = await this.prisma.lessonPlan.findFirst({
+      where: { id, schoolId },
+      include: { subjectAssignment: { select: { staffId: true } } },
+    });
+    if (!plan) throw new NotFoundException("Lesson plan not found.");
+    if (!canReviewAll) {
+      const staffId = await this.resolveCallerStaffId();
+      if (!staffId || staffId !== plan.subjectAssignment.staffId) {
+        throw new ForbiddenException("You can only view your own lesson plans.");
+      }
+    }
+    return plan;
   }
 
   async submit(id: string) {
@@ -107,11 +125,5 @@ export class LessonPlansService {
     if (!userId) return null;
     const user = await this.prisma.user.findFirst({ where: { id: userId }, select: { identityType: true, identityId: true } });
     return user?.identityType === "STAFF" ? user.identityId : null;
-  }
-
-  private async loadPlanScoped(id: string, schoolId: string) {
-    const plan = await this.prisma.lessonPlan.findFirst({ where: { id, schoolId } });
-    if (!plan) throw new NotFoundException("Lesson plan not found.");
-    return plan;
   }
 }

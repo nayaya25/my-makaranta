@@ -47,15 +47,17 @@ describe("LessonPlansController", () => {
     expect(result).toEqual([{ id: "plan-1", status: "SUBMITTED" }]);
   });
 
-  it("GET assignment/:assignmentId delegates to service.getForAssignment", async () => {
-    const result = await controller.getForAssignment("assign-1", "term-1");
-    expect(mockService.getForAssignment).toHaveBeenCalledWith("assign-1", "term-1");
+  it("GET assignment/:assignmentId delegates with canReviewAll from perms (teacher → false)", async () => {
+    const req = { user: { perms: ["lessonplans.record"] } } as never;
+    const result = await controller.getForAssignment("assign-1", "term-1", req);
+    expect(mockService.getForAssignment).toHaveBeenCalledWith("assign-1", "term-1", false);
     expect(result).toEqual([{ id: "plan-1" }]);
   });
 
-  it("GET :id delegates to service.getOne", async () => {
-    const result = await controller.getOne("plan-1");
-    expect(mockService.getOne).toHaveBeenCalledWith("plan-1");
+  it("GET :id delegates with canReviewAll=true when caller holds lessonplans.review", async () => {
+    const req = { user: { perms: ["lessonplans.review"] } } as never;
+    const result = await controller.getOne("plan-1", req);
+    expect(mockService.getOne).toHaveBeenCalledWith("plan-1", true);
     expect(result).toEqual({ id: "plan-1" });
   });
 

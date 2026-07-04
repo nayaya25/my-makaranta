@@ -441,6 +441,19 @@ describe("LessonPlansService.getForAssignment", () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
+
+  it("rejects a non-owner teacher (no review) reading another teacher's assignment", async () => {
+    await expect(
+      withUser(schoolId, user2Id, (svc) => svc.getForAssignment(subjectAssignmentId, termId)),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("allows a reviewer (canReviewAll=true) to read any assignment's plans", async () => {
+    const plans = await withUser(schoolId, user2Id, (svc) =>
+      svc.getForAssignment(subjectAssignmentId, termId, true),
+    );
+    expect(Array.isArray(plans)).toBe(true);
+  });
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -472,5 +485,22 @@ describe("LessonPlansService.getOne", () => {
     await expect(
       withUser(otherSchoolId, null, (svc) => svc.getOne(created.id)),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("rejects a non-owner teacher (no review) reading another teacher's plan", async () => {
+    const created = await prisma.lessonPlan.create({
+      data: { schoolId, subjectAssignmentId, termId, weekNumber: 18, topic: "W18" },
+    });
+    await expect(
+      withUser(schoolId, user2Id, (svc) => svc.getOne(created.id)),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("allows a reviewer (canReviewAll=true) to read any plan", async () => {
+    const created = await prisma.lessonPlan.create({
+      data: { schoolId, subjectAssignmentId, termId, weekNumber: 19, topic: "W19" },
+    });
+    const fetched = await withUser(schoolId, user2Id, (svc) => svc.getOne(created.id, true));
+    expect(fetched.id).toBe(created.id);
   });
 });
