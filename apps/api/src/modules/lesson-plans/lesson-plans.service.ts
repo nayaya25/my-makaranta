@@ -1,7 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
-import { PutLessonPlanDto } from "./dto/lesson-plans.dto";
+import { ALLOWED_TRANSITIONS } from "./transitions";
+import { PutLessonPlanDto, ReviewLessonPlanDto } from "./dto/lesson-plans.dto";
 import { weeksInTerm } from "./weeks.util";
 
 @Injectable()
@@ -51,6 +52,44 @@ export class LessonPlansService {
   async getOne(id: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
     return this.loadPlanScoped(id, schoolId);
+  }
+
+  async submit(id: string) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const plan = await this.prisma.lessonPlan.findFirst({ where: { id, schoolId }, include: { subjectAssignment: true } });
+    if (!plan) throw new NotFoundException("Lesson plan not found.");
+    const staffId = await this.resolveCallerStaffId();
+    if (!staffId || staffId !== plan.subjectAssignment.staffId) throw new ForbiddenException("You can only submit your own lesson plans.");
+    if (!(ALLOWED_TRANSITIONS[plan.status] ?? []).includes("SUBMITTED")) {
+      throw new BadRequestException(`Cannot submit a ${plan.status} plan.`);
+    }
+    return this.prisma.lessonPlan.update({ where: { id }, data: { status: "SUBMITTED", submittedAt: new Date() } });
+  }
+
+  async review(id: string, dto: ReviewLessonPlanDto) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const plan = await this.prisma.lessonPlan.findFirst({ where: { id, schoolId } });
+    if (!plan) throw new NotFoundException("Lesson plan not found.");
+    if (!(ALLOWED_TRANSITIONS[plan.status] ?? []).includes(dto.decision)) {
+      throw new BadRequestException(`Cannot ${dto.decision.toLowerCase()} a ${plan.status} plan.`);
+    }
+    if (dto.decision === "RETURNED" && !dto.note?.trim()) throw new BadRequestException("A note is required when returning a plan.");
+    const reviewerStaffId = await this.resolveCallerStaffId();
+    return this.prisma.lessonPlan.update({
+      where: { id },
+      data: { status: dto.decision, reviewNote: dto.note ?? null, reviewedByStaffId: reviewerStaffId, reviewedAt: new Date() },
+    });
+  }
+
+  async reviewQueue(termId?: string) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    return this.prisma.lessonPlan.findMany({
+      where: { schoolId, status: "SUBMITTED", ...(termId ? { termId } : {}) },
+      include: { subjectAssignment: { include: {
+        subject: { select: { name: true } }, class: { select: { name: true } },
+        staff: { select: { firstName: true, lastName: true } } } } },
+      orderBy: { submittedAt: "asc" },
+    });
   }
 
   private async resolveCallerStaffId(): Promise<string | null> {
