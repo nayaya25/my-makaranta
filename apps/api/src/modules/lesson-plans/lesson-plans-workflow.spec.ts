@@ -349,18 +349,14 @@ describe("LessonPlansService.reviewQueue", () => {
     const ids = queue.map((p) => p.id);
     expect(ids).toEqual(expect.arrayContaining([planA.id, planB.id]));
     for (const p of queue) {
-      expect(p.status).toBe("SUBMITTED");
-      expect(p.schoolId).toBe(schoolId);
-      expect(p.subjectAssignment.subject.name).toBeDefined();
-      expect(p.subjectAssignment.class.name).toBeDefined();
-      expect(p.subjectAssignment.staff.firstName).toBeDefined();
+      expect(p.subjectName).toBeDefined();
+      expect(p.className).toBeDefined();
+      expect(p.teacherName).toBeDefined();
+      expect(p.weekNumber).toBeDefined();
     }
     // ordered by submittedAt asc
     const submittedTimes = queue.map((p) => (p.submittedAt as Date).getTime());
     expect(submittedTimes).toEqual([...submittedTimes].sort((a, b) => a - b));
-
-    // does not include the other school's plans
-    expect(queue.every((p) => p.schoolId === schoolId)).toBe(true);
   });
 
   it("filters by termId when provided", async () => {

@@ -83,13 +83,23 @@ export class LessonPlansService {
 
   async reviewQueue(termId?: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
-    return this.prisma.lessonPlan.findMany({
+    const rows = await this.prisma.lessonPlan.findMany({
       where: { schoolId, status: "SUBMITTED", ...(termId ? { termId } : {}) },
       include: { subjectAssignment: { include: {
         subject: { select: { name: true } }, class: { select: { name: true } },
         staff: { select: { firstName: true, lastName: true } } } } },
       orderBy: { submittedAt: "asc" },
     });
+    // Flatten to the queue-item contract the web consumes.
+    return rows.map((p) => ({
+      id: p.id,
+      weekNumber: p.weekNumber,
+      submittedAt: p.submittedAt,
+      termId: p.termId,
+      subjectName: p.subjectAssignment.subject.name,
+      className: p.subjectAssignment.class.name,
+      teacherName: `${p.subjectAssignment.staff.firstName} ${p.subjectAssignment.staff.lastName}`,
+    }));
   }
 
   private async resolveCallerStaffId(): Promise<string | null> {
