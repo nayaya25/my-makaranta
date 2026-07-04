@@ -740,6 +740,37 @@ export interface TeacherTimetable {
   }[];
 }
 
+// ─── Lesson plans (OP-3) ───────────────────────────────────────────────────
+
+export type LessonPlanStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "RETURNED";
+
+export interface LessonPlan {
+  id: string;
+  subjectAssignmentId: string;
+  termId: string;
+  weekNumber: number;
+  topic: string | null;
+  objectives: string | null;
+  activities: string | null;
+  resources: string | null;
+  assessment: string | null;
+  notes: string | null;
+  status: LessonPlanStatus;
+  reviewNote: string | null;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+}
+
+export interface LessonPlanQueueItem {
+  id: string;
+  weekNumber: number;
+  submittedAt: string | null;
+  subjectName: string;
+  className: string;
+  teacherName: string;
+  termId: string;
+}
+
 export const api = {
   requestOtp: (target: { phone?: string; email?: string }) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify(target) }),
@@ -1251,6 +1282,35 @@ export const api = {
     authedRequest<{ id: string }>("/v1/timetable/entry", { method: "PUT", body: JSON.stringify(dto) }),
   deleteTimetableEntry: (id: string) =>
     authedRequest<void>(`/v1/timetable/entry/${encodeURIComponent(id)}`, { method: "DELETE" }),
+
+  // ─── Lesson plans (OP-3) ─────────────────────────────────────────────────────
+  getLessonPlans: (assignmentId: string, termId: string) =>
+    authedRequest<LessonPlan[]>(
+      `/v1/lesson-plans/assignment/${encodeURIComponent(assignmentId)}?termId=${encodeURIComponent(termId)}`,
+    ),
+  getLessonPlan: (id: string) => authedRequest<LessonPlan>(`/v1/lesson-plans/${encodeURIComponent(id)}`),
+  putLessonPlan: (dto: {
+    subjectAssignmentId: string;
+    termId: string;
+    weekNumber: number;
+    topic?: string;
+    objectives?: string;
+    activities?: string;
+    resources?: string;
+    assessment?: string;
+    notes?: string;
+  }) => authedRequest<LessonPlan>("/v1/lesson-plans", { method: "PUT", body: JSON.stringify(dto) }),
+  submitLessonPlan: (id: string) =>
+    authedRequest<LessonPlan>(`/v1/lesson-plans/${encodeURIComponent(id)}/submit`, { method: "POST" }),
+  reviewLessonPlan: (id: string, body: { decision: "APPROVED" | "RETURNED"; note?: string }) =>
+    authedRequest<LessonPlan>(`/v1/lesson-plans/${encodeURIComponent(id)}/review`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  lessonPlanReviewQueue: (termId?: string) =>
+    authedRequest<LessonPlanQueueItem[]>(
+      `/v1/lesson-plans/review-queue${termId ? `?termId=${encodeURIComponent(termId)}` : ""}`,
+    ),
 
   // ─── Admissions — public (unauthenticated, no bearer token) ─────────────────
   publicApply: (dto: {
