@@ -16,8 +16,157 @@ import {
   Skeleton,
   Tabs,
 } from "@mymakaranta/ui";
-import { api, ApiError, type Student, type Guardian } from "@/lib/api";
+import { api, ApiError, type Student, type Guardian, type DiscountScheme, type StudentDiscount } from "@/lib/api";
 import { ArrowLeft, Camera, FileText, UserPlus } from "lucide-react";
+
+const cls = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small text-ink-1000 dark:text-ink-100";
+
+function formatSchemeValue(method: "PERCENT" | "FIXED", value: number): string {
+  return method === "PERCENT" ? `${value}%` : `₦${value.toLocaleString("en-NG")}`;
+}
+
+function StudentDiscountsPanel({ studentId }: { studentId: string }) {
+  const [schemes, setSchemes] = useState<DiscountScheme[]>([]);
+  const [assignments, setAssignments] = useState<StudentDiscount[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [selectedSchemeId, setSelectedSchemeId] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [assignErr, setAssignErr] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    setLoadErr(null);
+    try {
+      const [allSchemes, current] = await Promise.all([
+        api.listDiscountSchemes(),
+        api.listStudentDiscounts(studentId),
+      ]);
+      setSchemes(allSchemes);
+      setAssignments(current);
+    } catch (e) {
+      setLoadErr(e instanceof ApiError ? e.message : "Could not load discounts.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { void load(); }, [studentId]);
+
+  const activeSchemes = schemes.filter((s) => s.active);
+  const assignedSchemeIds = new Set(assignments.map((a) => a.schemeId));
+  const assignableSchemes = activeSchemes.filter((s) => !assignedSchemeIds.has(s.id));
+
+  const assign = async () => {
+    if (!selectedSchemeId) return;
+    setAssigning(true);
+    setAssignErr(null);
+    try {
+      await api.assignDiscount(studentId, selectedSchemeId);
+      setSelectedSchemeId("");
+      await load();
+    } catch (e) {
+      setAssignErr(e instanceof ApiError ? e.message : "Could not assign the discount.");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const revoke = async (id: string) => {
+    setRevokingId(id);
+    setAssignErr(null);
+    try {
+      await api.revokeStudentDiscount(id);
+      setAssignments((prev) => prev.filter((a) => a.id !== id));
+    } catch (e) {
+      setAssignErr(e instanceof ApiError ? e.message : "Could not revoke the discount.");
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-10">
+        <Skeleton className="h-24 w-full" />
+      </div>
+    );
+  }
+
+  if (loadErr) {
+    return (
+      <div className="py-6">
+        <ErrorState description={loadErr} onRetry={load} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5 py-4">
+      <div>
+        <h3 className="text-small font-semibold text-ink-1000 dark:text-ink-100 mb-2">Current discounts</h3>
+        {assignments.length === 0 ? (
+          <p className="text-small text-ink-500">No discounts assigned to this student.</p>
+        ) : (
+          <Card className="divide-y divide-ink-1000/[0.06] dark:divide-white/[0.06]">
+            {assignments.map((a) => (
+              <div key={a.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-small font-medium text-ink-1000 dark:text-ink-100">{a.name}</p>
+                  <p className="text-caption tabular-nums text-ink-500">{formatSchemeValue(a.method, a.value)}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => revoke(a.id)}
+                  disabled={revokingId === a.id}
+                >
+                  {revokingId === a.id ? "Revoking…" : "Revoke"}
+                </Button>
+              </div>
+            ))}
+          </Card>
+        )}
+      </div>
+
+      <div>
+        <h3 className="text-small font-semibold text-ink-1000 dark:text-ink-100 mb-2">Assign a scheme</h3>
+        {activeSchemes.length === 0 ? (
+          <p className="text-small text-ink-500">
+            No active discount schemes. Create one in <Link href="/settings/discounts" className="underline font-medium">Settings → Discount schemes</Link>.
+          </p>
+        ) : assignableSchemes.length === 0 ? (
+          <p className="text-small text-ink-500">All active schemes are already assigned to this student.</p>
+        ) : (
+          <div className="flex items-center gap-2 flex-wrap">
+            <select
+              aria-label="Discount scheme"
+              value={selectedSchemeId}
+              onChange={(e) => setSelectedSchemeId(e.target.value)}
+              className={cls}
+            >
+              <option value="">Select a scheme…</option>
+              {assignableSchemes.map((s) => (
+                <option key={s.id} value={s.id}>{s.name} ({formatSchemeValue(s.method, s.value)})</option>
+              ))}
+            </select>
+            <Button size="sm" onClick={assign} disabled={!selectedSchemeId || assigning}>
+              {assigning ? "Assigning…" : "Assign"}
+            </Button>
+          </div>
+        )}
+        {assignErr && <p className="mt-2 text-caption text-error">{assignErr}</p>}
+      </div>
+
+      <p className="text-caption text-ink-400 dark:text-ink-500">
+        Discounts apply on the next invoice generation for this student&apos;s unpaid invoices — they do not retroactively
+        change invoices that are already fully paid.
+      </p>
+    </div>
+  );
+}
 
 function AddGuardianDialog({
   studentId,
@@ -315,7 +464,7 @@ export default function StudentProfilePage() {
           <PlaceholderTab label="Attendance" />
         </Tabs.Content>
         <Tabs.Content value="fees">
-          <PlaceholderTab label="Fee records" />
+          <StudentDiscountsPanel studentId={id} />
         </Tabs.Content>
       </Tabs.Root>
 
