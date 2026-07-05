@@ -34,6 +34,9 @@ export const TENANT_MODELS = new Set([
   "Period",
   "TimetableEntry",
   "LessonPlan",
+  "DiscountScheme",
+  "StudentDiscount",
+  "InvoiceDiscount",
 ]);
 
 @Injectable()
