@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { FeeItemInput } from "./dto/fees.dto";
+import { computeDiscount, DiscountInput } from "./discount.util";
 
 @Injectable()
 export class FeesService {
@@ -63,17 +64,37 @@ export class FeesService {
       for (const e of enrollments) {
         const classLevelId = e.class.classLevelId;
         const lines = itemsByLevel.get(classLevelId) ?? [];
-        const totalKobo = lines.reduce((s, l) => s + l.amountKobo, 0);
+        const gross = lines.reduce((s, l) => s + l.amountKobo, 0);
         const prevPaid = paidByStudent.get(e.studentId);
         if (prevPaid !== undefined && prevPaid > 0) { skipped++; continue; }
+
+        const assignments = await tx.studentDiscount.findMany({
+          where: { schoolId, studentId: e.studentId, discountScheme: { active: true } },
+          include: { discountScheme: true },
+        });
+        const discountInputs: DiscountInput[] = assignments.map((sd) => ({
+          id: sd.discountScheme.id,
+          name: sd.discountScheme.name,
+          method: sd.discountScheme.method,
+          value: sd.discountScheme.value,
+        }));
+        const { discountKobo, breakdown } = computeDiscount(gross, discountInputs);
+        const totalKobo = gross - discountKobo;
+
         const invoice = await tx.invoice.upsert({
           where: { studentId_termId: { studentId: e.studentId, termId } },
-          create: { schoolId, studentId: e.studentId, termId, classLevelId, totalKobo, dueDate },
-          update: { classLevelId, totalKobo, dueDate },
+          create: { schoolId, studentId: e.studentId, termId, classLevelId, grossKobo: gross, discountKobo, totalKobo, dueDate },
+          update: { classLevelId, grossKobo: gross, discountKobo, totalKobo, dueDate },
         });
         await tx.invoiceLine.deleteMany({ where: { schoolId, invoiceId: invoice.id } });
         if (lines.length) {
           await tx.invoiceLine.createMany({ data: lines.map((l) => ({ schoolId, invoiceId: invoice.id, name: l.name, amountKobo: l.amountKobo })) });
+        }
+        await tx.invoiceDiscount.deleteMany({ where: { schoolId, invoiceId: invoice.id } });
+        if (breakdown.length) {
+          await tx.invoiceDiscount.createMany({
+            data: breakdown.map((b) => ({ schoolId, invoiceId: invoice.id, schemeId: b.schemeId, name: b.name, amountKobo: b.amountKobo })),
+          });
         }
         if (prevPaid === undefined) created++; else refreshed++;
       }
@@ -99,6 +120,8 @@ export class FeesService {
       studentId: i.studentId,
       name: `${i.student.firstName} ${i.student.lastName}`,
       classLevelName: i.classLevel.name,
+      grossKobo: i.grossKobo,
+      discountKobo: i.discountKobo,
       totalKobo: i.totalKobo,
       paidKobo: i.paidKobo,
       balanceKobo: i.totalKobo - i.paidKobo,
@@ -114,6 +137,7 @@ export class FeesService {
         classLevel: { select: { name: true } },
         term: { select: { number: true, academicYear: { select: { name: true } } } },
         lines: true,
+        invoiceDiscounts: true,
       },
     });
     if (!invoice) throw new NotFoundException("No invoice for this student/term.");
@@ -123,6 +147,9 @@ export class FeesService {
       term: { label: `${invoice.term.academicYear.name} · Term ${invoice.term.number}` },
       classLevelName: invoice.classLevel.name,
       lines: invoice.lines.map((l) => ({ name: l.name, amountKobo: l.amountKobo })),
+      grossKobo: invoice.grossKobo,
+      discountKobo: invoice.discountKobo,
+      discounts: invoice.invoiceDiscounts.map((d) => ({ name: d.name, amountKobo: d.amountKobo })),
       totalKobo: invoice.totalKobo,
       paidKobo: invoice.paidKobo,
       balanceKobo: invoice.totalKobo - invoice.paidKobo,
