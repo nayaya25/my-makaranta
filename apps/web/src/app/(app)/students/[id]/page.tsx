@@ -22,7 +22,8 @@ import { ArrowLeft, Camera, FileText, UserPlus } from "lucide-react";
 const cls = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small text-ink-1000 dark:text-ink-100";
 
 function formatSchemeValue(method: "PERCENT" | "FIXED", value: number): string {
-  return method === "PERCENT" ? `${value}%` : `₦${value.toLocaleString("en-NG")}`;
+  // FIXED scheme value is stored in kobo; render as naira.
+  return method === "PERCENT" ? `${value}%` : `₦${(value / 100).toLocaleString("en-NG")}`;
 }
 
 function StudentDiscountsPanel({ studentId }: { studentId: string }) {

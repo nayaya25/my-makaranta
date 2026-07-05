@@ -7,12 +7,24 @@ import { api, ApiError, type DiscountMethod, type DiscountScheme } from "@/lib/a
 import { ArrowLeft } from "lucide-react";
 
 /* ── Validation ──────────────────────────────────────────────────────────── */
+// The form works in display units: PERCENT = percent points, FIXED = naira.
+// The API stores PERCENT as-is and FIXED as kobo, so convert at the boundary.
 function validateScheme(name: string, method: DiscountMethod, value: number): string | null {
   if (!name.trim()) return "Name is required.";
   if (!Number.isFinite(value)) return "Value must be a number.";
   if (method === "PERCENT" && (value < 1 || value > 100)) return "Percent value must be between 1 and 100.";
   if (method === "FIXED" && value <= 0) return "Fixed value must be greater than 0.";
   return null;
+}
+
+/** Stored scheme value → the string shown in the input (FIXED kobo → naira). */
+function toInputValue(method: DiscountMethod, storedValue: number): string {
+  return method === "FIXED" ? String(storedValue / 100) : String(storedValue);
+}
+
+/** Input number (display units) → the value the API stores (FIXED naira → kobo). */
+function toStoredValue(method: DiscountMethod, inputValue: number): number {
+  return method === "FIXED" ? Math.round(inputValue * 100) : inputValue;
 }
 
 const cls = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small text-ink-1000 dark:text-ink-100";
@@ -31,9 +43,10 @@ function SchemeRowItem({
   onUpdated: (updated: DiscountScheme) => void;
   onDeleted: (id: string) => void;
 }) {
+  const initialValueStr = toInputValue(scheme.method, scheme.value);
   const [name, setName] = useState(scheme.name);
   const [method, setMethod] = useState<DiscountMethod>(scheme.method);
-  const [value, setValue] = useState(String(scheme.value));
+  const [value, setValue] = useState(initialValueStr);
   const [active, setActive] = useState(scheme.active);
   const [saving, setSaving] = useState(false);
   const [retiring, setRetiring] = useState(false);
@@ -41,7 +54,7 @@ function SchemeRowItem({
   const [err, setErr] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
-  const dirty = name !== scheme.name || method !== scheme.method || value !== String(scheme.value);
+  const dirty = name !== scheme.name || method !== scheme.method || value !== initialValueStr;
 
   const save = async () => {
     const numeric = Number(value);
@@ -51,7 +64,7 @@ function SchemeRowItem({
     setErr(null);
     setSavedMsg(null);
     try {
-      const updated = await api.updateDiscountScheme(scheme.id, { name: name.trim(), method, value: numeric });
+      const updated = await api.updateDiscountScheme(scheme.id, { name: name.trim(), method, value: toStoredValue(method, numeric) });
       onUpdated(updated);
       setSavedMsg("Saved.");
       setTimeout(() => setSavedMsg(null), 2000);
@@ -175,7 +188,7 @@ function AddSchemeForm({ onCreated }: { onCreated: (s: DiscountScheme) => void }
     setAdding(true);
     setErr(null);
     try {
-      const created = await api.createDiscountScheme({ name: draft.name.trim(), method: draft.method, value: numeric });
+      const created = await api.createDiscountScheme({ name: draft.name.trim(), method: draft.method, value: toStoredValue(draft.method, numeric) });
       onCreated(created);
       setDraft(EMPTY_DRAFT);
       nameRef.current?.focus();
