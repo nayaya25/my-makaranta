@@ -131,6 +131,7 @@ model School {
   applicants             Applicant[]
   periods                Period[]
   timetableEntries       TimetableEntry[]
+  lessonPlans            LessonPlan[]
 }
 
 model Conversation {
@@ -194,6 +195,7 @@ model Term {
   corrections    Correction[]
   feeItems       FeeItem[]
   invoices       Invoice[]
+  lessonPlans    LessonPlan[]
 }
 
 model ClassLevel {
@@ -546,6 +548,7 @@ model SubjectAssignment {
   academicYearId   String
   academicYear     AcademicYear     @relation(fields: [academicYearId], references: [id])
   timetableEntries TimetableEntry[]
+  lessonPlans      LessonPlan[]
 
   @@unique([subjectId, classId, academicYearId])
   @@index([schoolId, academicYearId])
@@ -999,4 +1002,40 @@ model TimetableEntry {
   @@unique([classId, academicYearId, dayOfWeek, periodId])
   @@index([schoolId, academicYearId])
   @@index([subjectAssignmentId])
+}
+
+// === Lesson Plans (OP-3) ===
+
+enum LessonPlanStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  RETURNED
+}
+
+model LessonPlan {
+  id                  String            @id @default(cuid())
+  schoolId            String
+  school              School            @relation(fields: [schoolId], references: [id])
+  subjectAssignmentId String
+  subjectAssignment   SubjectAssignment @relation(fields: [subjectAssignmentId], references: [id], onDelete: Cascade)
+  termId              String
+  term                Term              @relation(fields: [termId], references: [id])
+  weekNumber          Int
+  topic               String?
+  objectives          String?
+  activities          String?
+  resources           String?
+  assessment          String?
+  notes               String?
+  status              LessonPlanStatus  @default(DRAFT)
+  reviewNote          String?
+  reviewedByStaffId   String?
+  submittedAt         DateTime?
+  reviewedAt          DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@unique([subjectAssignmentId, termId, weekNumber])
+  @@index([schoolId, termId])
 }

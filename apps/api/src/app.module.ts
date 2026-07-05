@@ -31,6 +31,7 @@ import { IdentityModule } from "./core/identity/identity.module";
 import { SignupModule } from "./modules/signup/signup.module";
 import { AdmissionsModule } from "./modules/admissions/admissions.module";
 import { TimetableModule } from "./modules/timetable/timetable.module";
+import { LessonPlansModule } from "./modules/lesson-plans/lesson-plans.module";
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { TimetableModule } from "./modules/timetable/timetable.module";
     SignupModule,
     AdmissionsModule,
     TimetableModule,
+    LessonPlansModule,
   ],
   controllers: [AppController],
   providers: [

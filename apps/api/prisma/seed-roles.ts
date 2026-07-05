@@ -52,6 +52,8 @@ export const GRANTS: Record<PresetKey, string[] | typeof ALL> = {
     "school.manage",
     "skills.record",
     "admissions.manage",
+    "lessonplans.review",
+    "lessonplans.record",
   ],
   vice_principal: [
     "students.view",
@@ -89,6 +91,7 @@ export const GRANTS: Record<PresetKey, string[] | typeof ALL> = {
     "results.release",
     "assessment.configure",
     "announcements.view",
+    "lessonplans.review",
   ],
   teacher: [
     "students.view",
@@ -98,6 +101,7 @@ export const GRANTS: Record<PresetKey, string[] | typeof ALL> = {
     "results.record",
     "announcements.view",
     "skills.record",
+    "lessonplans.record",
   ],
 };
 
