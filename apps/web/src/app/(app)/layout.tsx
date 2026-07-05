@@ -29,6 +29,7 @@ import {
   Loader2,
   Star,
   Calendar,
+  NotebookPen,
 } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: React.ElementType; perm?: string };
@@ -58,6 +59,8 @@ const NAV: NavEntry[] = [
       { href: "/attendance", label: "Attendance", icon: CalendarCheck, perm: "attendance.view" },
       { href: "/gradebook", label: "Gradebook", icon: ClipboardList, perm: "results.record" },
       { href: "/skills", label: "Skills", icon: Star, perm: "skills.record" },
+      { href: "/lesson-plans", label: "Lesson Plans", icon: NotebookPen, perm: "lessonplans.record" },
+      { href: "/lesson-plans/review", label: "Review Plans", icon: ClipboardList, perm: "lessonplans.review" },
       { href: "/review", label: "Review", icon: BarChart3, perm: "results.review" },
       { href: "/release", label: "Release", icon: Lock, perm: "results.release" },
     ],

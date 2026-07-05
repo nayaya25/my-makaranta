@@ -33,6 +33,7 @@ export const TENANT_MODELS = new Set([
   "Applicant",
   "Period",
   "TimetableEntry",
+  "LessonPlan",
 ]);
 
 @Injectable()
