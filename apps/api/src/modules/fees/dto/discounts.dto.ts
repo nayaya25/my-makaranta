@@ -13,3 +13,7 @@ export class UpdateSchemeDto {
   @IsOptional() @IsInt() value?: number;
   @IsOptional() @IsBoolean() active?: boolean;
 }
+
+export class AssignDiscountDto {
+  @IsString() @IsNotEmpty() schemeId!: string;
+}
