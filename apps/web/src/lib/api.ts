@@ -427,14 +427,39 @@ export type VerifyResult =
     };
 
 export interface FeeItemRow { id: string; name: string; amountKobo: number; order: number; }
-export interface InvoiceRow { studentId: string; name: string; classLevelName: string; totalKobo: number; paidKobo: number; balanceKobo: number; }
+export interface InvoiceRow { studentId: string; name: string; classLevelName: string; grossKobo: number; discountKobo: number; totalKobo: number; paidKobo: number; balanceKobo: number; }
 export interface InvoiceDetail {
   id: string;
   student: { name: string; admissionNo: string };
   term: { label: string };
   classLevelName: string;
   lines: Array<{ name: string; amountKobo: number }>;
+  grossKobo: number;
+  discountKobo: number;
+  discounts: Array<{ name: string; amountKobo: number }>;
   totalKobo: number; paidKobo: number; balanceKobo: number;
+}
+
+// Discounts & scholarships (MF-1)
+export type DiscountMethod = "PERCENT" | "FIXED";
+export interface DiscountScheme {
+  id: string;
+  name: string;
+  method: DiscountMethod;
+  value: number;
+  active: boolean;
+}
+export interface StudentDiscount {
+  id: string;
+  schemeId: string;
+  name: string;
+  method: DiscountMethod;
+  value: number;
+}
+export interface SchemeRosterRow {
+  id: string;
+  studentId: string;
+  student: { firstName: string; lastName: string; admissionNo: string };
 }
 
 export interface CollectionRow {
@@ -1136,6 +1161,36 @@ export const api = {
     authedRequest<{ recipientCount: number }>("/v1/fees/collections/remind", { method: "POST", body: JSON.stringify({ invoiceId }) }),
   remindAllOverdue: (termId: string) =>
     authedRequest<{ remindersSent: number; totalRecipients: number }>("/v1/fees/collections/remind-all", { method: "POST", body: JSON.stringify({ termId }) }),
+
+  // Discounts & scholarships (MF-1)
+  listDiscountSchemes: () => authedRequest<DiscountScheme[]>("/v1/fees/discount-schemes"),
+  createDiscountScheme: (dto: { name: string; method: DiscountMethod; value: number; active?: boolean }) =>
+    authedRequest<DiscountScheme>("/v1/fees/discount-schemes", { method: "POST", body: JSON.stringify(dto) }),
+  updateDiscountScheme: (id: string, dto: Partial<{ name: string; method: DiscountMethod; value: number; active: boolean }>) =>
+    authedRequest<DiscountScheme>(`/v1/fees/discount-schemes/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(dto) }),
+  deleteDiscountScheme: (id: string) =>
+    authedRequest<DiscountScheme>(`/v1/fees/discount-schemes/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  schemeRoster: (id: string) =>
+    authedRequest<SchemeRosterRow[]>(`/v1/fees/discount-schemes/${encodeURIComponent(id)}/students`),
+  listStudentDiscounts: (studentId: string) =>
+    authedRequest<
+      Array<{ id: string; discountSchemeId: string; discountScheme: { id: string; name: string; method: DiscountMethod; value: number; active: boolean } }>
+    >(`/v1/fees/students/${encodeURIComponent(studentId)}/discounts`).then((rows) =>
+      rows.map((r) => ({
+        id: r.id,
+        schemeId: r.discountScheme.id,
+        name: r.discountScheme.name,
+        method: r.discountScheme.method,
+        value: r.discountScheme.value,
+      })),
+    ),
+  assignDiscount: (studentId: string, schemeId: string) =>
+    authedRequest<{ id: string }>(`/v1/fees/students/${encodeURIComponent(studentId)}/discounts`, {
+      method: "POST",
+      body: JSON.stringify({ schemeId }),
+    }),
+  revokeStudentDiscount: (id: string) =>
+    authedRequest<{ id: string }>(`/v1/fees/student-discounts/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   // Payments
   recordPayment: (invoiceId: string, amountKobo: number, channel: "CASH" | "BANK_TRANSFER", reference?: string) =>

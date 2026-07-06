@@ -10,10 +10,12 @@ import { ReconciliationController } from "./reconciliation.controller";
 import { ReconciliationService } from "./reconciliation.service";
 import { FinanceController } from "./finance.controller";
 import { FinanceService } from "./finance.service";
+import { DiscountsController } from "./discounts.controller";
+import { DiscountsService } from "./discounts.service";
 
 @Module({
   imports: [AuthModule, EmailModule, PaymentsModule],
-  controllers: [FeesController, CollectionsController, ReconciliationController, FinanceController],
-  providers: [FeesService, CollectionsService, ReconciliationService, FinanceService],
+  controllers: [FeesController, CollectionsController, ReconciliationController, FinanceController, DiscountsController],
+  providers: [FeesService, CollectionsService, ReconciliationService, FinanceService, DiscountsService],
 })
 export class FeesModule {}
