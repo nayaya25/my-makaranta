@@ -131,13 +131,20 @@ export class AnnouncementsService {
       where: { status: "SCHEDULED", scheduledFor: { lte: now } },
     });
     for (const ann of due) {
+      // Claim before sending: atomically flip SCHEDULED→SENT and deliver only if THIS run won
+      // the claim. Prevents a crash/multi-instance overlap between delivery and the status flip
+      // from re-delivering to every recipient (mirrors the NotificationLog claim used elsewhere).
+      const claim = await this.prisma.announcement.updateMany({
+        where: { id: ann.id, status: "SCHEDULED" },
+        data: { status: "SENT" },
+      });
+      if (claim.count !== 1) continue;
       const rows = await this.prisma.announcementRecipient.findMany({
         where: { schoolId: ann.schoolId, announcementId: ann.id },
         select: { recipientType: true, recipientId: true },
       });
       const recipients: Recipient[] = rows.map((r) => ({ recipientType: r.recipientType as "PARENT" | "STAFF", recipientId: r.recipientId }));
       await this.deliverAnnouncement(ann, recipients);
-      await this.prisma.announcement.update({ where: { id: ann.id }, data: { status: "SENT" } });
     }
   }
 

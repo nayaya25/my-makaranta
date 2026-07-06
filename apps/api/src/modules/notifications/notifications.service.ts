@@ -110,6 +110,7 @@ export class NotificationsService {
           studentName: `${invoice.student.firstName} ${invoice.student.lastName}`,
           amountKobo: balanceKobo,
           dueDate: invoice.dueDate,
+          isInstallment: false,
           guardians: invoice.student.guardians,
         });
         continue;
@@ -139,6 +140,7 @@ export class NotificationsService {
           studentName: `${invoice.student.firstName} ${invoice.student.lastName}`,
           amountKobo: outstanding,
           dueDate: installment.dueDate,
+          isInstallment: true,
           guardians: invoice.student.guardians,
         });
       }
@@ -154,9 +156,10 @@ export class NotificationsService {
     studentName: string;
     amountKobo: number;
     dueDate: Date;
+    isInstallment: boolean;
     guardians: { parent: { phone: string; email: string | null } }[];
   }): Promise<void> {
-    const { schoolId, offset, targetDate, channels, dedupeId, studentName, amountKobo, dueDate, guardians } = args;
+    const { schoolId, offset, targetDate, channels, dedupeId, studentName, amountKobo, dueDate, isInstallment, guardians } = args;
     const dedupeKey = `FEE_REMINDER:${dedupeId}:${offset}:${targetDate}`;
 
     try {
@@ -171,7 +174,8 @@ export class NotificationsService {
     }
 
     const dueDateStr = dueDate.toISOString().slice(0, 10);
-    const message = `Dear Parent, ${studentName}'s fees installment of ${naira(amountKobo)} is due ${dueDateStr}. Kindly settle it. Thank you.`;
+    const what = isInstallment ? "fees installment" : "fees balance";
+    const message = `Dear Parent, ${studentName}'s ${what} of ${naira(amountKobo)} is due ${dueDateStr}. Kindly settle it. Thank you.`;
     const recipients: Recipient[] = guardians.map((g) => ({ phone: g.parent.phone, email: g.parent.email }));
 
     const { recipientCount, channelsUsed } = await this.deliver(
