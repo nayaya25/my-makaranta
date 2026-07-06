@@ -146,6 +146,46 @@ export class ParentService {
     return "UNPAID";
   }
 
+  /** Ownership-checked fee statement for one child — all invoices composed + overall totals. */
+  async buildStatement(studentId: string, user: RequestUser) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const ids = await this.childStudentIds(user);
+    if (!ids.includes(studentId)) throw new NotFoundException("Student not found.");
+
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, schoolId },
+      select: { firstName: true, lastName: true, admissionNo: true },
+    });
+    if (!student) throw new NotFoundException("Student not found.");
+
+    const school = await this.prisma.school.findFirst({ where: { id: schoolId }, select: { name: true } });
+
+    const invoices = await this.prisma.invoice.findMany({
+      where: { studentId, schoolId },
+      orderBy: { issuedAt: "asc" },
+      ...invoiceDetailArgs,
+    });
+
+    const now = new Date();
+    const composed = invoices.map((invoice) => this.composeInvoice(invoice, now));
+
+    const overall = composed.reduce(
+      (acc, inv) => ({
+        totalKobo: acc.totalKobo + inv.totalKobo,
+        paidKobo: acc.paidKobo + inv.paidKobo,
+        balanceKobo: acc.balanceKobo + inv.balanceKobo,
+      }),
+      { totalKobo: 0, paidKobo: 0, balanceKobo: 0 },
+    );
+
+    return {
+      school: { name: school?.name ?? "" },
+      student: { name: `${student.firstName} ${student.lastName}`, admissionNo: student.admissionNo },
+      invoices: composed,
+      overall,
+    };
+  }
+
   /** The parent's children's SUCCESS payments, newest first. */
   async getReceipts(user: RequestUser) {
     const schoolId = TenantContext.schoolIdOrThrow();
