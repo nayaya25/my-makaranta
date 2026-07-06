@@ -27,6 +27,7 @@
     "@nestjs/jwt": "^11",
     "@nestjs/passport": "^11",
     "@nestjs/platform-express": "^11",
+    "@nestjs/schedule": "^6",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^5.22.0",
     "@react-pdf/renderer": "^3.4.5",

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardBody, CardHeader, PageContainer, PageHeader } from "@mymakaranta/ui";
-import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText, Clock, Percent, CalendarClock } from "lucide-react";
+import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText, Clock, Percent, CalendarClock, BellRing } from "lucide-react";
 
 const ITEMS = [
   {
@@ -64,6 +64,12 @@ const ITEMS = [
     title: "Bell schedule",
     description: "Define daily periods — start/end times and break slots for the timetable.",
     icon: Clock,
+  },
+  {
+    href: "/settings/notifications",
+    title: "Notifications",
+    description: "Fee reminder days, results-ready alerts, and delivery channels.",
+    icon: BellRing,
   },
 ];
 

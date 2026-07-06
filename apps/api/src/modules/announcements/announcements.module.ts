@@ -4,5 +4,10 @@ import { EmailModule } from "../../core/email/email.module";
 import { AnnouncementsController } from "./announcements.controller";
 import { AnnouncementsService } from "./announcements.service";
 
-@Module({ imports: [AuthModule, EmailModule], controllers: [AnnouncementsController], providers: [AnnouncementsService] })
+@Module({
+  imports: [AuthModule, EmailModule],
+  controllers: [AnnouncementsController],
+  providers: [AnnouncementsService],
+  exports: [AnnouncementsService],
+})
 export class AnnouncementsModule {}
