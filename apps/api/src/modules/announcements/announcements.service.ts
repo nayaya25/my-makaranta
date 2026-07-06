@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import type { Announcement } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { SmsService } from "../../core/auth/sms.service";
@@ -58,45 +59,86 @@ export class AnnouncementsService {
     return out;
   }
 
+  /**
+   * Delivers an already-persisted announcement's SMS/email to its recipients.
+   * Reused by both immediate `create` delivery and `dispatchScheduledAnnouncements`.
+   */
+  private async deliverAnnouncement(ann: Announcement, recipients: Recipient[]): Promise<void> {
+    const schoolId = ann.schoolId;
+    const selected = ann.channels.filter((c) => c === "SMS" || c === "EMAIL");
+    const wantSms = selected.includes("SMS");
+    const wantEmail = selected.includes("EMAIL");
+    if (!(wantSms || wantEmail) || recipients.length === 0) return;
+    const parentIds = recipients.filter((r) => r.recipientType === "PARENT").map((r) => r.recipientId);
+    const staffIds = recipients.filter((r) => r.recipientType === "STAFF").map((r) => r.recipientId);
+    const [parents, staff] = await Promise.all([
+      parentIds.length ? this.prisma.parent.findMany({ where: { schoolId, id: { in: parentIds } }, select: { id: true, phone: true, email: true } }) : Promise.resolve([]),
+      staffIds.length ? this.prisma.staff.findMany({ where: { schoolId, id: { in: staffIds } }, select: { id: true, phone: true, email: true } }) : Promise.resolve([]),
+    ]);
+    const contacts: { type: "PARENT" | "STAFF"; id: string; phone: string; email: string | null }[] = [
+      ...parents.map((p) => ({ type: "PARENT" as const, id: p.id, phone: p.phone, email: p.email })),
+      ...staff.map((s) => ({ type: "STAFF" as const, id: s.id, phone: s.phone, email: s.email })),
+    ];
+    const text = `${ann.title} — ${ann.body}`;
+    for (const c of contacts) {
+      let smsSent = false;
+      let emailSent = false;
+      if (wantSms) { try { await this.sms.send(c.phone, text); smsSent = true; } catch { /* non-fatal */ } }
+      if (wantEmail && c.email) { try { await this.email.send({ to: c.email, subject: ann.title, html: `<p>${ann.body}</p>`, text }); emailSent = true; } catch { /* non-fatal */ } }
+      if (smsSent || emailSent) {
+        await this.prisma.announcementRecipient.updateMany({ where: { schoolId, announcementId: ann.id, recipientType: c.type, recipientId: c.id }, data: { smsSent, emailSent } });
+      }
+    }
+  }
+
   async create(dto: CreateAnnouncementDto, user: RequestUser) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const recipients = await this.resolveRecipients(dto, schoolId);
     const selected = (dto.channels ?? []).filter((c) => c === "SMS" || c === "EMAIL");
     const channels = ["IN_APP", ...selected];
+    const scheduledFor = dto.scheduledFor ? new Date(dto.scheduledFor) : null;
+    const isFutureSchedule = !!scheduledFor && scheduledFor.getTime() > Date.now();
     const ann = await this.prisma.$transaction(async (tx) => {
       const a = await tx.announcement.create({
-        data: { schoolId, authorId: user.id, title: dto.title, body: dto.body, audienceType: dto.audienceType, audienceIds: dto.audienceIds ?? [], channels },
+        data: {
+          schoolId,
+          authorId: user.id,
+          title: dto.title,
+          body: dto.body,
+          audienceType: dto.audienceType,
+          audienceIds: dto.audienceIds ?? [],
+          channels,
+          ...(isFutureSchedule ? { scheduledFor, status: "SCHEDULED" } : {}),
+        },
       });
       if (recipients.length > 0) {
         await tx.announcementRecipient.createMany({ data: recipients.map((r) => ({ schoolId, announcementId: a.id, recipientType: r.recipientType, recipientId: r.recipientId })) });
       }
       return a;
     });
-    const wantSms = selected.includes("SMS");
-    const wantEmail = selected.includes("EMAIL");
-    if ((wantSms || wantEmail) && recipients.length > 0) {
-      const parentIds = recipients.filter((r) => r.recipientType === "PARENT").map((r) => r.recipientId);
-      const staffIds = recipients.filter((r) => r.recipientType === "STAFF").map((r) => r.recipientId);
-      const [parents, staff] = await Promise.all([
-        parentIds.length ? this.prisma.parent.findMany({ where: { schoolId, id: { in: parentIds } }, select: { id: true, phone: true, email: true } }) : Promise.resolve([]),
-        staffIds.length ? this.prisma.staff.findMany({ where: { schoolId, id: { in: staffIds } }, select: { id: true, phone: true, email: true } }) : Promise.resolve([]),
-      ]);
-      const contacts: { type: "PARENT" | "STAFF"; id: string; phone: string; email: string | null }[] = [
-        ...parents.map((p) => ({ type: "PARENT" as const, id: p.id, phone: p.phone, email: p.email })),
-        ...staff.map((s) => ({ type: "STAFF" as const, id: s.id, phone: s.phone, email: s.email })),
-      ];
-      const text = `${dto.title} — ${dto.body}`;
-      for (const c of contacts) {
-        let smsSent = false;
-        let emailSent = false;
-        if (wantSms) { try { await this.sms.send(c.phone, text); smsSent = true; } catch { /* non-fatal */ } }
-        if (wantEmail && c.email) { try { await this.email.send({ to: c.email, subject: dto.title, html: `<p>${dto.body}</p>`, text }); emailSent = true; } catch { /* non-fatal */ } }
-        if (smsSent || emailSent) {
-          await this.prisma.announcementRecipient.updateMany({ where: { schoolId, announcementId: ann.id, recipientType: c.type, recipientId: c.id }, data: { smsSent, emailSent } });
-        }
-      }
+    if (!isFutureSchedule) {
+      await this.deliverAnnouncement(ann, recipients);
     }
     return { id: ann.id, recipientCount: recipients.length };
+  }
+
+  /**
+   * Cross-tenant: iterates all due SCHEDULED announcements across schools (no TenantContext),
+   * delivers each, then flips status to SENT. Idempotent — SENT rows are never matched again.
+   */
+  async dispatchScheduledAnnouncements(now: Date): Promise<void> {
+    const due = await this.prisma.announcement.findMany({
+      where: { status: "SCHEDULED", scheduledFor: { lte: now } },
+    });
+    for (const ann of due) {
+      const rows = await this.prisma.announcementRecipient.findMany({
+        where: { schoolId: ann.schoolId, announcementId: ann.id },
+        select: { recipientType: true, recipientId: true },
+      });
+      const recipients: Recipient[] = rows.map((r) => ({ recipientType: r.recipientType as "PARENT" | "STAFF", recipientId: r.recipientId }));
+      await this.deliverAnnouncement(ann, recipients);
+      await this.prisma.announcement.update({ where: { id: ann.id }, data: { status: "SENT" } });
+    }
   }
 
   async list() {
