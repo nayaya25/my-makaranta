@@ -684,6 +684,8 @@ export async function getPublicTenant(slug: string): Promise<PublicTenant | null
   }
 }
 
+export type AnnouncementStatus = "SENT" | "SCHEDULED";
+
 export interface SentAnnouncement {
   id: string;
   title: string;
@@ -692,6 +694,8 @@ export interface SentAnnouncement {
   audienceIds: string[];
   channels: string[];
   sentAt: string;
+  scheduledFor: string | null;
+  status: AnnouncementStatus;
   recipientCount: number;
   readCount: number;
 }
@@ -859,6 +863,15 @@ export interface LessonPlanQueueItem {
   termId: string;
 }
 
+// ─── Notification settings (EN-1) ───────────────────────────────────────────
+
+export interface NotificationSettings {
+  feeRemindersEnabled: boolean;
+  reminderOffsetDays: number[];
+  resultsReadyEnabled: boolean;
+  channels: string[];
+}
+
 export const api = {
   requestOtp: (target: { phone?: string; email?: string }) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify(target) }),
@@ -900,7 +913,7 @@ export const api = {
   createClass: (data: { classLevelId: string; name: string }) =>
     authedRequest<Class>("/v1/classes", { method: "POST", body: JSON.stringify(data) }),
 
-  createAnnouncement: (input: { title: string; body: string; audienceType: "ALL" | "LEVEL" | "CLASS"; audienceIds: string[]; channels: ("SMS" | "EMAIL")[]; roles: ("PARENT" | "STAFF")[] }) =>
+  createAnnouncement: (input: { title: string; body: string; audienceType: "ALL" | "LEVEL" | "CLASS"; audienceIds: string[]; channels: ("SMS" | "EMAIL")[]; roles: ("PARENT" | "STAFF")[]; scheduledFor?: string }) =>
     authedRequest<{ id: string; recipientCount: number }>("/v1/announcements", { method: "POST", body: JSON.stringify(input) }),
   listAnnouncements: () => authedRequest<SentAnnouncement[]>("/v1/announcements"),
   getAnnouncementReceipts: (id: string) => authedRequest<AnnouncementReceipts>(`/v1/announcements/${id}`),
@@ -1470,6 +1483,11 @@ export const api = {
     authedRequest<LessonPlanQueueItem[]>(
       `/v1/lesson-plans/review-queue${termId ? `?termId=${encodeURIComponent(termId)}` : ""}`,
     ),
+
+  // ─── Notification settings (EN-1 T7) ────────────────────────────────────────
+  getNotificationSettings: () => authedRequest<NotificationSettings>("/v1/notifications/settings"),
+  updateNotificationSettings: (dto: Partial<NotificationSettings>) =>
+    authedRequest<NotificationSettings>("/v1/notifications/settings", { method: "PUT", body: JSON.stringify(dto) }),
 
   // ─── Admissions — public (unauthenticated, no bearer token) ─────────────────
   publicApply: (dto: {

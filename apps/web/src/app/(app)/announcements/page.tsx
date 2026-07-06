@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Button, Card, CardBody, Input, PageContainer, PageHeader, Spinner, Textarea } from "@mymakaranta/ui";
+import { Badge, Button, Card, CardBody, Input, PageContainer, PageHeader, Spinner, Textarea } from "@mymakaranta/ui";
 import { api, type SentAnnouncement } from "@/lib/api";
 
 type Audience = "ALL" | "LEVEL" | "CLASS";
@@ -17,6 +17,7 @@ export default function AnnouncementsPage() {
   const [email, setEmail] = useState(false);
   const [toParents, setToParents] = useState(true);
   const [toStaff, setToStaff] = useState(false);
+  const [sendLater, setSendLater] = useState("");
   const [levels, setLevels] = useState<Opt[]>([]);
   const [classes, setClasses] = useState<Opt[]>([]);
   const [sent, setSent] = useState<SentAnnouncement[]>([]);
@@ -48,14 +49,25 @@ export default function AnnouncementsPage() {
     if (toParents) roles.push("PARENT");
     if (toStaff) roles.push("STAFF");
     if (roles.length === 0) { setError("Pick at least one recipient group."); return; }
+    let scheduledFor: string | undefined;
+    if (sendLater) {
+      const d = new Date(sendLater);
+      if (Number.isNaN(d.getTime())) { setError("Invalid send-later date/time."); return; }
+      if (d.getTime() <= Date.now()) { setError("Send-later time must be in the future."); return; }
+      scheduledFor = d.toISOString();
+    }
     setBusy(true);
     try {
       const channels: ("SMS" | "EMAIL")[] = [];
       if (sms) channels.push("SMS");
       if (email) channels.push("EMAIL");
-      const r = await api.createAnnouncement({ title: title.trim(), body: body.trim(), audienceType, audienceIds: audienceType === "ALL" ? [] : audienceIds, channels, roles });
-      setMsg(`Sent to ${r.recipientCount} parent${r.recipientCount === 1 ? "" : "s"}.`);
-      setTitle(""); setBody(""); setAudienceIds([]);
+      const r = await api.createAnnouncement({ title: title.trim(), body: body.trim(), audienceType, audienceIds: audienceType === "ALL" ? [] : audienceIds, channels, roles, ...(scheduledFor ? { scheduledFor } : {}) });
+      setMsg(
+        scheduledFor
+          ? `Scheduled for ${r.recipientCount} parent${r.recipientCount === 1 ? "" : "s"}.`
+          : `Sent to ${r.recipientCount} parent${r.recipientCount === 1 ? "" : "s"}.`,
+      );
+      setTitle(""); setBody(""); setAudienceIds([]); setSendLater("");
       loadSent();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to send.");
@@ -101,10 +113,23 @@ export default function AnnouncementsPage() {
               ))}
             </div>
           )}
+          <label className="flex flex-col gap-1 text-small text-ink-700 dark:text-ink-300">
+            <span>Send later (optional)</span>
+            <input
+              type="datetime-local"
+              value={sendLater}
+              onChange={(e) => setSendLater(e.target.value)}
+              className="h-9 w-64 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small text-ink-1000 dark:text-ink-100 tabular-nums"
+              aria-label="Send later date and time"
+            />
+            <span className="text-caption text-ink-500">Leave blank to send immediately.</span>
+          </label>
           {error && <p className="text-caption text-error">{error}</p>}
           {msg && <p className="text-caption text-success">{msg}</p>}
           <div>
-            <Button onClick={send} disabled={busy}>{busy ? <Spinner size="sm" /> : "Send announcement"}</Button>
+            <Button onClick={send} disabled={busy}>
+              {busy ? <Spinner size="sm" /> : sendLater ? "Schedule announcement" : "Send announcement"}
+            </Button>
           </div>
         </CardBody>
       </Card>
@@ -121,11 +146,21 @@ export default function AnnouncementsPage() {
               <Card interactive elevation="xs">
                 <CardBody className="py-3.5">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium text-ink-1000 dark:text-ink-100">{a.title}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-ink-1000 dark:text-ink-100">{a.title}</p>
+                      <Badge tone={a.status === "SCHEDULED" ? "info" : "success"}>
+                        {a.status === "SCHEDULED" ? "Scheduled" : "Sent"}
+                      </Badge>
+                    </div>
                     <span className="shrink-0 text-caption tabular-nums text-ink-500">{a.readCount}/{a.recipientCount} read</span>
                   </div>
                   <p className="mt-0.5 line-clamp-2 text-small text-ink-500">{a.body}</p>
-                  <p className="mt-1.5 text-caption text-ink-500/80">{a.audienceType.toLowerCase()} · {new Date(a.sentAt).toLocaleString()}</p>
+                  <p className="mt-1.5 text-caption text-ink-500/80">
+                    {a.audienceType.toLowerCase()} ·{" "}
+                    {a.status === "SCHEDULED" && a.scheduledFor
+                      ? `scheduled for ${new Date(a.scheduledFor).toLocaleString()}`
+                      : new Date(a.sentAt).toLocaleString()}
+                  </p>
                 </CardBody>
               </Card>
             </Link>

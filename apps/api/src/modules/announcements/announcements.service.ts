@@ -158,6 +158,8 @@ export class AnnouncementsService {
       audienceIds: a.audienceIds,
       channels: a.channels,
       sentAt: a.sentAt.toISOString(),
+      scheduledFor: a.scheduledFor ? a.scheduledFor.toISOString() : null,
+      status: a.status,
       recipientCount: a._count.recipients,
       readCount: readBy.get(a.id) ?? 0,
     }));
