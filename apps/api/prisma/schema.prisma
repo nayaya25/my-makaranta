@@ -142,6 +142,8 @@ model School {
   invoiceDiscounts       InvoiceDiscount[]
   scheduleInstallments   ScheduleInstallment[]
   installments           Installment[]
+  notificationSettings   NotificationSettings?
+  notificationLogs       NotificationLog[]
 }
 
 model Conversation {
@@ -343,9 +345,36 @@ model Announcement {
   audienceIds  String[]
   channels     String[]
   sentAt       DateTime                @default(now())
+  scheduledFor DateTime?
+  status       String                  @default("SENT")
   recipients   AnnouncementRecipient[]
 
   @@index([schoolId, sentAt])
+}
+
+model NotificationSettings {
+  id                  String   @id @default(cuid())
+  schoolId            String   @unique
+  school              School   @relation(fields: [schoolId], references: [id])
+  feeRemindersEnabled Boolean  @default(true)
+  reminderOffsetDays  Int[]    @default([-3, 0, 3])
+  resultsReadyEnabled Boolean  @default(true)
+  channels            String[] @default(["SMS", "EMAIL"])
+  updatedAt           DateTime @updatedAt
+}
+
+model NotificationLog {
+  id             String   @id @default(cuid())
+  schoolId       String
+  school         School   @relation(fields: [schoolId], references: [id])
+  kind           String
+  dedupeKey      String
+  recipientCount Int      @default(0)
+  channels       String   @default("")
+  createdAt      DateTime @default(now())
+
+  @@unique([schoolId, dedupeKey])
+  @@index([schoolId, kind, createdAt])
 }
 
 model AnnouncementRecipient {

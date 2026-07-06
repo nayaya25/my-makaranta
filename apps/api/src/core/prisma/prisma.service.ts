@@ -39,6 +39,8 @@ export const TENANT_MODELS = new Set([
   "InvoiceDiscount",
   "ScheduleInstallment",
   "Installment",
+  "NotificationSettings",
+  "NotificationLog",
 ]);
 
 @Injectable()
