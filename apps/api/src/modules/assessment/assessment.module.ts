@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../../core/auth/auth.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { AssessmentTypesService } from "./assessment-types.service";
 import { AssessmentTypesController } from "./assessment-types.controller";
 import { GradeBoundariesService } from "./grade-boundaries.service";
@@ -25,7 +26,7 @@ import { ReportCardConfigController } from "./report-card-config.controller";
 import { ReportCardPdfController } from "./report-card-pdf.controller";
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, NotificationsModule],
   controllers: [AssessmentTypesController, GradeBoundariesController, SubjectAssignmentsController, ScoresController, ReviewController, ReleaseController, CorrectionController, ReportCardController, SkillsController, RemarksController, ReportCardConfigController, ReportCardPdfController],
   providers: [
     AssessmentTypesService,

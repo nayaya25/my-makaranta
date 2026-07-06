@@ -187,4 +187,60 @@ export class NotificationsService {
       data: { recipientCount, channels: channelsUsed.join(",") },
     });
   }
+
+  /** Called after a Release is committed (EY or numeric path). Notifies guardians of every
+   *  student enrolled in (classId, termId) that results are ready. Deduped per student per
+   *  release; non-fatal from the caller's perspective (caller wraps in try/catch). */
+  async notifyResultsReady(schoolId: string, releaseId: string, classId: string, termId: string): Promise<void> {
+    const settings = await this.settings.get(schoolId);
+    if (!settings.resultsReadyEnabled) return;
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { classId, termId, class: { schoolId } },
+      include: {
+        student: {
+          select: {
+            firstName: true,
+            lastName: true,
+            guardians: { include: { parent: { select: { phone: true, email: true } } } },
+          },
+        },
+      },
+    });
+
+    for (const enrollment of enrollments) {
+      const dedupeKey = `RESULTS_READY:${releaseId}:${enrollment.studentId}`;
+
+      try {
+        await this.prisma.notificationLog.create({
+          data: { schoolId, kind: "RESULTS_READY", dedupeKey },
+        });
+      } catch (e) {
+        if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+          continue; // already claimed by a previous call
+        }
+        throw e;
+      }
+
+      const studentName = `${enrollment.student.firstName} ${enrollment.student.lastName}`;
+      const message = `Dear Parent, ${studentName}'s results are now ready. Please log in to view the report card.`;
+      const recipients: Recipient[] = enrollment.student.guardians.map((g) => ({
+        phone: g.parent.phone,
+        email: g.parent.email,
+      }));
+
+      const { recipientCount, channelsUsed } = await this.deliver(
+        schoolId,
+        recipients,
+        "Results ready",
+        message,
+        settings.channels,
+      );
+
+      await this.prisma.notificationLog.update({
+        where: { schoolId_dedupeKey: { schoolId, dedupeKey } },
+        data: { recipientCount, channels: channelsUsed.join(",") },
+      });
+    }
+  }
 }
