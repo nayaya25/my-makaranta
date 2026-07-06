@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Card, Spinner, EmptyState, Badge, PageContainer, PageHeader, StatCard } from "@mymakaranta/ui";
-import { api, ApiError, type AcademicYear, type CollectionRow, type InvoiceDetail, type BankRow, type ProposedMatch, type FinanceSummary } from "@/lib/api";
+import { api, ApiError, type AcademicYear, type CollectionRow, type InvoiceDetail, type BankRow, type ProposedMatch, type FinanceSummary, type InstallmentStatus } from "@/lib/api";
 import { formatMoney } from "@/lib/money";
 import { Wallet } from "lucide-react";
 
@@ -19,6 +19,19 @@ const STATUS_TONE = {
   UNPAID: "neutral",
 } as const;
 const STATUS_LABEL = { OVERDUE: "Overdue", PAID: "Paid", PARTIAL: "Partial", UNPAID: "Unpaid" } as const;
+
+const INSTALLMENT_STATUS_TONE: Record<InstallmentStatus, "success" | "warning" | "neutral" | "error"> = {
+  PAID: "success",
+  PARTIAL: "warning",
+  DUE: "neutral",
+  OVERDUE: "error",
+};
+const INSTALLMENT_STATUS_LABEL: Record<InstallmentStatus, string> = {
+  PAID: "Paid",
+  PARTIAL: "Partial",
+  DUE: "Due",
+  OVERDUE: "Overdue",
+};
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -742,6 +755,41 @@ export default function FeesPage() {
                     </span>
                   </div>
                 </div>
+
+                {detail.installments.length > 0 && (
+                  <div className="mt-4 border-t border-ink-100 dark:border-white/10 pt-3">
+                    <h3 className="text-small font-medium text-ink-1000 dark:text-ink-100 mb-2">Installments</h3>
+                    <div className="flex flex-col gap-2">
+                      {detail.installments.map((inst) => (
+                        <div
+                          key={inst.order}
+                          className={`flex items-center justify-between gap-2 rounded-[10px] border px-3 py-2 text-small ${
+                            inst.status === "OVERDUE"
+                              ? "border-error/30 bg-error/5"
+                              : "border-ink-100 dark:border-white/10"
+                          }`}
+                        >
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-medium text-ink-1000 dark:text-ink-100 truncate">
+                              {inst.label || `Installment ${inst.order + 1}`}
+                            </span>
+                            <span className="text-caption text-ink-500">
+                              Due {formatDate(inst.dueDate)} · Paid {formatMoney(inst.paidKobo, currency)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="tabular-nums text-ink-1000 dark:text-ink-100">
+                              {formatMoney(inst.amountKobo, currency)}
+                            </span>
+                            <Badge tone={INSTALLMENT_STATUS_TONE[inst.status]}>
+                              {INSTALLMENT_STATUS_LABEL[inst.status]}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-5 border-t border-ink-100 dark:border-white/10 pt-4">
                   <h3 className="text-small font-medium text-ink-1000 dark:text-ink-100 mb-3">Record payment</h3>

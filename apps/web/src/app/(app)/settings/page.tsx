@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardBody, CardHeader, PageContainer, PageHeader } from "@mymakaranta/ui";
-import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText, Clock, Percent } from "lucide-react";
+import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText, Clock, Percent, CalendarClock } from "lucide-react";
 
 const ITEMS = [
   {
@@ -34,6 +34,12 @@ const ITEMS = [
     title: "Discount schemes",
     description: "Reusable discounts and scholarships assignable to students.",
     icon: Percent,
+  },
+  {
+    href: "/settings/installments",
+    title: "Installment schedule",
+    description: "Split a class level's per-term invoice into ordered installments.",
+    icon: CalendarClock,
   },
   {
     href: "/settings/permissions",
