@@ -81,7 +81,8 @@ const NAV: NavEntry[] = [
 ];
 
 const PARENT_NAV: NavEntry[] = [
-  { href: "/parent", label: "Fees", icon: Wallet },
+  { href: "/parent", label: "Overview", icon: LayoutDashboard },
+  { href: "/parent/fees", label: "Fees", icon: Wallet },
   { href: "/parent/announcements", label: "Announcements", icon: Megaphone },
   { href: "/messages", label: "Messages", icon: MessageSquare },
 ];
