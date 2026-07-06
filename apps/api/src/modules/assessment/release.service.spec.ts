@@ -11,9 +11,13 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { ReleaseService } from "./release.service";
 import { assertNotReleased } from "./release-lock.util";
+import type { NotificationsService } from "../notifications/notifications.service";
 
 const prisma = new PrismaClient();
 afterAll(() => prisma.$disconnect());
+
+// Stub — these specs pre-date EN-1's results-ready hook and don't exercise notifications.
+const noopNotifications = { notifyResultsReady: async () => undefined } as unknown as NotificationsService;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Test 1: EY class release – Release row created, ZERO ResultSheets
@@ -82,7 +86,7 @@ describe("ReleaseService – EY class release", () => {
       data: { classId, termId, studentId: student.id },
     });
 
-    service = new ReleaseService(prisma as unknown as PrismaService);
+    service = new ReleaseService(prisma as unknown as PrismaService, noopNotifications);
   });
 
   it("creates a Release row and ZERO ResultSheet rows for an EY class", async () => {
@@ -167,7 +171,7 @@ describe("ReleaseService – EY lock (assertNotReleased)", () => {
     });
     await prisma.enrollment.create({ data: { classId, termId, studentId: student.id } });
 
-    service = new ReleaseService(prisma as unknown as PrismaService);
+    service = new ReleaseService(prisma as unknown as PrismaService, noopNotifications);
   });
 
   it("assertNotReleased throws ForbiddenException after EY release", async () => {
@@ -317,7 +321,7 @@ describe("ReleaseService – standard numeric class release (regression)", () =>
       },
     });
 
-    service = new ReleaseService(prisma as unknown as PrismaService);
+    service = new ReleaseService(prisma as unknown as PrismaService, noopNotifications);
   });
 
   it("creates ResultSheet rows for a standard numeric class", async () => {
@@ -404,7 +408,7 @@ describe("ReleaseService – getStatus for EY class", () => {
     });
     await prisma.enrollment.create({ data: { classId, termId, studentId: student.id } });
 
-    service = new ReleaseService(prisma as unknown as PrismaService);
+    service = new ReleaseService(prisma as unknown as PrismaService, noopNotifications);
   });
 
   it("getStatus shows EY class as not-yet-released before release", async () => {

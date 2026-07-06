@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
+import { NotificationsService } from "../notifications/notifications.service";
 import { computeSubjectResult } from "./score.util";
 import { computePositions } from "./position.util";
 import { generateVerificationCode } from "./verification.util";
@@ -8,7 +9,10 @@ import { resolveAssessmentTypes, resolveGradeBoundaries } from "./format-resolut
 
 @Injectable()
 export class ReleaseService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private notifications: NotificationsService,
+  ) {}
 
   async release(classId: string, termId: string, releasedBy: string) {
     const schoolId = TenantContext.schoolIdOrThrow();
@@ -27,7 +31,12 @@ export class ReleaseService {
 
     if (klass.classLevel.isEarlyYears) {
       // EY path: just create the Release row — no ResultSheet, no numeric computation
-      await this.prisma.release.create({ data: { schoolId, classId, termId, releasedBy } });
+      const rel = await this.prisma.release.create({ data: { schoolId, classId, termId, releasedBy } });
+      try {
+        await this.notifications.notifyResultsReady(schoolId, rel.id, classId, termId);
+      } catch {
+        /* non-fatal — must not break release */
+      }
       return { released: 0, classId, termId };
     }
 
@@ -74,8 +83,10 @@ export class ReleaseService {
     const nameById = new Map(studentRows.map((s) => [s.id, `${s.firstName} ${s.lastName}`]));
     const termLabel = `${academicYear?.name ?? ""} · Term ${term.number}`;
 
+    let releaseId = "";
     await this.prisma.$transaction(async (tx) => {
       const rel = await tx.release.create({ data: { schoolId, classId, termId, releasedBy } });
+      releaseId = rel.id;
       for (const p of perStudent) {
         const rs = await tx.resultSheet.create({
           data: { schoolId, releaseId: rel.id, studentId: p.studentId, classId, termId, average: p.average, position: positions.get(p.studentId) ?? 0 },
@@ -101,6 +112,12 @@ export class ReleaseService {
         });
       }
     });
+
+    try {
+      await this.notifications.notifyResultsReady(schoolId, releaseId, classId, termId);
+    } catch {
+      /* non-fatal — must not break release */
+    }
 
     return { released: perStudent.length, classId, termId };
   }
