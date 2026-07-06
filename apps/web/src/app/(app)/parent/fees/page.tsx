@@ -93,7 +93,6 @@ export default function ParentFeesPage() {
   const [email, setEmail] = useState("");
   const [payBusy, setPayBusy] = useState(false);
   const [payError, setPayError] = useState<string | null>(null);
-  const [pendingReference, setPendingReference] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState<string | null>(null);
 
@@ -138,7 +137,6 @@ export default function ParentFeesPage() {
     setDetailError(null);
     setDetailLoading(true);
     setPayOpen(false);
-    setPendingReference(null);
     setVerifyMsg(null);
     api
       .getParentInvoiceDetail(invoiceId)
@@ -152,7 +150,6 @@ export default function ParentFeesPage() {
     setDetail(null);
     setDetailError(null);
     setPayOpen(false);
-    setPendingReference(null);
     setVerifyMsg(null);
   }, []);
 
@@ -262,7 +259,7 @@ export default function ParentFeesPage() {
 
   const activeGroup = grouped.find((g) => g.studentId === activeChild) ?? grouped[0] ?? null;
   const activeReceipts = receipts.filter(
-    (r) => !activeGroup || r.childName === activeGroup.studentName,
+    (r) => !activeGroup || r.studentId === activeGroup.studentId,
   );
 
   return (
@@ -594,12 +591,6 @@ export default function ParentFeesPage() {
                     </Button>
                   </div>
                 </div>
-              )}
-
-              {pendingReference && (
-                <p className="mt-3 text-caption text-ink-500">
-                  Complete the payment in the Paystack window, then return here — we&apos;ll confirm automatically.
-                </p>
               )}
             </>
           )}

@@ -578,6 +578,7 @@ export interface ParentInvoiceDetail {
 export interface ParentReceipt {
   paidAt: string;
   amountKobo: number;
+  studentId: string;
   childName: string;
   termLabel: string;
   receiptCode: string | null;
@@ -1317,10 +1318,6 @@ export const api = {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   },
-
-  /** Build the statement PDF URL (for use in &lt;a href&gt; or window.open); not authed by itself. */
-  parentStatementUrl: (studentId: string): string =>
-    `${API_BASE}/v1/parent/children/${encodeURIComponent(studentId)}/statement.pdf`,
 
   // Direct messaging
   getMessageable: () => authedRequest<Messageable[]>("/v1/me/messageable"),

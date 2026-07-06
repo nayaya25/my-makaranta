@@ -198,7 +198,7 @@ export class ParentService {
         receipt: { select: { code: true } },
         invoice: {
           include: {
-            student: { select: { firstName: true, lastName: true } },
+            student: { select: { id: true, firstName: true, lastName: true } },
             term: { select: { number: true, academicYear: { select: { name: true } } } },
           },
         },
@@ -207,6 +207,7 @@ export class ParentService {
     return payments.map((p) => ({
       paidAt: p.paidAt ?? p.createdAt,
       amountKobo: p.amountKobo,
+      studentId: p.invoice.student.id,
       childName: `${p.invoice.student.firstName} ${p.invoice.student.lastName}`,
       termLabel: `${p.invoice.term.academicYear.name} · Term ${p.invoice.term.number}`,
       receiptCode: p.receipt?.code ?? null,
