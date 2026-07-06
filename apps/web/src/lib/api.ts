@@ -427,7 +427,18 @@ export type VerifyResult =
     };
 
 export interface FeeItemRow { id: string; name: string; amountKobo: number; order: number; }
-export interface InvoiceRow { studentId: string; name: string; classLevelName: string; grossKobo: number; discountKobo: number; totalKobo: number; paidKobo: number; balanceKobo: number; }
+export interface InvoiceRow {
+  studentId: string;
+  name: string;
+  classLevelName: string;
+  grossKobo: number;
+  discountKobo: number;
+  totalKobo: number;
+  paidKobo: number;
+  balanceKobo: number;
+  nextDueDate: string;
+  status: string;
+}
 export interface InvoiceDetail {
   id: string;
   student: { name: string; admissionNo: string };
@@ -438,6 +449,25 @@ export interface InvoiceDetail {
   discountKobo: number;
   discounts: Array<{ name: string; amountKobo: number }>;
   totalKobo: number; paidKobo: number; balanceKobo: number;
+  installments: InvoiceInstallment[];
+  status: string;
+}
+
+// Installment schedules (MF-2)
+export type InstallmentStatus = "PAID" | "PARTIAL" | "DUE" | "OVERDUE";
+export interface ScheduleInstallment {
+  order: number;
+  label: string | null;
+  percentBps: number;
+  dueDate: string;
+}
+export interface InvoiceInstallment {
+  order: number;
+  label: string | null;
+  amountKobo: number;
+  dueDate: string;
+  paidKobo: number;
+  status: InstallmentStatus;
 }
 
 // Discounts & scholarships (MF-1)
@@ -1147,6 +1177,10 @@ export const api = {
     authedRequest<InvoiceRow[]>(`/v1/fees/invoices?termId=${termId}${classId ? `&classId=${classId}` : ""}`),
   getInvoiceDetail: (studentId: string, termId: string) =>
     authedRequest<InvoiceDetail>(`/v1/fees/invoice?studentId=${studentId}&termId=${termId}`),
+  getInstallmentSchedule: (classLevelId: string, termId: string) =>
+    authedRequest<ScheduleInstallment[]>(`/v1/fees/installment-schedule?classLevelId=${classLevelId}&termId=${termId}`),
+  setInstallmentSchedule: (body: { classLevelId: string; termId: string; installments: Array<{ order: number; label?: string; percentBps: number; dueDate: string }> }) =>
+    authedRequest<ScheduleInstallment[]>("/v1/fees/installment-schedule", { method: "PUT", body: JSON.stringify(body) }),
   getCollections: (termId: string) => authedRequest<CollectionRow[]>(`/v1/fees/collections?termId=${termId}`),
   getFinanceSummary: (termId: string) => authedRequest<FinanceSummary>(`/v1/fees/finance/summary?termId=${termId}`),
   getProprietorDashboard: (termId?: string) =>

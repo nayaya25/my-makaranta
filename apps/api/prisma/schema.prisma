@@ -140,6 +140,8 @@ model School {
   discountSchemes        DiscountScheme[]
   studentDiscounts       StudentDiscount[]
   invoiceDiscounts       InvoiceDiscount[]
+  scheduleInstallments   ScheduleInstallment[]
+  installments           Installment[]
 }
 
 model Conversation {
@@ -204,6 +206,7 @@ model Term {
   feeItems       FeeItem[]
   invoices       Invoice[]
   lessonPlans    LessonPlan[]
+  scheduleInstallments ScheduleInstallment[]
 }
 
 model ClassLevel {
@@ -219,6 +222,7 @@ model ClassLevel {
   assessmentTypes AssessmentType[]
   gradeBoundaries GradeBoundary[]
   applicants      Applicant[]
+  scheduleInstallments ScheduleInstallment[]
 
   @@unique([schoolId, name])
 }
@@ -717,6 +721,7 @@ model Invoice {
   payments     Payment[]
   reminders    FeeReminder[]
   invoiceDiscounts InvoiceDiscount[]
+  installments Installment[]
 
   @@unique([studentId, termId])
   @@index([schoolId, termId])
@@ -774,6 +779,38 @@ model InvoiceDiscount {
   name       String                                 // snapshot of the scheme name at apply time
   amountKobo Int
 
+  @@index([schoolId, invoiceId])
+}
+
+model ScheduleInstallment {
+  id           String     @id @default(cuid())
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id])
+  classLevelId String
+  classLevel   ClassLevel @relation(fields: [classLevelId], references: [id])
+  termId       String
+  term         Term       @relation(fields: [termId], references: [id])
+  order        Int
+  label        String?
+  percentBps   Int                                   // basis points 1–10000; rows for a (level,term) sum to 10000
+  dueDate      DateTime
+
+  @@unique([classLevelId, termId, order])
+  @@index([schoolId, classLevelId, termId])
+}
+
+model Installment {
+  id         String   @id @default(cuid())
+  schoolId   String
+  school     School   @relation(fields: [schoolId], references: [id])
+  invoiceId  String
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  order      Int
+  label      String?
+  amountKobo Int
+  dueDate    DateTime
+
+  @@unique([invoiceId, order])
   @@index([schoolId, invoiceId])
 }
 

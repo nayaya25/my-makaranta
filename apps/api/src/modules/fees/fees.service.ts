@@ -3,6 +3,16 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { FeeItemInput } from "./dto/fees.dto";
 import { computeDiscount, DiscountInput } from "./discount.util";
+import { allocatePayments, splitInstallments } from "./installment.util";
+
+type InstallmentAwareStatus = "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE";
+
+function deriveStatus(totalKobo: number, paidKobo: number, allocated: { status: string }[]): InstallmentAwareStatus {
+  if (paidKobo >= totalKobo) return "PAID";
+  if (allocated.some((a) => a.status === "OVERDUE")) return "OVERDUE";
+  if (paidKobo > 0) return "PARTIAL";
+  return "UNPAID";
+}
 
 @Injectable()
 export class FeesService {
@@ -96,6 +106,23 @@ export class FeesService {
             data: breakdown.map((b) => ({ schoolId, invoiceId: invoice.id, schemeId: b.schemeId, name: b.name, amountKobo: b.amountKobo })),
           });
         }
+
+        const sched = await tx.scheduleInstallment.findMany({
+          where: { schoolId, classLevelId, termId },
+          orderBy: { order: "asc" },
+        });
+        await tx.installment.deleteMany({ where: { schoolId, invoiceId: invoice.id } });
+        if (sched.length) {
+          const split = splitInstallments(
+            totalKobo,
+            sched.map((s) => ({ order: s.order, label: s.label, percentBps: s.percentBps, dueDate: s.dueDate })),
+          );
+          await tx.installment.createMany({
+            data: split.map((s) => ({ schoolId, invoiceId: invoice.id, order: s.order, label: s.label, amountKobo: s.amountKobo, dueDate: s.dueDate })),
+          });
+          await tx.invoice.update({ where: { id: invoice.id }, data: { dueDate: split[split.length - 1]!.dueDate } });
+        }
+
         if (prevPaid === undefined) created++; else refreshed++;
       }
       return { created, refreshed, skipped };
@@ -114,18 +141,30 @@ export class FeesService {
     }
     const invoices = await this.prisma.invoice.findMany({
       where: { schoolId, termId, ...(studentIds ? { studentId: { in: studentIds } } : {}) },
-      include: { student: { select: { firstName: true, lastName: true } }, classLevel: { select: { name: true } } },
+      include: {
+        student: { select: { firstName: true, lastName: true } },
+        classLevel: { select: { name: true } },
+        installments: { orderBy: { order: "asc" } },
+      },
     });
-    return invoices.map((i) => ({
-      studentId: i.studentId,
-      name: `${i.student.firstName} ${i.student.lastName}`,
-      classLevelName: i.classLevel.name,
-      grossKobo: i.grossKobo,
-      discountKobo: i.discountKobo,
-      totalKobo: i.totalKobo,
-      paidKobo: i.paidKobo,
-      balanceKobo: i.totalKobo - i.paidKobo,
-    }));
+    const now = new Date();
+    return invoices.map((i) => {
+      const allocated = allocatePayments(i.paidKobo, i.installments, now);
+      const unpaid = allocated.find((a) => a.status !== "PAID");
+      const nextDueDate = unpaid ? unpaid.dueDate : i.dueDate;
+      return {
+        studentId: i.studentId,
+        name: `${i.student.firstName} ${i.student.lastName}`,
+        classLevelName: i.classLevel.name,
+        grossKobo: i.grossKobo,
+        discountKobo: i.discountKobo,
+        totalKobo: i.totalKobo,
+        paidKobo: i.paidKobo,
+        balanceKobo: i.totalKobo - i.paidKobo,
+        nextDueDate,
+        status: deriveStatus(i.totalKobo, i.paidKobo, allocated),
+      };
+    });
   }
 
   async getInvoice(studentId: string, termId: string) {
@@ -138,9 +177,11 @@ export class FeesService {
         term: { select: { number: true, academicYear: { select: { name: true } } } },
         lines: true,
         invoiceDiscounts: true,
+        installments: { orderBy: { order: "asc" } },
       },
     });
     if (!invoice) throw new NotFoundException("No invoice for this student/term.");
+    const allocated = allocatePayments(invoice.paidKobo, invoice.installments, new Date());
     return {
       id: invoice.id,
       student: { name: `${invoice.student.firstName} ${invoice.student.lastName}`, admissionNo: invoice.student.admissionNo },
@@ -153,6 +194,8 @@ export class FeesService {
       totalKobo: invoice.totalKobo,
       paidKobo: invoice.paidKobo,
       balanceKobo: invoice.totalKobo - invoice.paidKobo,
+      installments: allocated,
+      status: deriveStatus(invoice.totalKobo, invoice.paidKobo, allocated),
     };
   }
 }
