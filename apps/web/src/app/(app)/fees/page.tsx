@@ -708,7 +708,27 @@ export default function FeesPage() {
 
                 <div className="border-t border-ink-100 dark:border-white/10 pt-3 flex flex-col gap-1.5">
                   <div className="flex items-center justify-between text-small">
-                    <span className="text-ink-500">Total</span>
+                    <span className="text-ink-500">Gross</span>
+                    <span className="tabular-nums text-ink-1000 dark:text-ink-100">{formatMoney(detail.grossKobo, currency)}</span>
+                  </div>
+
+                  {detail.discounts.length > 0 && (
+                    <>
+                      {detail.discounts.map((d, i) => (
+                        <div key={i} className="flex items-center justify-between text-small pl-3">
+                          <span className="text-ink-500">− {d.name}</span>
+                          <span className="tabular-nums text-success">−{formatMoney(d.amountKobo, currency)}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between text-small">
+                        <span className="text-ink-500">Total discount</span>
+                        <span className="tabular-nums text-success">−{formatMoney(detail.discountKobo, currency)}</span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex items-center justify-between text-small font-medium">
+                    <span className="text-ink-500">Net total</span>
                     <span className="tabular-nums text-ink-1000 dark:text-ink-100">{formatMoney(detail.totalKobo, currency)}</span>
                   </div>
                   <div className="flex items-center justify-between text-small">

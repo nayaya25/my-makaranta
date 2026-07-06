@@ -78,6 +78,11 @@ enum ApplicantSource {
   STAFF
 }
 
+enum DiscountMethod {
+  PERCENT
+  FIXED
+}
+
 model School {
   id                 String               @id @default(cuid())
   name               String
@@ -132,6 +137,9 @@ model School {
   periods                Period[]
   timetableEntries       TimetableEntry[]
   lessonPlans            LessonPlan[]
+  discountSchemes        DiscountScheme[]
+  studentDiscounts       StudentDiscount[]
+  invoiceDiscounts       InvoiceDiscount[]
 }
 
 model Conversation {
@@ -301,6 +309,7 @@ model Student {
   corrections   Correction[]
   invoices      Invoice[]
   applicant     Applicant?
+  discounts     StudentDiscount[]
 
   @@unique([schoolId, admissionNo])
 }
@@ -700,11 +709,14 @@ model Invoice {
   classLevel   ClassLevel    @relation(fields: [classLevelId], references: [id])
   totalKobo    Int
   paidKobo     Int           @default(0)
+  grossKobo    Int           @default(0)
+  discountKobo Int           @default(0)
   dueDate      DateTime?
   issuedAt     DateTime      @default(now())
   lines        InvoiceLine[]
   payments     Payment[]
   reminders    FeeReminder[]
+  invoiceDiscounts InvoiceDiscount[]
 
   @@unique([studentId, termId])
   @@index([schoolId, termId])
@@ -717,6 +729,49 @@ model InvoiceLine {
   invoiceId  String
   invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   name       String
+  amountKobo Int
+
+  @@index([schoolId, invoiceId])
+}
+
+model DiscountScheme {
+  id          String            @id @default(cuid())
+  schoolId    String
+  school      School            @relation(fields: [schoolId], references: [id])
+  name        String
+  method      DiscountMethod
+  value       Int                                   // PERCENT: 1–100 ; FIXED: kobo (>0)
+  active      Boolean           @default(true)
+  assignments StudentDiscount[]
+  invoiceDiscounts InvoiceDiscount[]
+  createdAt   DateTime          @default(now())
+
+  @@unique([schoolId, name])
+}
+
+model StudentDiscount {
+  id               String         @id @default(cuid())
+  schoolId         String
+  school           School         @relation(fields: [schoolId], references: [id])
+  studentId        String
+  student          Student        @relation(fields: [studentId], references: [id])
+  discountSchemeId String
+  discountScheme   DiscountScheme @relation(fields: [discountSchemeId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+
+  @@unique([studentId, discountSchemeId])
+  @@index([schoolId, studentId])
+}
+
+model InvoiceDiscount {
+  id         String          @id @default(cuid())
+  schoolId   String
+  school     School          @relation(fields: [schoolId], references: [id])
+  invoiceId  String
+  invoice    Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  schemeId   String?                                // nullable → deleting a scheme keeps history
+  scheme     DiscountScheme? @relation(fields: [schemeId], references: [id], onDelete: SetNull)
+  name       String                                 // snapshot of the scheme name at apply time
   amountKobo Int
 
   @@index([schoolId, invoiceId])
