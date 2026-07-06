@@ -549,6 +549,39 @@ export interface ParentInvoice {
   balanceKobo: number;
   status: "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE";
   dueDate: string | null;
+  nextDueDate: string | null;
+  nextInstallmentKobo: number;
+}
+
+export interface ParentInvoiceDetail {
+  invoiceId: string;
+  student: { name: string; admissionNo: string };
+  termLabel: string;
+  lines: Array<{ name: string; amountKobo: number }>;
+  discounts: Array<{ name: string; amountKobo: number }>;
+  grossKobo: number;
+  discountKobo: number;
+  totalKobo: number;
+  paidKobo: number;
+  balanceKobo: number;
+  installments: InvoiceInstallment[];
+  payments: Array<{
+    paidAt: string;
+    amountKobo: number;
+    channel: string;
+    reference: string | null;
+    receiptCode: string | null;
+  }>;
+  status: "UNPAID" | "PARTIAL" | "PAID" | "OVERDUE";
+}
+
+export interface ParentReceipt {
+  paidAt: string;
+  amountKobo: number;
+  studentId: string;
+  childName: string;
+  termLabel: string;
+  receiptCode: string | null;
 }
 
 export interface PublicReceipt {
@@ -1244,10 +1277,47 @@ export const api = {
 
   // Parent portal
   getParentInvoices: () => authedRequest<ParentInvoice[]>("/v1/parent/invoices"),
+  getParentInvoiceDetail: (invoiceId: string) =>
+    authedRequest<ParentInvoiceDetail>(`/v1/parent/invoices/${encodeURIComponent(invoiceId)}`),
+  getParentReceipts: () => authedRequest<ParentReceipt[]>("/v1/parent/receipts"),
   parentPay: (invoiceId: string, amountKobo: number, email: string) =>
     authedRequest<{ reference: string; authorizationUrl: string }>("/v1/parent/pay", { method: "POST", body: JSON.stringify({ invoiceId, amountKobo, email }) }),
   parentPayVerify: (reference: string) =>
     authedRequest<{ applied: boolean; status: string; receiptCode?: string }>("/v1/parent/pay/verify", { method: "POST", body: JSON.stringify({ reference }) }),
+
+  /** Stream the server-rendered fee statement PDF and trigger a browser download. */
+  downloadParentStatementPdf: async (studentId: string): Promise<void> => {
+    const token = session.token();
+    if (!token) {
+      if (typeof window !== "undefined") {
+        session.clear();
+        window.location.replace("/login");
+      }
+      throw new ApiError(401, "Not authenticated");
+    }
+    const schoolId = session.user()?.schoolId;
+    const tenantHeaders: Record<string, string> = schoolId ? { "x-tenant-school-id": schoolId } : {};
+    const res = await fetch(
+      `${API_BASE}/v1/parent/children/${encodeURIComponent(studentId)}/statement.pdf`,
+      { headers: { Authorization: `Bearer ${token}`, ...tenantHeaders } },
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(res.status, (body as { message?: string }).message ?? `PDF download failed (${res.status})`);
+    }
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename="?([^";\n]+)"?/i.exec(disposition);
+    const filename = match?.[1] ?? "statement.pdf";
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  },
 
   // Direct messaging
   getMessageable: () => authedRequest<Messageable[]>("/v1/me/messageable"),
