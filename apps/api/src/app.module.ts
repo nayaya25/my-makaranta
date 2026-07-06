@@ -2,6 +2,7 @@ import { Module, RequestMethod, type MiddlewareConsumer, type NestModule } from 
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
 import { ThrottlerModule, ThrottlerGuard } from "@nestjs/throttler";
+import { ScheduleModule } from "@nestjs/schedule";
 import { JwtModule } from "@nestjs/jwt";
 import { AppController } from "./app.controller";
 import { PrismaModule } from "./core/prisma/prisma.module";
@@ -32,10 +33,12 @@ import { SignupModule } from "./modules/signup/signup.module";
 import { AdmissionsModule } from "./modules/admissions/admissions.module";
 import { TimetableModule } from "./modules/timetable/timetable.module";
 import { LessonPlansModule } from "./modules/lesson-plans/lesson-plans.module";
+import { NotificationsModule } from "./modules/notifications/notifications.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: process.env.NODE_ENV === "test" ? 100_000 : 120 }]),
     JwtModule.register({
       global: true,
@@ -67,6 +70,7 @@ import { LessonPlansModule } from "./modules/lesson-plans/lesson-plans.module";
     AdmissionsModule,
     TimetableModule,
     LessonPlansModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
