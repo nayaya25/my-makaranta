@@ -235,4 +235,108 @@ describe("ParentService — invoice detail + installment-aware list (MF-3 Task 1
 
     await expect(asSchool(() => service.getInvoiceDetail(invoice.id, staffUser))).rejects.toThrow(NotFoundException);
   });
+
+  // ────────────────────────────────────────────────────────────────────────
+  // MF-3 Task 2 — getReceipts: parent's children's SUCCESS payments, newest first
+  // ────────────────────────────────────────────────────────────────────────
+
+  describe("getReceipts", () => {
+    it("returns the parent's child's SUCCESS payment with receiptCode/childName/termLabel, excludes other families and PENDING, newest first", async () => {
+      const studentId = await makeStudent(`PF-RCPT-OWN-${Date.now()}`, "Halima");
+      const parentUser = await makeParentWithChild(`0804${Date.now()}`.slice(0, 14), studentId);
+
+      const invoice = await prisma.invoice.create({
+        data: {
+          schoolId, studentId, termId, classLevelId,
+          grossKobo: 60000, discountKobo: 0, totalKobo: 60000, paidKobo: 60000,
+        },
+      });
+      await prisma.invoiceLine.create({ data: { schoolId, invoiceId: invoice.id, name: "Tuition", amountKobo: 60000 } });
+
+      // Older SUCCESS payment
+      const olderPayment = await prisma.payment.create({
+        data: {
+          schoolId, invoiceId: invoice.id, amountKobo: 20000, channel: "CASH",
+          reference: `PF-RCPT-OLD-${Date.now()}`, status: "SUCCESS", paidAt: new Date("2026-09-01"), recordedBy: "test",
+        },
+      });
+      const olderReceipt = await prisma.receipt.create({
+        data: {
+          code: `PF-RCPT-CODE-OLD-${Date.now()}`, paymentId: olderPayment.id, schoolId, receiptNo: `RCP-OLD-${Date.now()}`,
+          studentName: "Halima Test", schoolName: "Test School", termLabel: "Term 1",
+          amountKobo: 20000, channel: "CASH", paidAt: new Date("2026-09-01"), balanceAfterKobo: 40000,
+        },
+      });
+
+      // Newer SUCCESS payment
+      const newerPayment = await prisma.payment.create({
+        data: {
+          schoolId, invoiceId: invoice.id, amountKobo: 40000, channel: "BANK_TRANSFER",
+          reference: `PF-RCPT-NEW-${Date.now()}`, status: "SUCCESS", paidAt: new Date("2026-10-15"), recordedBy: "test",
+        },
+      });
+      const newerReceipt = await prisma.receipt.create({
+        data: {
+          code: `PF-RCPT-CODE-NEW-${Date.now()}`, paymentId: newerPayment.id, schoolId, receiptNo: `RCP-NEW-${Date.now()}`,
+          studentName: "Halima Test", schoolName: "Test School", termLabel: "Term 1",
+          amountKobo: 40000, channel: "TRANSFER", paidAt: new Date("2026-10-15"), balanceAfterKobo: 0,
+        },
+      });
+
+      // PENDING payment on the same invoice -> must be excluded
+      await prisma.payment.create({
+        data: {
+          schoolId, invoiceId: invoice.id, amountKobo: 5000, channel: "CASH",
+          reference: `PF-RCPT-PENDING-${Date.now()}`, status: "PENDING", recordedBy: "test",
+        },
+      });
+
+      // Another family's SUCCESS payment -> must be excluded
+      const otherStudentId = await makeStudent(`PF-RCPT-OTHER-${Date.now()}`, "Ngozi");
+      await makeParentWithChild(`0805${Date.now()}`.slice(0, 14), otherStudentId);
+      const otherInvoice = await prisma.invoice.create({
+        data: { schoolId, studentId: otherStudentId, termId, classLevelId, grossKobo: 30000, discountKobo: 0, totalKobo: 30000, paidKobo: 30000 },
+      });
+      await prisma.invoiceLine.create({ data: { schoolId, invoiceId: otherInvoice.id, name: "Tuition", amountKobo: 30000 } });
+      const otherPayment = await prisma.payment.create({
+        data: {
+          schoolId, invoiceId: otherInvoice.id, amountKobo: 30000, channel: "CASH",
+          reference: `PF-RCPT-OTHERFAM-${Date.now()}`, status: "SUCCESS", paidAt: new Date("2026-10-20"), recordedBy: "test",
+        },
+      });
+      await prisma.receipt.create({
+        data: {
+          code: `PF-RCPT-CODE-OTHERFAM-${Date.now()}`, paymentId: otherPayment.id, schoolId, receiptNo: `RCP-OTHERFAM-${Date.now()}`,
+          studentName: "Ngozi Test", schoolName: "Test School", termLabel: "Term 1",
+          amountKobo: 30000, channel: "CASH", paidAt: new Date("2026-10-20"), balanceAfterKobo: 0,
+        },
+      });
+
+      const receipts = await asSchool(() => service.getReceipts(parentUser));
+
+      expect(receipts.length).toBe(2);
+      // newest first
+      expect(receipts[0]!.receiptCode).toBe(newerReceipt.code);
+      expect(receipts[0]!.amountKobo).toBe(40000);
+      expect(receipts[0]!.childName).toBe("Halima Test");
+      expect(receipts[0]!.termLabel).toContain("Term 1");
+      expect(receipts[1]!.receiptCode).toBe(olderReceipt.code);
+      expect(receipts[1]!.amountKobo).toBe(20000);
+
+      const codes = receipts.map((r) => r.receiptCode);
+      expect(codes).not.toContain(null); // sanity: both have receipts
+      expect(receipts.some((r) => r.amountKobo === 30000)).toBe(false); // other family excluded
+      expect(receipts.some((r) => r.amountKobo === 5000)).toBe(false); // pending excluded
+    });
+
+    it("returns an empty array when the parent has no children", async () => {
+      const parent = await prisma.parent.create({
+        data: { schoolId, phone: `0806${Date.now()}`.slice(0, 14), firstName: "Lonely", lastName: "Parent", preferredLang: "EN" },
+      });
+      const parentUser: RequestUser = { id: `user-${parent.id}`, schoolId, identityType: "PARENT", identityId: parent.id };
+
+      const receipts = await asSchool(() => service.getReceipts(parentUser));
+      expect(receipts).toEqual([]);
+    });
+  });
 });

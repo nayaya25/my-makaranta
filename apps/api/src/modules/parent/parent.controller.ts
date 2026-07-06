@@ -41,6 +41,13 @@ export class ParentController {
     return this.service.getInvoiceDetail(invoiceId, user);
   }
 
+  @Get("receipts")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("fees.pay.own")
+  receipts(@CurrentUser() user: RequestUser) {
+    return this.service.getReceipts(user);
+  }
+
   @Post("pay")
   @HttpCode(200)
   @UseGuards(JwtAuthGuard, PermissionGuard)

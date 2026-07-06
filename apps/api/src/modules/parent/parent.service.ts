@@ -146,6 +146,33 @@ export class ParentService {
     return "UNPAID";
   }
 
+  /** The parent's children's SUCCESS payments, newest first. */
+  async getReceipts(user: RequestUser) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const ids = await this.childStudentIds(user);
+    if (ids.length === 0) return [];
+    const payments = await this.prisma.payment.findMany({
+      where: { schoolId, status: "SUCCESS", invoice: { studentId: { in: ids } } },
+      orderBy: { paidAt: "desc" },
+      include: {
+        receipt: { select: { code: true } },
+        invoice: {
+          include: {
+            student: { select: { firstName: true, lastName: true } },
+            term: { select: { number: true, academicYear: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+    return payments.map((p) => ({
+      paidAt: p.paidAt ?? p.createdAt,
+      amountKobo: p.amountKobo,
+      childName: `${p.invoice.student.firstName} ${p.invoice.student.lastName}`,
+      termLabel: `${p.invoice.term.academicYear.name} · Term ${p.invoice.term.number}`,
+      receiptCode: p.receipt?.code ?? null,
+    }));
+  }
+
   async pay(dto: { invoiceId: string; amountKobo: number; email: string }, user: RequestUser) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const invoice = await this.prisma.invoice.findFirst({ where: { id: dto.invoiceId, schoolId }, select: { studentId: true } });
