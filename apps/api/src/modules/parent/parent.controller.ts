@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from "@nestjs/common";
 import { IsEmail, IsInt, IsNotEmpty, IsString, Min } from "class-validator";
 import { JwtAuthGuard } from "../../core/auth/jwt-auth.guard";
 import { PermissionGuard } from "../../core/auth/permissions/permission.guard";
@@ -32,6 +32,13 @@ export class ParentController {
   @RequirePermissions("fees.pay.own")
   invoices(@CurrentUser() user: RequestUser) {
     return this.service.getInvoices(user);
+  }
+
+  @Get("invoices/:invoiceId")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("fees.pay.own")
+  invoiceDetail(@Param("invoiceId") invoiceId: string, @CurrentUser() user: RequestUser) {
+    return this.service.getInvoiceDetail(invoiceId, user);
   }
 
   @Post("pay")

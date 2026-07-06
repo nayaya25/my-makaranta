@@ -1,9 +1,24 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
 import { PaymentsService } from "../payments/payments.service";
 import { computeInvoiceStatus } from "../fees/invoice-status.util";
+import { allocatePayments, type AllocatedInstallment } from "../fees/installment.util";
+
+const invoiceDetailArgs = {
+  include: {
+    student: { select: { firstName: true, lastName: true, admissionNo: true } },
+    term: { select: { number: true, academicYear: { select: { name: true } } } },
+    lines: true,
+    invoiceDiscounts: { select: { name: true, amountKobo: true } },
+    installments: { orderBy: { order: "asc" as const } },
+    payments: { where: { status: "SUCCESS" as const }, orderBy: { paidAt: "asc" as const }, include: { receipt: { select: { code: true } } } },
+  },
+} satisfies Prisma.InvoiceDefaultArgs;
+
+type InvoiceDetailPayload = Prisma.InvoiceGetPayload<typeof invoiceDetailArgs>;
 
 @Injectable()
 export class ParentService {
@@ -40,20 +55,95 @@ export class ParentService {
     if (ids.length === 0) return [];
     const invoices = await this.prisma.invoice.findMany({
       where: { schoolId, studentId: { in: ids } },
-      include: { student: { select: { firstName: true, lastName: true } }, term: { select: { number: true, academicYear: { select: { name: true } } } } },
+      include: {
+        student: { select: { firstName: true, lastName: true } },
+        term: { select: { number: true, academicYear: { select: { name: true } } } },
+        installments: { orderBy: { order: "asc" } },
+      },
     });
     const now = new Date();
-    return invoices.map((i) => ({
-      studentId: i.studentId,
-      studentName: `${i.student.firstName} ${i.student.lastName}`,
-      invoiceId: i.id,
-      termLabel: `${i.term.academicYear.name} · Term ${i.term.number}`,
-      totalKobo: i.totalKobo,
-      paidKobo: i.paidKobo,
-      balanceKobo: i.totalKobo - i.paidKobo,
-      status: computeInvoiceStatus({ totalKobo: i.totalKobo, paidKobo: i.paidKobo, dueDate: i.dueDate, now }),
-      dueDate: i.dueDate ? i.dueDate.toISOString() : null,
-    }));
+    return invoices.map((i) => {
+      const allocated = allocatePayments(
+        i.paidKobo,
+        i.installments.map((inst) => ({ order: inst.order, label: inst.label, amountKobo: inst.amountKobo, dueDate: inst.dueDate })),
+        now,
+      );
+      const status = this.deriveStatus(i.totalKobo, i.paidKobo, allocated, i.dueDate, now);
+      const balanceKobo = i.totalKobo - i.paidKobo;
+      const nextInstallment = allocated.find((inst) => inst.status !== "PAID");
+      const nextDueDate = nextInstallment ? nextInstallment.dueDate : i.dueDate;
+      return {
+        studentId: i.studentId,
+        studentName: `${i.student.firstName} ${i.student.lastName}`,
+        invoiceId: i.id,
+        termLabel: `${i.term.academicYear.name} · Term ${i.term.number}`,
+        totalKobo: i.totalKobo,
+        paidKobo: i.paidKobo,
+        balanceKobo,
+        status,
+        dueDate: i.dueDate ? i.dueDate.toISOString() : null,
+        nextDueDate: nextDueDate ? nextDueDate.toISOString() : null,
+        nextInstallmentKobo: nextInstallment ? nextInstallment.amountKobo - nextInstallment.paidKobo : balanceKobo,
+      };
+    });
+  }
+
+  /** Ownership-checked, composed invoice detail (lines/discounts/installments/payments). */
+  async getInvoiceDetail(invoiceId: string, user: RequestUser) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const ids = await this.childStudentIds(user);
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, schoolId, studentId: { in: ids.length ? ids : ["__none__"] } },
+      ...invoiceDetailArgs,
+    });
+    if (!invoice) throw new NotFoundException("Invoice not found.");
+    return this.composeInvoice(invoice, new Date());
+  }
+
+  /** Shared invoice composition — used by getInvoiceDetail and (Task 3) buildStatement. */
+  private composeInvoice(invoice: InvoiceDetailPayload, now: Date) {
+    const allocated = allocatePayments(
+      invoice.paidKobo,
+      invoice.installments.map((i) => ({ order: i.order, label: i.label, amountKobo: i.amountKobo, dueDate: i.dueDate })),
+      now,
+    );
+    const status = this.deriveStatus(invoice.totalKobo, invoice.paidKobo, allocated, invoice.dueDate, now);
+    return {
+      invoiceId: invoice.id,
+      student: { name: `${invoice.student.firstName} ${invoice.student.lastName}`, admissionNo: invoice.student.admissionNo },
+      termLabel: `${invoice.term.academicYear.name} · Term ${invoice.term.number}`,
+      lines: invoice.lines.map((l) => ({ name: l.name, amountKobo: l.amountKobo })),
+      discounts: invoice.invoiceDiscounts.map((d) => ({ name: d.name, amountKobo: d.amountKobo })),
+      grossKobo: invoice.grossKobo,
+      discountKobo: invoice.discountKobo,
+      totalKobo: invoice.totalKobo,
+      paidKobo: invoice.paidKobo,
+      balanceKobo: invoice.totalKobo - invoice.paidKobo,
+      installments: allocated,
+      payments: invoice.payments.map((p) => ({
+        paidAt: p.paidAt,
+        amountKobo: p.amountKobo,
+        channel: p.channel,
+        reference: p.reference,
+        receiptCode: p.receipt?.code ?? null,
+      })),
+      status,
+    };
+  }
+
+  /** Installment-aware invoice status (private helper reused by list + detail). */
+  private deriveStatus(
+    totalKobo: number,
+    paidKobo: number,
+    installments: AllocatedInstallment[],
+    dueDate: Date | null,
+    now: Date,
+  ): "PAID" | "PARTIAL" | "OVERDUE" | "UNPAID" {
+    if (paidKobo >= totalKobo) return "PAID";
+    if (installments.some((i) => i.status === "OVERDUE")) return "OVERDUE";
+    if (installments.length === 0 && dueDate && dueDate.getTime() < now.getTime()) return "OVERDUE";
+    if (paidKobo > 0) return "PARTIAL";
+    return "UNPAID";
   }
 
   async pay(dto: { invoiceId: string; amountKobo: number; email: string }, user: RequestUser) {
