@@ -3,7 +3,7 @@ import type { NotificationSettings } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import type { UpdateNotificationSettingsDto } from "./dto/notifications.dto";
 
-const ALLOWED_CHANNELS = new Set(["SMS", "EMAIL"]);
+const ALLOWED_CHANNELS = new Set(["SMS", "EMAIL", "WHATSAPP"]);
 const MIN_OFFSET = -30;
 const MAX_OFFSET = 30;
 

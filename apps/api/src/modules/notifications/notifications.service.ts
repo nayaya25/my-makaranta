@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { SmsService } from "../../core/auth/sms.service";
+import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { EMAIL_SERVICE, type EmailService } from "../../core/email/email.types";
 import { NotificationSettingsService } from "./notification-settings.service";
 import { lagosDateStr, shiftDateStr } from "./notify-date.util";
@@ -18,6 +19,7 @@ export class NotificationsService {
   constructor(
     private prisma: PrismaService,
     private sms: SmsService,
+    private whatsapp: WhatsAppService,
     @Inject(EMAIL_SERVICE) private email: EmailService,
     private settings: NotificationSettingsService,
   ) {}
@@ -48,6 +50,15 @@ export class NotificationsService {
         try {
           await this.email.send({ to: r.email, subject, html: `<p>${message}</p>`, text: message });
           channelsUsed.add("EMAIL");
+          delivered = true;
+        } catch {
+          /* per-recipient failure non-fatal */
+        }
+      }
+      if (channels.includes("WHATSAPP")) {
+        try {
+          await this.whatsapp.send(r.phone, message);
+          channelsUsed.add("WHATSAPP");
           delivered = true;
         } catch {
           /* per-recipient failure non-fatal */
