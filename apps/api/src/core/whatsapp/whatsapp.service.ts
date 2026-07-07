@@ -15,6 +15,12 @@ export class WhatsAppService {
   private async sendViaMeta(phone: string, message: string): Promise<void> {
     const version = process.env.WHATSAPP_GRAPH_VERSION ?? "v21.0";
     const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    // Fail fast on misconfiguration rather than POSTing "…/undefined/messages" with "Bearer undefined".
+    if (!phoneNumberId || !process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_TEMPLATE_NAME) {
+      throw new Error(
+        "WhatsApp meta provider is not configured (need WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_TEMPLATE_NAME).",
+      );
+    }
     const res = await fetch(`https://graph.facebook.com/${version}/${phoneNumberId}/messages`, {
       method: "POST",
       headers: {
