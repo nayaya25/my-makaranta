@@ -12,6 +12,7 @@ import { TenantGuard } from "./core/tenant/tenant.guard";
 import { AuthModule } from "./core/auth/auth.module";
 import { StorageModule } from "./core/storage/storage.module";
 import { EmailModule } from "./core/email/email.module";
+import { WhatsAppModule } from "./core/whatsapp/whatsapp.module";
 import { PaymentsProviderModule } from "./core/payments/payments.module";
 import { getJwtSecret } from "./core/config/secrets";
 import { StructureModule } from "./modules/structure/structure.module";
@@ -50,6 +51,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
     AuthModule,
     StorageModule,
     EmailModule,
+    WhatsAppModule,
     PaymentsProviderModule,
     StructureModule,
     SisModule,

@@ -3,6 +3,7 @@ import type { Announcement } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { SmsService } from "../../core/auth/sms.service";
+import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { EMAIL_SERVICE, type EmailService } from "../../core/email/email.types";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
 import type { CreateAnnouncementDto } from "./dto";
@@ -14,6 +15,7 @@ export class AnnouncementsService {
   constructor(
     private prisma: PrismaService,
     private sms: SmsService,
+    private whatsapp: WhatsAppService,
     @Inject(EMAIL_SERVICE) private email: EmailService,
   ) {}
 
@@ -65,10 +67,11 @@ export class AnnouncementsService {
    */
   private async deliverAnnouncement(ann: Announcement, recipients: Recipient[]): Promise<void> {
     const schoolId = ann.schoolId;
-    const selected = ann.channels.filter((c) => c === "SMS" || c === "EMAIL");
+    const selected = ann.channels.filter((c) => c === "SMS" || c === "EMAIL" || c === "WHATSAPP");
     const wantSms = selected.includes("SMS");
     const wantEmail = selected.includes("EMAIL");
-    if (!(wantSms || wantEmail) || recipients.length === 0) return;
+    const wantWhatsapp = selected.includes("WHATSAPP");
+    if (!(wantSms || wantEmail || wantWhatsapp) || recipients.length === 0) return;
     const parentIds = recipients.filter((r) => r.recipientType === "PARENT").map((r) => r.recipientId);
     const staffIds = recipients.filter((r) => r.recipientType === "STAFF").map((r) => r.recipientId);
     const [parents, staff] = await Promise.all([
@@ -83,10 +86,12 @@ export class AnnouncementsService {
     for (const c of contacts) {
       let smsSent = false;
       let emailSent = false;
+      let whatsappSent = false;
       if (wantSms) { try { await this.sms.send(c.phone, text); smsSent = true; } catch { /* non-fatal */ } }
       if (wantEmail && c.email) { try { await this.email.send({ to: c.email, subject: ann.title, html: `<p>${ann.body}</p>`, text }); emailSent = true; } catch { /* non-fatal */ } }
-      if (smsSent || emailSent) {
-        await this.prisma.announcementRecipient.updateMany({ where: { schoolId, announcementId: ann.id, recipientType: c.type, recipientId: c.id }, data: { smsSent, emailSent } });
+      if (wantWhatsapp) { try { await this.whatsapp.send(c.phone, text); whatsappSent = true; } catch { /* non-fatal */ } }
+      if (smsSent || emailSent || whatsappSent) {
+        await this.prisma.announcementRecipient.updateMany({ where: { schoolId, announcementId: ann.id, recipientType: c.type, recipientId: c.id }, data: { smsSent, emailSent, whatsappSent } });
       }
     }
   }
@@ -94,7 +99,7 @@ export class AnnouncementsService {
   async create(dto: CreateAnnouncementDto, user: RequestUser) {
     const schoolId = TenantContext.schoolIdOrThrow();
     const recipients = await this.resolveRecipients(dto, schoolId);
-    const selected = (dto.channels ?? []).filter((c) => c === "SMS" || c === "EMAIL");
+    const selected = (dto.channels ?? []).filter((c) => c === "SMS" || c === "EMAIL" || c === "WHATSAPP");
     const channels = ["IN_APP", ...selected];
     const scheduledFor = dto.scheduledFor ? new Date(dto.scheduledFor) : null;
     const isFutureSchedule = !!scheduledFor && scheduledFor.getTime() > Date.now();
@@ -192,6 +197,7 @@ export class AnnouncementsService {
       name: nameBy.get(`${r.recipientType}:${r.recipientId}`) ?? "Unknown",
       smsSent: r.smsSent,
       emailSent: r.emailSent,
+      whatsappSent: r.whatsappSent,
       readAt: r.readAt ? r.readAt.toISOString() : null,
     }));
     return {
@@ -206,6 +212,7 @@ export class AnnouncementsService {
         readCount: rows.filter((r) => r.readAt).length,
         smsCount: rows.filter((r) => r.smsSent).length,
         emailCount: rows.filter((r) => r.emailSent).length,
+        whatsappCount: rows.filter((r) => r.whatsappSent).length,
       },
       recipients,
     };

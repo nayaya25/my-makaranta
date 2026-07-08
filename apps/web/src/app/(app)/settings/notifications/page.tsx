@@ -18,9 +18,10 @@ function validateOffset(raw: string): string | null {
   return null;
 }
 
-const CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [
+const CHANNEL_OPTIONS: Array<{ value: string; label: string; hint?: string }> = [
   { value: "SMS", label: "SMS" },
   { value: "EMAIL", label: "Email" },
+  { value: "WHATSAPP", label: "WhatsApp", hint: "Requires WhatsApp provider setup + approved template." },
 ];
 
 /* ── Page ────────────────────────────────────────────────────────────────── */
@@ -132,7 +133,7 @@ export default function NotificationSettingsPage() {
 
       <PageHeader
         title="Notifications"
-        description="Automate fee reminders and results-ready alerts to parents over SMS and email."
+        description="Automate fee reminders and results-ready alerts to parents over SMS, email, and WhatsApp."
       />
 
       {loading ? (
@@ -245,14 +246,17 @@ export default function NotificationSettingsPage() {
             <CardBody>
               <div className="flex flex-wrap gap-4">
                 {CHANNEL_OPTIONS.map((opt) => (
-                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer select-none text-small text-ink-700 dark:text-ink-300">
-                    <Checkbox
-                      checked={channels.includes(opt.value)}
-                      onCheckedChange={(v) => toggleChannel(opt.value, v === true)}
-                      aria-label={opt.label}
-                    />
-                    {opt.label}
-                  </label>
+                  <div key={opt.value} className="flex flex-col gap-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-small text-ink-700 dark:text-ink-300">
+                      <Checkbox
+                        checked={channels.includes(opt.value)}
+                        onCheckedChange={(v) => toggleChannel(opt.value, v === true)}
+                        aria-label={opt.label}
+                      />
+                      {opt.label}
+                    </label>
+                    {opt.hint && <span className="text-caption text-ink-500">{opt.hint}</span>}
+                  </div>
                 ))}
               </div>
             </CardBody>

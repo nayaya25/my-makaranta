@@ -388,6 +388,7 @@ model AnnouncementRecipient {
   readAt         DateTime?
   smsSent        Boolean      @default(false)
   emailSent      Boolean      @default(false)
+  whatsappSent   Boolean      @default(false)
 
   @@unique([announcementId, recipientType, recipientId], map: "AnnouncementRecipient_ann_type_id_key")
   @@index([schoolId, recipientType, recipientId], map: "AnnouncementRecipient_school_type_id_idx")

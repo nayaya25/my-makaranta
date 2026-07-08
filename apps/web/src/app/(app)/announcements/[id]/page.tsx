@@ -37,6 +37,7 @@ export default function AnnouncementReceiptsPage() {
             <span><strong className="tabular-nums">{data.aggregates.readCount}</strong>/{data.aggregates.total} read</span>
             <span className="tabular-nums">{data.aggregates.smsCount} SMS</span>
             <span className="tabular-nums">{data.aggregates.emailCount} email</span>
+            <span className="tabular-nums">{data.aggregates.whatsappCount} WhatsApp</span>
           </div>
 
           <Card className="mt-6 overflow-hidden">
@@ -48,6 +49,7 @@ export default function AnnouncementReceiptsPage() {
                     <th className="px-4 py-2.5 text-left text-caption font-semibold uppercase tracking-wide text-ink-500">Type</th>
                     <th className="px-4 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">SMS</th>
                     <th className="px-4 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">Email</th>
+                    <th className="px-4 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">WhatsApp</th>
                     <th className="px-4 py-2.5 text-center text-caption font-semibold uppercase tracking-wide text-ink-500">Read</th>
                   </tr>
                 </thead>
@@ -58,6 +60,7 @@ export default function AnnouncementReceiptsPage() {
                       <td className="px-4 py-2.5"><Badge tone={r.recipientType === "STAFF" ? "info" : "neutral"}>{r.recipientType}</Badge></td>
                       <td className="px-4 py-2.5 text-center text-ink-700 dark:text-ink-300">{r.smsSent ? "✓" : "—"}</td>
                       <td className="px-4 py-2.5 text-center text-ink-700 dark:text-ink-300">{r.emailSent ? "✓" : "—"}</td>
+                      <td className="px-4 py-2.5 text-center text-ink-700 dark:text-ink-300">{r.whatsappSent ? "✓" : "—"}</td>
                       <td className="px-4 py-2.5 text-center text-ink-700 dark:text-ink-300">{r.readAt ? "✓" : "—"}</td>
                     </tr>
                   ))}
