@@ -80,6 +80,13 @@ describe("MessageTemplateService.reset", () => {
     const rendered = await service.render(schoolId, "RESULTS_READY", { studentName: "Ada" });
     expect(rendered).toBe("Dear Parent, Ada's results are now ready. Please log in to view the report card.");
   });
+
+  it("rejects an unknown template key", async () => {
+    const schoolId = await seedSchool("reset-bad");
+    schoolIds.push(schoolId);
+
+    await expect(service.reset(schoolId, "NOPE")).rejects.toThrow("Unknown template key");
+  });
 });
 
 describe("MessageTemplateService.list", () => {

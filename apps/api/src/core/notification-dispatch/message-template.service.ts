@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { MESSAGE_TEMPLATES, type MessageTemplateKey } from "./message-template.registry";
 import { renderTemplate, validateTemplate } from "./message-template.util";
@@ -52,6 +52,7 @@ export class MessageTemplateService {
 
   /** Deletes the school's override row for `key`, reverting `render`/`list` to the code default. */
   async reset(schoolId: string, key: string): Promise<void> {
+    if (!(key in MESSAGE_TEMPLATES)) throw new BadRequestException(`Unknown template key: ${key}`);
     await this.prisma.messageTemplate.deleteMany({ where: { schoolId, key } });
   }
 }

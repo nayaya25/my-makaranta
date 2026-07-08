@@ -43,6 +43,9 @@ function sampleFor(variable: string): string {
   return SAMPLE_VALUES[variable] ?? `{${variable}}`;
 }
 
+/** Mirrors the server's `@MaxLength(1000)` on the template body. */
+const MAX_BODY_LENGTH = 1000;
+
 /** Client-side mirror of the server's `validateTemplate`: flags any {{token}} not in allowedVariables. */
 function findUnknownVariables(body: string, allowedVariables: string[]): string[] {
   const used = [...body.matchAll(VAR_RE)]
@@ -81,6 +84,7 @@ function TemplateCard({
 
   const dirty = body !== template.body;
   const unknownVars = findUnknownVariables(body, template.allowedVariables);
+  const tooLong = body.length > MAX_BODY_LENGTH;
 
   const insertVariable = (variable: string) => {
     const token = `{{${variable}}}`;
@@ -104,6 +108,10 @@ function TemplateCard({
   const save = async () => {
     if (unknownVars.length > 0) {
       setError(`Unknown variable(s): ${unknownVars.map((v) => `{{${v}}}`).join(", ")}`);
+      return;
+    }
+    if (tooLong) {
+      setError(`Message is too long (${body.length}/${MAX_BODY_LENGTH} characters).`);
       return;
     }
     setSaving(true);
@@ -172,7 +180,7 @@ function TemplateCard({
             setSaved(false);
             setError(null);
           }}
-          invalid={unknownVars.length > 0}
+          invalid={unknownVars.length > 0 || tooLong}
           aria-label={`${labelFor(template.key)} message body`}
         />
 
@@ -183,13 +191,19 @@ function TemplateCard({
           </p>
         )}
 
+        {tooLong && (
+          <p className="text-caption text-error">
+            Message is too long ({body.length}/{MAX_BODY_LENGTH} characters).
+          </p>
+        )}
+
         <div className="flex flex-col gap-1.5 rounded-card border border-ink-200 bg-ink-50/60 p-3 dark:border-white/10 dark:bg-white/5">
           <span className="text-caption font-medium text-ink-500">Preview</span>
           <p className="text-small text-ink-700 dark:text-ink-300">{renderPreview(body)}</p>
         </div>
 
         <div className="flex items-center gap-3">
-          <Button onClick={save} disabled={!dirty || saving || unknownVars.length > 0}>
+          <Button onClick={save} disabled={!dirty || saving || unknownVars.length > 0 || tooLong}>
             {saving ? "Saving…" : "Save"}
           </Button>
           {template.isCustomized && (
