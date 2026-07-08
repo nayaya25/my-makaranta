@@ -85,6 +85,7 @@ const PARENT_NAV: NavEntry[] = [
   { href: "/parent/fees", label: "Fees", icon: Wallet },
   { href: "/parent/announcements", label: "Announcements", icon: Megaphone },
   { href: "/messages", label: "Messages", icon: MessageSquare },
+  { href: "/parent/preferences", label: "Preferences", icon: Settings },
 ];
 
 // Hrefs that should only light up on an exact pathname match (so a child

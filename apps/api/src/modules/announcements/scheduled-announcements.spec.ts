@@ -15,6 +15,8 @@ import { TenantContext } from "../../core/tenant/tenant.context";
 import { SmsService } from "../../core/auth/sms.service";
 import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { LogEmailAdapter } from "../../core/email/log.adapter";
+import { PreferenceService } from "../../core/notification-dispatch/preference.service";
+import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
 import { AnnouncementsService } from "./announcements.service";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
 
@@ -58,7 +60,10 @@ describe("AnnouncementsService — scheduled announcements (EN-1 Task 5)", () =>
 
     sms = new SmsService();
     email = new LogEmailAdapter();
-    service = new AnnouncementsService(prisma as unknown as PrismaService, sms, new WhatsAppService(), email);
+    const whatsappSvc = new WhatsAppService();
+    const preferences = new PreferenceService(prisma as unknown as PrismaService);
+    const dispatch = new NotificationDispatchService(sms, email, whatsappSvc);
+    service = new AnnouncementsService(prisma as unknown as PrismaService, sms, whatsappSvc, email, preferences, dispatch);
 
     authorUser = { id: `user-author-${ts}`, schoolId, identityType: "STAFF" };
   });

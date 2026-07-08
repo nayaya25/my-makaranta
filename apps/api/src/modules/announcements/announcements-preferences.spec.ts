@@ -1,10 +1,15 @@
 /**
- * Engagement EN-2 Task 3 — Wire WhatsApp into announcements
+ * Engagement EN-3a Task 4 — announcements respect parent NotificationPreference
+ *
+ * Run:
+ *   DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/my_makaranta_test?schema=public' \
+ *     pnpm exec jest announcements-preferences --runInBand
  *
  * Tests:
- *   1. create() with channels incl WHATSAPP -> whatsapp.send invoked per contact + whatsappSent=true.
- *   2. create() with EMAIL-only channels -> whatsapp.send NOT called (regression).
- *   3. getRecipients(id) returns whatsappCount matching the number with whatsappSent.
+ *   1. A parent muting ANNOUNCEMENT -> not delivered to them (no smsSent/emailSent/whatsappSent),
+ *      but delivered to another parent AND to STAFF (staff never filtered).
+ *   2. A parent muting WHATSAPP still gets SMS/EMAIL.
+ *   3. getRecipients() aggregate counts reflect actual sends (post-filtering).
  */
 
 import { PrismaClient } from "@prisma/client";
@@ -20,7 +25,7 @@ import type { RequestUser } from "../../core/auth/current-user.decorator";
 
 const prisma = new PrismaClient();
 
-describe("AnnouncementsService — WhatsApp channel (EN-2 Task 3)", () => {
+describe("AnnouncementsService — notification preferences (EN-3a Task 4)", () => {
   let service: AnnouncementsService;
   let sms: SmsService;
   let whatsapp: WhatsAppService;
@@ -37,7 +42,7 @@ describe("AnnouncementsService — WhatsApp channel (EN-2 Task 3)", () => {
     const ts = Date.now();
 
     const school = await prisma.school.create({
-      data: { name: `WaAnn-${ts}`, slug: `wa-ann-${ts}` } as never,
+      data: { name: `PrefAnn-${ts}`, slug: `pref-ann-${ts}` } as never,
     });
     schoolId = school.id;
     testSchoolIds.push(schoolId);
@@ -70,8 +75,10 @@ describe("AnnouncementsService — WhatsApp channel (EN-2 Task 3)", () => {
   afterAll(async () => {
     await prisma.announcementRecipient.deleteMany({ where: { schoolId: { in: testSchoolIds } } });
     await prisma.announcement.deleteMany({ where: { schoolId: { in: testSchoolIds } } });
+    await prisma.notificationPreference.deleteMany({ where: { schoolId: { in: testSchoolIds } } });
     await prisma.guardian.deleteMany({ where: { student: { schoolId: { in: testSchoolIds } } } });
     await prisma.enrollment.deleteMany({ where: { student: { schoolId: { in: testSchoolIds } } } });
+    await prisma.staff.deleteMany({ where: { schoolId: { in: testSchoolIds } } });
     await prisma.parent.deleteMany({ where: { schoolId: { in: testSchoolIds } } });
     await prisma.student.deleteMany({ where: { schoolId: { in: testSchoolIds } } });
     await prisma.class.deleteMany({ where: { schoolId: { in: testSchoolIds } } });
@@ -80,6 +87,10 @@ describe("AnnouncementsService — WhatsApp channel (EN-2 Task 3)", () => {
     await prisma.classLevel.deleteMany({ where: { schoolId: { in: testSchoolIds } } });
     await prisma.school.deleteMany({ where: { id: { in: testSchoolIds } } });
     await prisma.$disconnect();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   const asSchool = <T>(fn: () => Promise<T>) => TenantContext.run({ schoolId, userId: null }, fn);
@@ -96,73 +107,113 @@ describe("AnnouncementsService — WhatsApp channel (EN-2 Task 3)", () => {
     return parent.id;
   }
 
-  it("create() with channels incl WHATSAPP invokes whatsapp.send per contact and sets whatsappSent=true", async () => {
-    const ts = Date.now();
-    await makeParentWithChild(`0910${ts}`.slice(0, 14), `WA-INCL-${ts}`);
+  async function makeStaff(phone: string): Promise<string> {
+    const staff = await prisma.staff.create({
+      data: { schoolId, staffNo: `ST-${phone}`, phone, email: `${phone}@example.com`, firstName: "Staff", lastName: phone },
+    });
+    return staff.id;
+  }
 
-    const whatsappSpy = jest.spyOn(whatsapp, "send").mockResolvedValue(undefined);
+  it("a parent muting ANNOUNCEMENT is not delivered to, but another parent and STAFF still are", async () => {
+    const ts = Date.now();
+    const mutedPhone = `0920${ts}`.slice(0, 14);
+    const okPhone = `0921${ts}`.slice(0, 14);
+    const mutedParentId = await makeParentWithChild(mutedPhone, `PREF-MUTED-${ts}`);
+    await makeParentWithChild(okPhone, `PREF-OK-${ts}`);
+    const staffId = await makeStaff(`0922${ts}`.slice(0, 14));
+
+    await prisma.notificationPreference.create({
+      data: { schoolId, parentId: mutedParentId, mutedCategories: ["ANNOUNCEMENT"] },
+    });
+
+    const smsSpy = jest.spyOn(sms, "send").mockResolvedValue(undefined);
 
     const result = await asSchool(() =>
       service.create(
-        { title: "WhatsApp Notice", body: "Sent via WhatsApp.", audienceType: "ALL", channels: ["SMS", "WHATSAPP"] },
+        { title: "Muted Notice", body: "Should skip muted parent.", audienceType: "ALL", roles: ["PARENT", "STAFF"], channels: ["SMS", "EMAIL"] },
         authorUser,
       ),
     );
 
     expect(result.recipientCount).toBeGreaterThan(0);
-    expect(whatsappSpy).toHaveBeenCalled();
+
+    const calledPhones = smsSpy.mock.calls.map((c) => c[0]);
+    expect(calledPhones).not.toContain(mutedPhone);
+    expect(calledPhones).toContain(okPhone);
 
     const recipients = await prisma.announcementRecipient.findMany({ where: { schoolId, announcementId: result.id } });
-    expect(recipients.length).toBeGreaterThan(0);
-    for (const r of recipients) expect(r.whatsappSent).toBe(true);
+    const mutedRow = recipients.find((r) => r.recipientType === "PARENT" && r.recipientId === mutedParentId);
+    expect(mutedRow).toBeDefined();
+    expect(mutedRow!.smsSent).toBe(false);
+    expect(mutedRow!.emailSent).toBe(false);
+    expect(mutedRow!.whatsappSent).toBe(false);
 
-    const ann = await prisma.announcement.findUnique({ where: { id: result.id } });
-    expect(ann!.channels).toContain("WHATSAPP");
+    const okRow = recipients.find((r) => r.recipientType === "PARENT" && r.recipientId !== mutedParentId);
+    expect(okRow).toBeDefined();
+    expect(okRow!.smsSent).toBe(true);
 
-    whatsappSpy.mockRestore();
+    const staffRow = recipients.find((r) => r.recipientType === "STAFF" && r.recipientId === staffId);
+    expect(staffRow).toBeDefined();
+    expect(staffRow!.smsSent).toBe(true);
   });
 
-  it("create() with EMAIL-only channels does NOT call whatsapp.send (regression)", async () => {
+  it("a parent muting WHATSAPP still gets SMS/EMAIL", async () => {
     const ts = Date.now();
-    await makeParentWithChild(`0911${ts}`.slice(0, 14), `WA-EMAILONLY-${ts}`);
+    const phone = `0923${ts}`.slice(0, 14);
+    const parentId = await makeParentWithChild(phone, `PREF-WAMUTE-${ts}`);
 
+    await prisma.notificationPreference.create({
+      data: { schoolId, parentId, mutedChannels: ["WHATSAPP"] },
+    });
+
+    const smsSpy = jest.spyOn(sms, "send").mockResolvedValue(undefined);
     const whatsappSpy = jest.spyOn(whatsapp, "send").mockResolvedValue(undefined);
 
     const result = await asSchool(() =>
       service.create(
-        { title: "Email Only Notice", body: "Email channel only.", audienceType: "ALL", channels: ["EMAIL"] },
+        { title: "WA Muted Notice", body: "Should still SMS/email.", audienceType: "ALL", channels: ["SMS", "EMAIL", "WHATSAPP"] },
         authorUser,
       ),
     );
 
-    expect(whatsappSpy).not.toHaveBeenCalled();
+    const calledPhones = smsSpy.mock.calls.map((c) => c[0]);
+    expect(calledPhones).toContain(phone);
+    expect(whatsappSpy.mock.calls.map((c) => c[0])).not.toContain(phone);
 
     const recipients = await prisma.announcementRecipient.findMany({ where: { schoolId, announcementId: result.id } });
-    expect(recipients.length).toBeGreaterThan(0);
-    for (const r of recipients) expect(r.whatsappSent).toBe(false);
-
-    whatsappSpy.mockRestore();
+    const row = recipients.find((r) => r.recipientType === "PARENT" && r.recipientId === parentId);
+    expect(row).toBeDefined();
+    expect(row!.smsSent).toBe(true);
+    expect(row!.emailSent).toBe(true);
+    expect(row!.whatsappSent).toBe(false);
   });
 
-  it("getRecipients(id) returns whatsappCount matching the number of recipients with whatsappSent", async () => {
+  it("getRecipients() aggregate counts reflect actual sends after preference filtering", async () => {
     const ts = Date.now();
-    await makeParentWithChild(`0912${ts}`.slice(0, 14), `WA-COUNT-${ts}`);
+    const mutedPhone = `0924${ts}`.slice(0, 14);
+    const okPhone = `0925${ts}`.slice(0, 14);
+    const mutedParentId = await makeParentWithChild(mutedPhone, `PREF-COUNT-MUTED-${ts}`);
+    await makeParentWithChild(okPhone, `PREF-COUNT-OK-${ts}`);
 
-    const whatsappSpy = jest.spyOn(whatsapp, "send").mockResolvedValue(undefined);
+    await prisma.notificationPreference.create({
+      data: { schoolId, parentId: mutedParentId, mutedCategories: ["ANNOUNCEMENT"] },
+    });
+
+    jest.spyOn(sms, "send").mockResolvedValue(undefined);
 
     const result = await asSchool(() =>
       service.create(
-        { title: "Count Notice", body: "Checking whatsappCount.", audienceType: "ALL", channels: ["WHATSAPP"] },
+        { title: "Count Notice", body: "Checking aggregate counts.", audienceType: "ALL", channels: ["SMS"] },
         authorUser,
       ),
     );
 
     const detail = await asSchool(() => service.getRecipients(result.id));
-
-    const expectedCount = detail.recipients.filter((r) => r.whatsappSent).length;
-    expect(detail.aggregates.whatsappCount).toBe(expectedCount);
-    expect(detail.aggregates.whatsappCount).toBeGreaterThan(0);
-
-    whatsappSpy.mockRestore();
+    const expectedSmsCount = detail.recipients.filter((r) => r.smsSent).length;
+    expect(detail.aggregates.smsCount).toBe(expectedSmsCount);
+    expect(detail.aggregates.smsCount).toBeGreaterThan(0);
+    // muted parent must not count toward smsCount
+    const mutedDetailRow = detail.recipients.find((r) => r.recipientType === "PARENT" && r.recipientId === mutedParentId);
+    expect(mutedDetailRow?.smsSent).toBe(false);
   });
 });

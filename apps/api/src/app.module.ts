@@ -35,6 +35,7 @@ import { AdmissionsModule } from "./modules/admissions/admissions.module";
 import { TimetableModule } from "./modules/timetable/timetable.module";
 import { LessonPlansModule } from "./modules/lesson-plans/lesson-plans.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
+import { NotificationDispatchModule } from "./core/notification-dispatch/notification-dispatch.module";
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
     StorageModule,
     EmailModule,
     WhatsAppModule,
+    NotificationDispatchModule,
     PaymentsProviderModule,
     StructureModule,
     SisModule,

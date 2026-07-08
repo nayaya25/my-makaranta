@@ -144,6 +144,7 @@ model School {
   installments           Installment[]
   notificationSettings   NotificationSettings?
   notificationLogs       NotificationLog[]
+  notificationPreferences NotificationPreference[]
 }
 
 model Conversation {
@@ -330,6 +331,7 @@ model Parent {
   lastName      String
   preferredLang LangCode   @default(EN)
   guardians     Guardian[]
+  notificationPreference NotificationPreference?
 
   @@unique([schoolId, phone])
 }
@@ -375,6 +377,17 @@ model NotificationLog {
 
   @@unique([schoolId, dedupeKey])
   @@index([schoolId, kind, createdAt])
+}
+
+model NotificationPreference {
+  id              String   @id @default(cuid())
+  schoolId        String
+  school          School   @relation(fields: [schoolId], references: [id])
+  parentId        String   @unique
+  parent          Parent   @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  mutedChannels   String[] @default([])
+  mutedCategories String[] @default([])
+  updatedAt       DateTime @updatedAt
 }
 
 model AnnouncementRecipient {

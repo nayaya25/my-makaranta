@@ -1,8 +1,9 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
-import { SmsService } from "../../core/auth/sms.service";
-import { EMAIL_SERVICE, type EmailService } from "../../core/email/email.types";
+import { PreferenceService } from "../../core/notification-dispatch/preference.service";
+import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
+import { NotificationSettingsService } from "../notifications/notification-settings.service";
 import { computeInvoiceStatus } from "./invoice-status.util";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
 
@@ -10,12 +11,15 @@ function naira(kobo: number): string {
   return `₦${new Intl.NumberFormat("en-NG").format(Math.round(kobo / 100))}`;
 }
 
+type Recipient = { parentId?: string | null; phone: string; email: string | null };
+
 @Injectable()
 export class CollectionsService {
   constructor(
     private prisma: PrismaService,
-    private sms: SmsService,
-    @Inject(EMAIL_SERVICE) private email: EmailService,
+    private settings: NotificationSettingsService,
+    private preferences: PreferenceService,
+    private dispatch: NotificationDispatchService,
   ) {}
 
   private async termOr404(schoolId: string, termId: string) {
@@ -77,20 +81,41 @@ export class CollectionsService {
     });
     const termLabel = `${invoice.term.academicYear.name} · Term ${invoice.term.number}`;
     const msg = `Dear Parent, ${invoice.student.firstName} ${invoice.student.lastName}'s ${termLabel} fees balance is ${naira(balance)}. Kindly settle it. Thank you.`;
+
+    const base = (await this.settings.get(schoolId)).channels;
+    const recipients: Recipient[] = guardians.map((g) => ({
+      parentId: g.parentId,
+      phone: g.parent.phone,
+      email: g.parent.email,
+    }));
+    const parentIds = recipients.map((r) => r.parentId).filter((id): id is string => Boolean(id));
+    const prefs = await this.preferences.loadPreferences(schoolId, parentIds);
+
     const channels = new Set<string>();
     let recipientCount = 0;
-    for (const g of guardians) {
-      try {
-        await this.sms.send(g.parent.phone, msg);
-        channels.add("sms");
-        recipientCount++;
-      } catch { /* per-recipient failure non-fatal */ }
-      if (g.parent.email) {
-        try {
-          await this.email.send({ to: g.parent.email, subject: `Fees reminder — ${termLabel}`, html: `<p>${msg}</p>`, text: msg });
-          channels.add("email");
-        } catch { /* non-fatal */ }
+    for (const r of recipients) {
+      const eff = this.preferences.effectiveChannels(
+        r.parentId ? prefs.get(r.parentId) : undefined,
+        "FEE_REMINDER",
+        base,
+      );
+      if (eff.length === 0) continue;
+
+      const res = await this.dispatch.sendToRecipient(r, `Fees reminder — ${termLabel}`, msg, eff);
+      let delivered = false;
+      if (res.smsSent) {
+        channels.add("SMS");
+        delivered = true;
       }
+      if (res.emailSent) {
+        channels.add("EMAIL");
+        delivered = true;
+      }
+      if (res.whatsappSent) {
+        channels.add("WHATSAPP");
+        delivered = true;
+      }
+      if (delivered) recipientCount++;
     }
     await this.prisma.feeReminder.create({ data: { schoolId, invoiceId, sentBy: actor.id, recipientCount, channels: [...channels].join(",") } });
     return { recipientCount };
