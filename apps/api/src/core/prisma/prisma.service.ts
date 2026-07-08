@@ -41,6 +41,7 @@ export const TENANT_MODELS = new Set([
   "Installment",
   "NotificationSettings",
   "NotificationLog",
+  "NotificationPreference",
 ]);
 
 @Injectable()
