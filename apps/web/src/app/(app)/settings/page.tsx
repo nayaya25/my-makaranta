@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Card, CardBody, CardHeader, PageContainer, PageHeader } from "@mymakaranta/ui";
-import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText, Clock, Percent, CalendarClock, BellRing } from "lucide-react";
+import { ClipboardList, Wallet, ShieldCheck, Building2, UserCircle, ArrowRight, Star, FileText, Clock, Percent, CalendarClock, BellRing, MessageSquareText } from "lucide-react";
 
 const ITEMS = [
   {
@@ -70,6 +70,12 @@ const ITEMS = [
     title: "Notifications",
     description: "Fee reminder days, results-ready alerts, and delivery channels.",
     icon: BellRing,
+  },
+  {
+    href: "/settings/message-templates",
+    title: "Message templates",
+    description: "Customize the wording of fee reminders and results-ready alerts.",
+    icon: MessageSquareText,
   },
 ];
 

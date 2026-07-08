@@ -3,6 +3,7 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { PreferenceService } from "../../core/notification-dispatch/preference.service";
 import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
+import { MessageTemplateService } from "../../core/notification-dispatch/message-template.service";
 import { NotificationSettingsService } from "../notifications/notification-settings.service";
 import { computeInvoiceStatus } from "./invoice-status.util";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
@@ -20,6 +21,7 @@ export class CollectionsService {
     private settings: NotificationSettingsService,
     private preferences: PreferenceService,
     private dispatch: NotificationDispatchService,
+    private templates: MessageTemplateService,
   ) {}
 
   private async termOr404(schoolId: string, termId: string) {
@@ -80,7 +82,11 @@ export class CollectionsService {
       include: { parent: { select: { phone: true, email: true } } },
     });
     const termLabel = `${invoice.term.academicYear.name} · Term ${invoice.term.number}`;
-    const msg = `Dear Parent, ${invoice.student.firstName} ${invoice.student.lastName}'s ${termLabel} fees balance is ${naira(balance)}. Kindly settle it. Thank you.`;
+    const msg = await this.templates.render(schoolId, "FEE_BALANCE_REMINDER", {
+      studentName: `${invoice.student.firstName} ${invoice.student.lastName}`,
+      termLabel,
+      balance: naira(balance),
+    });
 
     const base = (await this.settings.get(schoolId)).channels;
     const recipients: Recipient[] = guardians.map((g) => ({

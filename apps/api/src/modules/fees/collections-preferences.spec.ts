@@ -13,6 +13,7 @@ import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { LogEmailAdapter } from "../../core/email/log.adapter";
 import { PreferenceService } from "../../core/notification-dispatch/preference.service";
 import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
+import { MessageTemplateService } from "../../core/notification-dispatch/message-template.service";
 import { NotificationSettingsService } from "../notifications/notification-settings.service";
 import { CollectionsService } from "./collections.service";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
@@ -97,7 +98,7 @@ beforeAll(() => {
   settingsService = new NotificationSettingsService(prisma);
   preferences = new PreferenceService(prisma);
   dispatch = new NotificationDispatchService(sms, emailAdapter, whatsapp);
-  service = new CollectionsService(prisma, settingsService, preferences, dispatch);
+  service = new CollectionsService(prisma, settingsService, preferences, dispatch, new MessageTemplateService(prisma));
 });
 
 afterEach(() => {

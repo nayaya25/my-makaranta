@@ -19,6 +19,7 @@ import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { LogEmailAdapter } from "../../core/email/log.adapter";
 import { PreferenceService } from "../../core/notification-dispatch/preference.service";
 import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
+import { MessageTemplateService } from "../../core/notification-dispatch/message-template.service";
 import { NotificationSettingsService } from "./notification-settings.service";
 import { NotificationsService } from "./notifications.service";
 
@@ -120,7 +121,7 @@ beforeAll(() => {
   settingsService = new NotificationSettingsService(prisma);
   const preferences = new PreferenceService(prisma);
   const dispatch = new NotificationDispatchService(sms, emailAdapter, whatsapp);
-  service = new NotificationsService(prisma, sms, whatsapp, emailAdapter, settingsService, preferences, dispatch);
+  service = new NotificationsService(prisma, sms, whatsapp, emailAdapter, settingsService, preferences, dispatch, new MessageTemplateService(prisma));
 });
 
 afterEach(() => {
