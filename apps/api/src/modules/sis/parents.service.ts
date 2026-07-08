@@ -1,10 +1,25 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { CreateParentDto, CreateGuardianDto } from "./dto/parent.dto";
+import { TenantContext } from "../../core/tenant/tenant.context";
+import { PreferenceService } from "../../core/notification-dispatch/preference.service";
+import type { SetPreferenceDto } from "../../core/notification-dispatch/dto/preference.dto";
 
 @Injectable()
 export class ParentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private preferences: PreferenceService) {}
+
+  async getNotificationPreferences(parentId: string) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const parent = await this.prisma.parent.findFirst({ where: { id: parentId, schoolId } });
+    if (!parent) throw new NotFoundException("Parent not found.");
+    return this.preferences.getForParent(schoolId, parentId);
+  }
+
+  async setNotificationPreferences(parentId: string, dto: SetPreferenceDto) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    return this.preferences.setForParent(schoolId, parentId, dto);
+  }
 
   async createParent(dto: CreateParentDto) {
     return this.prisma.parent.create({
