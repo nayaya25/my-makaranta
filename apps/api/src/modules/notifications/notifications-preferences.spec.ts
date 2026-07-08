@@ -1,17 +1,10 @@
 /**
- * Engagement EN-2 Task 4 — Wire WhatsApp into notifications (reminders) + settings
- *
- * Tests:
- *   1. runFeeReminders(now) for a school with WHATSAPP in channels -> whatsapp.send invoked
- *      + NotificationLog.channels contains WHATSAPP.
- *   2. runFeeReminders(now) for a school without WHATSAPP -> whatsapp.send NOT called (regression).
- *   3. NotificationSettingsService.update accepts ["SMS","WHATSAPP"], rejects ["SMS","FOO"].
+ * Engagement EN-3a Task 3 — automated notifications respect parent NotificationPreference
  *
  * Run:
  *   DATABASE_URL='postgresql://postgres:postgres@127.0.0.1:5432/my_makaranta_test?schema=public' \
- *     pnpm exec jest notifications-whatsapp --runInBand
+ *     pnpm exec jest notifications-preferences --runInBand
  */
-import { BadRequestException } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { SmsService } from "../../core/auth/sms.service";
@@ -52,7 +45,7 @@ type Fixture = {
 async function seedSchool(suffix: string): Promise<Fixture> {
   const ts = Date.now() + Math.floor(Math.random() * 1000);
   const school = await rawPrisma.school.create({
-    data: { name: `WAN-${suffix}-${ts}`, slug: `wan-${suffix}-${ts}-${Math.random().toString(36).slice(2)}` } as never,
+    data: { name: `NP-${suffix}-${ts}`, slug: `np-${suffix}-${ts}-${Math.random().toString(36).slice(2)}` } as never,
   });
   const classLevel = await rawPrisma.classLevel.create({
     data: { schoolId: school.id, name: "JSS 1", order: 1 },
@@ -87,15 +80,17 @@ async function makeStudentWithGuardian(fx: Fixture, admissionNo: string, phone: 
   await rawPrisma.guardian.create({
     data: { studentId: student.id, parentId: parent.id, relationship: "FATHER", isPrimary: true },
   });
-  return student.id;
+  return { studentId: student.id, parentId: parent.id };
 }
 
 async function cleanupFixture(fx: Fixture) {
   await rawPrisma.notificationLog.deleteMany({ where: { schoolId: fx.schoolId } }).catch(() => undefined);
   await rawPrisma.notificationSettings.deleteMany({ where: { schoolId: fx.schoolId } }).catch(() => undefined);
+  await rawPrisma.release.deleteMany({ where: { schoolId: fx.schoolId } }).catch(() => undefined);
   await rawPrisma.installment.deleteMany({ where: { schoolId: fx.schoolId } }).catch(() => undefined);
   await rawPrisma.invoice.deleteMany({ where: { schoolId: fx.schoolId } }).catch(() => undefined);
   await rawPrisma.guardian.deleteMany({ where: { student: { schoolId: fx.schoolId } } }).catch(() => undefined);
+  await rawPrisma.notificationPreference.deleteMany({ where: { schoolId: fx.schoolId } }).catch(() => undefined);
   await rawPrisma.parent.deleteMany({ where: { schoolId: fx.schoolId } }).catch(() => undefined);
   await rawPrisma.enrollment.deleteMany({ where: { student: { schoolId: fx.schoolId } } }).catch(() => undefined);
   await rawPrisma.student.deleteMany({ where: { schoolId: fx.schoolId } }).catch(() => undefined);
@@ -110,6 +105,8 @@ let sms: SmsService;
 let whatsapp: WhatsAppService;
 let emailAdapter: LogEmailAdapter;
 let settingsService: NotificationSettingsService;
+let preferences: PreferenceService;
+let dispatch: NotificationDispatchService;
 let service: NotificationsService;
 const fixtures: Fixture[] = [];
 
@@ -118,8 +115,8 @@ beforeAll(() => {
   whatsapp = new WhatsAppService();
   emailAdapter = new LogEmailAdapter();
   settingsService = new NotificationSettingsService(prisma);
-  const preferences = new PreferenceService(prisma);
-  const dispatch = new NotificationDispatchService(sms, emailAdapter, whatsapp);
+  preferences = new PreferenceService(prisma);
+  dispatch = new NotificationDispatchService(sms, emailAdapter, whatsapp);
   service = new NotificationsService(prisma, sms, whatsapp, emailAdapter, settingsService, preferences, dispatch);
 });
 
@@ -132,14 +129,23 @@ afterAll(async () => {
   await rawPrisma.$disconnect();
 });
 
-describe("NotificationsService.runFeeReminders — WhatsApp channel (EN-2 Task 4)", () => {
-  it("invokes whatsapp.send and logs WHATSAPP in NotificationLog.channels when settings.channels includes WHATSAPP", async () => {
-    const fx = await seedSchool("wa-enabled");
+describe("NotificationsService — fee reminders respect NotificationPreference", () => {
+  it("a parent muting SMS gets the fee reminder on EMAIL/WHATSAPP only, and NotificationLog.channels excludes SMS", async () => {
+    const fx = await seedSchool("mute-sms");
     fixtures.push(fx);
 
-    await settingsService.update(fx.schoolId, { channels: ["SMS", "WHATSAPP"] });
+    await settingsService.update(fx.schoolId, { channels: ["SMS", "EMAIL", "WHATSAPP"] });
 
-    const studentId = await makeStudentWithGuardian(fx, `WAN-ON-${Date.now()}`, "+2348020000001", "wa-parent1@example.com");
+    const { parentId, studentId } = await makeStudentWithGuardian(
+      fx,
+      `NP-MUTESMS-${Date.now()}`,
+      "+2348030000001",
+      "np-mutesms@example.com",
+    );
+    await rawPrisma.notificationPreference.create({
+      data: { schoolId: fx.schoolId, parentId, mutedChannels: ["SMS"] },
+    });
+
     const invoice = await rawPrisma.invoice.create({
       data: { schoolId: fx.schoolId, studentId, termId: fx.termId, classLevelId: fx.classLevelId, totalKobo: 100000, paidKobo: 0 },
     });
@@ -148,25 +154,38 @@ describe("NotificationsService.runFeeReminders — WhatsApp channel (EN-2 Task 4
       data: { schoolId: fx.schoolId, invoiceId: invoice.id, order: 0, label: "First", amountKobo: 100000, dueDate },
     });
 
-    jest.spyOn(sms, "send").mockResolvedValue(undefined);
+    const smsSpy = jest.spyOn(sms, "send").mockResolvedValue(undefined);
     const whatsappSpy = jest.spyOn(whatsapp, "send").mockResolvedValue(undefined);
 
     await service.runFeeReminders(lagosToday(0));
 
-    expect(whatsappSpy).toHaveBeenCalledWith("+2348020000001", expect.any(String));
+    expect(smsSpy).not.toHaveBeenCalled();
+    expect(whatsappSpy).toHaveBeenCalledWith("+2348030000001", expect.any(String));
+    expect(emailAdapter.sent.some((m) => m.to === "np-mutesms@example.com")).toBe(true);
 
     const logs = await rawPrisma.notificationLog.findMany({ where: { schoolId: fx.schoolId, kind: "FEE_REMINDER" } });
     expect(logs.length).toBe(1);
+    expect(logs[0]!.channels).not.toContain("SMS");
+    expect(logs[0]!.channels).toContain("EMAIL");
     expect(logs[0]!.channels).toContain("WHATSAPP");
   });
 
-  it("does not call whatsapp.send when settings.channels omits WHATSAPP (regression)", async () => {
-    const fx = await seedSchool("wa-disabled");
+  it("a parent muting FEE_REMINDER category receives nothing", async () => {
+    const fx = await seedSchool("mute-category");
     fixtures.push(fx);
 
-    await settingsService.update(fx.schoolId, { channels: ["SMS", "EMAIL"] });
+    await settingsService.update(fx.schoolId, { channels: ["SMS", "EMAIL", "WHATSAPP"] });
 
-    const studentId = await makeStudentWithGuardian(fx, `WAN-OFF-${Date.now()}`, "+2348020000002", "wa-parent2@example.com");
+    const { parentId, studentId } = await makeStudentWithGuardian(
+      fx,
+      `NP-MUTECAT-${Date.now()}`,
+      "+2348030000002",
+      "np-mutecat@example.com",
+    );
+    await rawPrisma.notificationPreference.create({
+      data: { schoolId: fx.schoolId, parentId, mutedCategories: ["FEE_REMINDER"] },
+    });
+
     const invoice = await rawPrisma.invoice.create({
       data: { schoolId: fx.schoolId, studentId, termId: fx.termId, classLevelId: fx.classLevelId, totalKobo: 100000, paidKobo: 0 },
     });
@@ -175,34 +194,51 @@ describe("NotificationsService.runFeeReminders — WhatsApp channel (EN-2 Task 4
       data: { schoolId: fx.schoolId, invoiceId: invoice.id, order: 0, label: "First", amountKobo: 100000, dueDate },
     });
 
-    jest.spyOn(sms, "send").mockResolvedValue(undefined);
+    const smsSpy = jest.spyOn(sms, "send").mockResolvedValue(undefined);
     const whatsappSpy = jest.spyOn(whatsapp, "send").mockResolvedValue(undefined);
+    const emailCountBefore = emailAdapter.sent.length;
 
     await service.runFeeReminders(lagosToday(0));
 
+    expect(smsSpy).not.toHaveBeenCalled();
     expect(whatsappSpy).not.toHaveBeenCalled();
+    expect(emailAdapter.sent.length).toBe(emailCountBefore);
 
     const logs = await rawPrisma.notificationLog.findMany({ where: { schoolId: fx.schoolId, kind: "FEE_REMINDER" } });
     expect(logs.length).toBe(1);
-    expect(logs[0]!.channels).not.toContain("WHATSAPP");
+    expect(logs[0]!.recipientCount).toBe(0);
+    expect(logs[0]!.channels).toBe("");
   });
 });
 
-describe("NotificationSettingsService.update — WHATSAPP validation (EN-2 Task 4)", () => {
-  it("accepts channels:[\"SMS\",\"WHATSAPP\"]", async () => {
-    const fx = await seedSchool("wa-settings-ok");
+describe("NotificationsService.notifyResultsReady respects RESULTS_READY mute", () => {
+  it("a parent muting RESULTS_READY receives nothing while other guardians still do", async () => {
+    const fx = await seedSchool("rr-mute");
     fixtures.push(fx);
 
-    const updated = await settingsService.update(fx.schoolId, { channels: ["SMS", "WHATSAPP"] });
-    expect(updated.channels).toEqual(["SMS", "WHATSAPP"]);
-  });
+    const muted = await makeStudentWithGuardian(fx, `NP-RRMUTE-${Date.now()}`, "+2348030000003", "np-rrmute@example.com");
+    await makeStudentWithGuardian(fx, `NP-RROK-${Date.now()}`, "+2348030000004", "np-rrok@example.com");
 
-  it("rejects channels:[\"SMS\",\"FOO\"]", async () => {
-    const fx = await seedSchool("wa-settings-bad");
-    fixtures.push(fx);
+    await rawPrisma.notificationPreference.create({
+      data: { schoolId: fx.schoolId, parentId: muted.parentId, mutedCategories: ["RESULTS_READY"] },
+    });
 
-    await expect(settingsService.update(fx.schoolId, { channels: ["SMS", "FOO"] })).rejects.toThrow(
-      BadRequestException,
-    );
+    const smsSpy = jest.spyOn(sms, "send").mockResolvedValue(undefined);
+    const release = await rawPrisma.release.create({
+      data: { schoolId: fx.schoolId, classId: fx.classId, termId: fx.termId, releasedBy: "tester" },
+    });
+
+    await service.notifyResultsReady(fx.schoolId, release.id, fx.classId, fx.termId);
+
+    const calledPhones = smsSpy.mock.calls.map((c) => c[0]);
+    expect(calledPhones).not.toContain("+2348030000003");
+    expect(calledPhones).toContain("+2348030000004");
+    expect(emailAdapter.sent.some((m) => m.to === "np-rrmute@example.com")).toBe(false);
+    expect(emailAdapter.sent.some((m) => m.to === "np-rrok@example.com")).toBe(true);
+
+    const logs = await rawPrisma.notificationLog.findMany({ where: { schoolId: fx.schoolId, kind: "RESULTS_READY" } });
+    expect(logs.length).toBe(2);
+    const mutedLog = logs.find((l) => l.dedupeKey === `RESULTS_READY:${release.id}:${muted.studentId}`);
+    expect(mutedLog?.recipientCount).toBe(0);
   });
 });
