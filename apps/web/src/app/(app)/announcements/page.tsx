@@ -15,6 +15,7 @@ export default function AnnouncementsPage() {
   const [audienceIds, setAudienceIds] = useState<string[]>([]);
   const [sms, setSms] = useState(true);
   const [email, setEmail] = useState(false);
+  const [whatsapp, setWhatsapp] = useState(false);
   const [toParents, setToParents] = useState(true);
   const [toStaff, setToStaff] = useState(false);
   const [sendLater, setSendLater] = useState("");
@@ -58,9 +59,10 @@ export default function AnnouncementsPage() {
     }
     setBusy(true);
     try {
-      const channels: ("SMS" | "EMAIL")[] = [];
+      const channels: ("SMS" | "EMAIL" | "WHATSAPP")[] = [];
       if (sms) channels.push("SMS");
       if (email) channels.push("EMAIL");
+      if (whatsapp) channels.push("WHATSAPP");
       const r = await api.createAnnouncement({ title: title.trim(), body: body.trim(), audienceType, audienceIds: audienceType === "ALL" ? [] : audienceIds, channels, roles, ...(scheduledFor ? { scheduledFor } : {}) });
       setMsg(
         scheduledFor
@@ -78,7 +80,7 @@ export default function AnnouncementsPage() {
 
   return (
     <PageContainer className="max-w-3xl">
-      <PageHeader title="Announcements" description="Broadcast a message to parents and staff over SMS or email." />
+      <PageHeader title="Announcements" description="Broadcast a message to parents and staff over SMS, email, or WhatsApp." />
 
       <Card>
         <CardBody className="flex flex-col gap-3">
@@ -96,9 +98,13 @@ export default function AnnouncementsPage() {
             </select>
             <label className="flex items-center gap-1.5 text-small text-ink-700 dark:text-ink-300"><input type="checkbox" checked={sms} onChange={(e) => setSms(e.target.checked)} /> SMS</label>
             <label className="flex items-center gap-1.5 text-small text-ink-700 dark:text-ink-300"><input type="checkbox" checked={email} onChange={(e) => setEmail(e.target.checked)} /> Email</label>
+            <label className="flex items-center gap-1.5 text-small text-ink-700 dark:text-ink-300"><input type="checkbox" checked={whatsapp} onChange={(e) => setWhatsapp(e.target.checked)} /> WhatsApp</label>
             <label className="flex items-center gap-1.5 text-small text-ink-700 dark:text-ink-300"><input type="checkbox" checked={toParents} onChange={(e) => setToParents(e.target.checked)} /> Parents</label>
             <label className="flex items-center gap-1.5 text-small text-ink-700 dark:text-ink-300"><input type="checkbox" checked={toStaff} onChange={(e) => setToStaff(e.target.checked)} /> Staff</label>
           </div>
+          {whatsapp && (
+            <p className="text-caption text-ink-500">Requires WhatsApp provider setup + approved template.</p>
+          )}
           {audienceType !== "ALL" && (
             <div className="flex flex-wrap gap-2">
               {options.map((o) => (

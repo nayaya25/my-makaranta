@@ -9,6 +9,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { SmsService } from "../../core/auth/sms.service";
+import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { LogEmailAdapter } from "../../core/email/log.adapter";
 import { NotificationSettingsService } from "./notification-settings.service";
 import { NotificationsService } from "./notifications.service";
@@ -85,6 +86,7 @@ async function cleanupFixture(fx: Fixture) {
 }
 
 let sms: SmsService;
+let whatsapp: WhatsAppService;
 let emailAdapter: LogEmailAdapter;
 let settingsService: NotificationSettingsService;
 let service: NotificationsService;
@@ -92,9 +94,10 @@ const fixtures: Fixture[] = [];
 
 beforeAll(() => {
   sms = new SmsService();
+  whatsapp = new WhatsAppService();
   emailAdapter = new LogEmailAdapter();
   settingsService = new NotificationSettingsService(prisma);
-  service = new NotificationsService(prisma, sms, emailAdapter, settingsService);
+  service = new NotificationsService(prisma, sms, whatsapp, emailAdapter, settingsService);
 });
 
 afterEach(() => {

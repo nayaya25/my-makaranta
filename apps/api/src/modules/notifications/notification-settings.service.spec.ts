@@ -127,11 +127,19 @@ describe("NotificationSettingsService.update", () => {
     await expect(service.update(schoolId, { reminderOffsetDays: [1.5] })).rejects.toThrow(BadRequestException);
   });
 
-  it("rejects a channel not in {SMS, EMAIL}", async () => {
+  it("rejects a channel not in {SMS, EMAIL, WHATSAPP}", async () => {
     const schoolId = await seedSchool("update-bad-channel");
     schoolIds.push(schoolId);
 
-    await expect(service.update(schoolId, { channels: ["SMS", "WHATSAPP"] })).rejects.toThrow(BadRequestException);
+    await expect(service.update(schoolId, { channels: ["SMS", "FOO"] })).rejects.toThrow(BadRequestException);
+  });
+
+  it("accepts WHATSAPP as a valid channel", async () => {
+    const schoolId = await seedSchool("update-whatsapp-channel");
+    schoolIds.push(schoolId);
+
+    const updated = await service.update(schoolId, { channels: ["SMS", "WHATSAPP"] });
+    expect(updated.channels).toEqual(["SMS", "WHATSAPP"]);
   });
 
   it("accepts boundary offsets -30 and 30", async () => {

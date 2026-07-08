@@ -16,6 +16,6 @@ export class UpdateNotificationSettingsDto {
 
   @IsOptional()
   @IsArray()
-  @IsIn(["SMS", "EMAIL"], { each: true })
+  @IsIn(["SMS", "EMAIL", "WHATSAPP"], { each: true })
   channels?: string[];
 }

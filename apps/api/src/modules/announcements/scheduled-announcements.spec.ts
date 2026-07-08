@@ -13,6 +13,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
 import { SmsService } from "../../core/auth/sms.service";
+import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { LogEmailAdapter } from "../../core/email/log.adapter";
 import { AnnouncementsService } from "./announcements.service";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
@@ -57,7 +58,7 @@ describe("AnnouncementsService — scheduled announcements (EN-1 Task 5)", () =>
 
     sms = new SmsService();
     email = new LogEmailAdapter();
-    service = new AnnouncementsService(prisma as unknown as PrismaService, sms, email);
+    service = new AnnouncementsService(prisma as unknown as PrismaService, sms, new WhatsAppService(), email);
 
     authorUser = { id: `user-author-${ts}`, schoolId, identityType: "STAFF" };
   });
