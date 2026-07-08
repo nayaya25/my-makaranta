@@ -5,10 +5,11 @@ import { NotificationsService } from "./notifications.service";
 import { NotificationSettingsService } from "./notification-settings.service";
 import { NotificationsCron } from "./notifications.cron";
 import { NotificationsController } from "./notifications.controller";
+import { MessageTemplatesController } from "./message-templates.controller";
 
 @Module({
   imports: [AuthModule, AnnouncementsModule],
-  controllers: [NotificationsController],
+  controllers: [NotificationsController, MessageTemplatesController],
   providers: [NotificationsService, NotificationSettingsService, NotificationsCron],
   exports: [NotificationsService, NotificationSettingsService],
 })

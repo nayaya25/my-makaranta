@@ -145,6 +145,7 @@ model School {
   notificationSettings   NotificationSettings?
   notificationLogs       NotificationLog[]
   notificationPreferences NotificationPreference[]
+  messageTemplates       MessageTemplate[]
 }
 
 model Conversation {
@@ -388,6 +389,17 @@ model NotificationPreference {
   mutedChannels   String[] @default([])
   mutedCategories String[] @default([])
   updatedAt       DateTime @updatedAt
+}
+
+model MessageTemplate {
+  id        String   @id @default(cuid())
+  schoolId  String
+  school    School   @relation(fields: [schoolId], references: [id])
+  key       String
+  body      String
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, key])
 }
 
 model AnnouncementRecipient {

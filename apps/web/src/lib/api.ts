@@ -879,6 +879,16 @@ export interface NotificationPreference {
   mutedCategories: string[];
 }
 
+// ─── Message templates (EN-3b) ──────────────────────────────────────────────
+
+export interface MessageTemplate {
+  key: string;
+  body: string;
+  isCustomized: boolean;
+  allowedVariables: string[];
+  defaultBody: string;
+}
+
 export const api = {
   requestOtp: (target: { phone?: string; email?: string }) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify(target) }),
@@ -1513,6 +1523,16 @@ export const api = {
       `/v1/parents/${encodeURIComponent(parentId)}/notification-preferences`,
       { method: "PUT", body: JSON.stringify(dto) },
     ),
+
+  // ─── Message templates (EN-3b) ──────────────────────────────────────────────
+  listMessageTemplates: () => authedRequest<MessageTemplate[]>("/v1/notifications/templates"),
+  setMessageTemplate: (key: string, body: string) =>
+    authedRequest<void>(`/v1/notifications/templates/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      body: JSON.stringify({ body }),
+    }),
+  resetMessageTemplate: (key: string) =>
+    authedRequest<void>(`/v1/notifications/templates/${encodeURIComponent(key)}`, { method: "DELETE" }),
 
   // ─── Admissions — public (unauthenticated, no bearer token) ─────────────────
   publicApply: (dto: {

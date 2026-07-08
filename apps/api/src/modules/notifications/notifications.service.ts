@@ -6,6 +6,7 @@ import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { EMAIL_SERVICE, type EmailService } from "../../core/email/email.types";
 import { PreferenceService } from "../../core/notification-dispatch/preference.service";
 import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
+import { MessageTemplateService } from "../../core/notification-dispatch/message-template.service";
 import type { NotificationCategory } from "../../core/notification-dispatch/notification-category";
 import { NotificationSettingsService } from "./notification-settings.service";
 import { lagosDateStr, shiftDateStr } from "./notify-date.util";
@@ -27,6 +28,7 @@ export class NotificationsService {
     private settings: NotificationSettingsService,
     private preferences: PreferenceService,
     private dispatch: NotificationDispatchService,
+    private templates: MessageTemplateService,
   ) {}
 
   /** Delivers a message to each recipient over the requested channels, filtered per-recipient
@@ -127,7 +129,6 @@ export class NotificationsService {
           studentName: `${invoice.student.firstName} ${invoice.student.lastName}`,
           amountKobo: balanceKobo,
           dueDate: invoice.dueDate,
-          isInstallment: false,
           guardians: invoice.student.guardians,
         });
         continue;
@@ -157,7 +158,6 @@ export class NotificationsService {
           studentName: `${invoice.student.firstName} ${invoice.student.lastName}`,
           amountKobo: outstanding,
           dueDate: installment.dueDate,
-          isInstallment: true,
           guardians: invoice.student.guardians,
         });
       }
@@ -173,10 +173,9 @@ export class NotificationsService {
     studentName: string;
     amountKobo: number;
     dueDate: Date;
-    isInstallment: boolean;
     guardians: { parentId: string; parent: { phone: string; email: string | null } }[];
   }): Promise<void> {
-    const { schoolId, offset, targetDate, channels, dedupeId, studentName, amountKobo, dueDate, isInstallment, guardians } = args;
+    const { schoolId, offset, targetDate, channels, dedupeId, studentName, amountKobo, dueDate, guardians } = args;
     const dedupeKey = `FEE_REMINDER:${dedupeId}:${offset}:${targetDate}`;
 
     try {
@@ -191,8 +190,11 @@ export class NotificationsService {
     }
 
     const dueDateStr = dueDate.toISOString().slice(0, 10);
-    const what = isInstallment ? "fees installment" : "fees balance";
-    const message = `Dear Parent, ${studentName}'s ${what} of ${naira(amountKobo)} is due ${dueDateStr}. Kindly settle it. Thank you.`;
+    const message = await this.templates.render(schoolId, "FEE_INSTALLMENT_REMINDER", {
+      studentName,
+      amount: naira(amountKobo),
+      dueDate: dueDateStr,
+    });
     const recipients: Recipient[] = guardians.map((g) => ({
       parentId: g.parentId,
       phone: g.parent.phone,
@@ -249,7 +251,7 @@ export class NotificationsService {
       }
 
       const studentName = `${enrollment.student.firstName} ${enrollment.student.lastName}`;
-      const message = `Dear Parent, ${studentName}'s results are now ready. Please log in to view the report card.`;
+      const message = await this.templates.render(schoolId, "RESULTS_READY", { studentName });
       const recipients: Recipient[] = enrollment.student.guardians.map((g) => ({
         parentId: g.parentId,
         phone: g.parent.phone,
