@@ -872,6 +872,13 @@ export interface NotificationSettings {
   channels: string[];
 }
 
+// ─── Notification preferences (EN-3a) ───────────────────────────────────────
+
+export interface NotificationPreference {
+  mutedChannels: string[];
+  mutedCategories: string[];
+}
+
 export const api = {
   requestOtp: (target: { phone?: string; email?: string }) =>
     request<void>("/auth/otp/request", { method: "POST", body: JSON.stringify(target) }),
@@ -1488,6 +1495,24 @@ export const api = {
   getNotificationSettings: () => authedRequest<NotificationSettings>("/v1/notifications/settings"),
   updateNotificationSettings: (dto: Partial<NotificationSettings>) =>
     authedRequest<NotificationSettings>("/v1/notifications/settings", { method: "PUT", body: JSON.stringify(dto) }),
+
+  // ─── Notification preferences (EN-3a) ───────────────────────────────────────
+  getMyNotificationPreferences: () =>
+    authedRequest<NotificationPreference>("/v1/parent/notification-preferences"),
+  setMyNotificationPreferences: (dto: NotificationPreference) =>
+    authedRequest<NotificationPreference>("/v1/parent/notification-preferences", {
+      method: "PUT",
+      body: JSON.stringify(dto),
+    }),
+  getParentNotificationPreferences: (parentId: string) =>
+    authedRequest<NotificationPreference>(
+      `/v1/parents/${encodeURIComponent(parentId)}/notification-preferences`,
+    ),
+  setParentNotificationPreferences: (parentId: string, dto: NotificationPreference) =>
+    authedRequest<NotificationPreference>(
+      `/v1/parents/${encodeURIComponent(parentId)}/notification-preferences`,
+      { method: "PUT", body: JSON.stringify(dto) },
+    ),
 
   // ─── Admissions — public (unauthenticated, no bearer token) ─────────────────
   publicApply: (dto: {
