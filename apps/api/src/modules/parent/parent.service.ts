@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { PrismaService } from "../../core/prisma/prisma.service";
 import { TenantContext } from "../../core/tenant/tenant.context";
@@ -6,6 +6,8 @@ import type { RequestUser } from "../../core/auth/current-user.decorator";
 import { PaymentsService } from "../payments/payments.service";
 import { computeInvoiceStatus } from "../fees/invoice-status.util";
 import { allocatePayments, type AllocatedInstallment } from "../fees/installment.util";
+import { PreferenceService } from "../../core/notification-dispatch/preference.service";
+import type { SetPreferenceDto } from "../../core/notification-dispatch/dto/preference.dto";
 
 const invoiceDetailArgs = {
   include: {
@@ -22,7 +24,31 @@ type InvoiceDetailPayload = Prisma.InvoiceGetPayload<typeof invoiceDetailArgs>;
 
 @Injectable()
 export class ParentService {
-  constructor(private prisma: PrismaService, private payments: PaymentsService) {}
+  constructor(
+    private prisma: PrismaService,
+    private payments: PaymentsService,
+    private preferences: PreferenceService,
+  ) {}
+
+  /** Resolves the caller's own Parent.id from their identity — never a request-supplied id. */
+  private parentIdFromUser(user: RequestUser): string {
+    if (user.identityType !== "PARENT" || !user.identityId) {
+      throw new ForbiddenException("Only parents can access notification preferences.");
+    }
+    return user.identityId;
+  }
+
+  async getNotificationPreferences(user: RequestUser) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const parentId = this.parentIdFromUser(user);
+    return this.preferences.getForParent(schoolId, parentId);
+  }
+
+  async setNotificationPreferences(user: RequestUser, dto: SetPreferenceDto) {
+    const schoolId = TenantContext.schoolIdOrThrow();
+    const parentId = this.parentIdFromUser(user);
+    return this.preferences.setForParent(schoolId, parentId, dto);
+  }
 
   async getChildren(user: RequestUser) {
     if (user.identityType !== "PARENT" || !user.identityId) return [];

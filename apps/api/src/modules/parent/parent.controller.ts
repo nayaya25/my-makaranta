@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
 import { IsEmail, IsInt, IsNotEmpty, IsString, Min } from "class-validator";
 import { JwtAuthGuard } from "../../core/auth/jwt-auth.guard";
@@ -7,6 +7,7 @@ import { RequirePermissions } from "../../core/auth/permissions/require-permissi
 import { CurrentUser, type RequestUser } from "../../core/auth/current-user.decorator";
 import { ParentService } from "./parent.service";
 import { renderStatementPdf } from "./statement-pdf";
+import { SetPreferenceDto } from "../../core/notification-dispatch/dto/preference.dto";
 
 class ParentPayDto {
   @IsString() @IsNotEmpty() invoiceId!: string;
@@ -86,5 +87,19 @@ export class ParentController {
   @RequirePermissions("fees.pay.own")
   payVerify(@Body() dto: ParentPayVerifyDto, @CurrentUser() user: RequestUser) {
     return this.service.payVerify(dto.reference, user);
+  }
+
+  @Get("notification-preferences")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("fees.pay.own")
+  getNotificationPreferences(@CurrentUser() user: RequestUser) {
+    return this.service.getNotificationPreferences(user);
+  }
+
+  @Put("notification-preferences")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermissions("fees.pay.own")
+  setNotificationPreferences(@Body() dto: SetPreferenceDto, @CurrentUser() user: RequestUser) {
+    return this.service.setNotificationPreferences(user, dto);
   }
 }

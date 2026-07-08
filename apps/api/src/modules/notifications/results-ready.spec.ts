@@ -11,6 +11,8 @@ import { TenantContext } from "../../core/tenant/tenant.context";
 import { SmsService } from "../../core/auth/sms.service";
 import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { LogEmailAdapter } from "../../core/email/log.adapter";
+import { PreferenceService } from "../../core/notification-dispatch/preference.service";
+import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
 import { NotificationSettingsService } from "./notification-settings.service";
 import { NotificationsService } from "./notifications.service";
 import { ReleaseService } from "../assessment/release.service";
@@ -97,7 +99,9 @@ beforeAll(() => {
   whatsapp = new WhatsAppService();
   emailAdapter = new LogEmailAdapter();
   settingsService = new NotificationSettingsService(prisma);
-  service = new NotificationsService(prisma, sms, whatsapp, emailAdapter, settingsService);
+  const preferences = new PreferenceService(prisma);
+  const dispatch = new NotificationDispatchService(sms, emailAdapter, whatsapp);
+  service = new NotificationsService(prisma, sms, whatsapp, emailAdapter, settingsService, preferences, dispatch);
 });
 
 afterEach(() => {

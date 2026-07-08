@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -14,10 +14,31 @@ import {
   Input,
   PageContainer,
   Skeleton,
+  Switch,
   Tabs,
 } from "@mymakaranta/ui";
-import { api, ApiError, type Student, type Guardian, type DiscountScheme, type StudentDiscount } from "@/lib/api";
-import { ArrowLeft, Camera, FileText, UserPlus } from "lucide-react";
+import {
+  api,
+  ApiError,
+  type Student,
+  type Guardian,
+  type DiscountScheme,
+  type StudentDiscount,
+  type NotificationPreference,
+} from "@/lib/api";
+import { ArrowLeft, Bell, Camera, FileText, UserPlus } from "lucide-react";
+
+const PREF_CHANNEL_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "SMS", label: "SMS" },
+  { value: "EMAIL", label: "Email" },
+  { value: "WHATSAPP", label: "WhatsApp" },
+];
+
+const PREF_CATEGORY_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: "FEE_REMINDER", label: "Fee reminders" },
+  { value: "RESULTS_READY", label: "Results ready" },
+  { value: "ANNOUNCEMENT", label: "Announcements" },
+];
 
 const cls = "h-9 rounded-input border border-ink-300 dark:border-white/15 bg-surface dark:bg-surface-dark px-2 text-small text-ink-1000 dark:text-ink-100";
 
@@ -306,6 +327,151 @@ function AddGuardianDialog({
   );
 }
 
+function GuardianPreferencesDialog({
+  parentId,
+  parentName,
+  open,
+  onOpenChange,
+}: {
+  parentId: string;
+  parentName: string;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+}) {
+  const [prefs, setPrefs] = useState<NotificationPreference | null>(null);
+  const [mutedChannels, setMutedChannels] = useState<string[]>([]);
+  const [mutedCategories, setMutedCategories] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadErr(null);
+    try {
+      const data = await api.getParentNotificationPreferences(parentId);
+      setPrefs(data);
+      setMutedChannels(data.mutedChannels);
+      setMutedCategories(data.mutedCategories);
+    } catch (e) {
+      setLoadErr(e instanceof ApiError ? e.message : "Could not load notification preferences.");
+    } finally {
+      setLoading(false);
+    }
+  }, [parentId]);
+
+  useEffect(() => {
+    if (open) void load();
+  }, [open, load]);
+
+  const dirty =
+    !!prefs &&
+    (mutedChannels.length !== prefs.mutedChannels.length ||
+      mutedChannels.some((c) => !prefs.mutedChannels.includes(c)) ||
+      mutedCategories.length !== prefs.mutedCategories.length ||
+      mutedCategories.some((c) => !prefs.mutedCategories.includes(c)));
+
+  function toggleChannel(value: string, receive: boolean) {
+    setMutedChannels((prev) => (receive ? prev.filter((c) => c !== value) : [...new Set([...prev, value])]));
+    setSaveErr(null);
+    setSavedMsg(null);
+  }
+
+  function toggleCategory(value: string, receive: boolean) {
+    setMutedCategories((prev) => (receive ? prev.filter((c) => c !== value) : [...new Set([...prev, value])]));
+    setSaveErr(null);
+    setSavedMsg(null);
+  }
+
+  async function save() {
+    setSaving(true);
+    setSaveErr(null);
+    setSavedMsg(null);
+    try {
+      const updated = await api.setParentNotificationPreferences(parentId, { mutedChannels, mutedCategories });
+      setPrefs(updated);
+      setMutedChannels(updated.mutedChannels);
+      setMutedCategories(updated.mutedCategories);
+      setSavedMsg("Saved.");
+      setTimeout(() => setSavedMsg(null), 2000);
+    } catch (e) {
+      setSaveErr(e instanceof ApiError ? e.message : "Could not save notification preferences.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog.Root open={open} onOpenChange={onOpenChange}>
+      <Dialog.Content className="max-h-[85vh] overflow-y-auto">
+        <Dialog.Header>
+          <Dialog.Title>Notification preferences</Dialog.Title>
+          <Dialog.Description>{parentName}</Dialog.Description>
+        </Dialog.Header>
+
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <Skeleton className="h-24 w-full" />
+          </div>
+        ) : loadErr ? (
+          <div className="py-6">
+            <ErrorState description={loadErr} onRetry={load} />
+          </div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            <div>
+              <h3 className="mb-2 text-small font-semibold text-ink-1000 dark:text-ink-100">Channels</h3>
+              <div className="flex flex-col gap-3">
+                {PREF_CHANNEL_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="flex cursor-pointer select-none items-center justify-between gap-3">
+                    <span className="text-small text-ink-700 dark:text-ink-300">{opt.label}</span>
+                    <Switch
+                      checked={!mutedChannels.includes(opt.value)}
+                      onCheckedChange={(v) => toggleChannel(opt.value, v)}
+                      aria-label={`Receive notifications by ${opt.label}`}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-small font-semibold text-ink-1000 dark:text-ink-100">Message types</h3>
+              <div className="flex flex-col gap-3">
+                {PREF_CATEGORY_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="flex cursor-pointer select-none items-center justify-between gap-3">
+                    <span className="text-small text-ink-700 dark:text-ink-300">{opt.label}</span>
+                    <Switch
+                      checked={!mutedCategories.includes(opt.value)}
+                      onCheckedChange={(v) => toggleCategory(opt.value, v)}
+                      aria-label={`Receive ${opt.label}`}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <Dialog.Footer>
+              {saveErr && <p className="mr-auto text-caption text-error">{saveErr}</p>}
+              {savedMsg && <p className="mr-auto text-caption text-success">{savedMsg}</p>}
+              <Dialog.Close asChild>
+                <Button type="button" variant="outline">
+                  Close
+                </Button>
+              </Dialog.Close>
+              <Button onClick={save} disabled={!dirty || saving}>
+                {saving ? "Saving…" : "Save changes"}
+              </Button>
+            </Dialog.Footer>
+          </div>
+        )}
+      </Dialog.Content>
+    </Dialog.Root>
+  );
+}
+
 function PlaceholderTab({ label }: { label: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-12 text-center">
@@ -321,6 +487,7 @@ export default function StudentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [guardianDialogOpen, setGuardianDialogOpen] = useState(false);
+  const [prefsGuardianId, setPrefsGuardianId] = useState<string | null>(null);
   const [photoSrc, setPhotoSrc] = useState<string | undefined>(undefined);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
@@ -502,6 +669,14 @@ export default function StudentProfilePage() {
                 <div className="flex items-center gap-2">
                   <Badge tone="neutral">{g.relationship}</Badge>
                   {g.isPrimary && <Badge tone="brand">Primary</Badge>}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPrefsGuardianId(g.parent.id)}
+                    aria-label={`Notification preferences for ${g.parent.firstName} ${g.parent.lastName}`}
+                  >
+                    <Bell size={14} aria-hidden />
+                  </Button>
                 </div>
               </div>
             ))}
@@ -519,6 +694,18 @@ export default function StudentProfilePage() {
           )
         }
       />
+
+      {prefsGuardianId && (() => {
+        const g = guardians.find((x) => x.parent.id === prefsGuardianId);
+        return (
+          <GuardianPreferencesDialog
+            parentId={prefsGuardianId}
+            parentName={g ? `${g.parent.firstName} ${g.parent.lastName}` : ""}
+            open={!!prefsGuardianId}
+            onOpenChange={(v) => !v && setPrefsGuardianId(null)}
+          />
+        );
+      })()}
     </PageContainer>
   );
 }

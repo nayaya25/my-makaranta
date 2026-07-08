@@ -4,6 +4,9 @@ import { PrismaService } from "../../core/prisma/prisma.service";
 import { SmsService } from "../../core/auth/sms.service";
 import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { EMAIL_SERVICE, type EmailService } from "../../core/email/email.types";
+import { PreferenceService } from "../../core/notification-dispatch/preference.service";
+import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
+import type { NotificationCategory } from "../../core/notification-dispatch/notification-category";
 import { NotificationSettingsService } from "./notification-settings.service";
 import { lagosDateStr, shiftDateStr } from "./notify-date.util";
 import { allocatePayments, type InstallmentRow } from "../fees/installment.util";
@@ -12,7 +15,7 @@ function naira(kobo: number): string {
   return `₦${new Intl.NumberFormat("en-NG").format(Math.round(kobo / 100))}`;
 }
 
-type Recipient = { phone: string; email: string | null };
+type Recipient = { parentId?: string | null; phone: string; email: string | null };
 
 @Injectable()
 export class NotificationsService {
@@ -22,47 +25,50 @@ export class NotificationsService {
     private whatsapp: WhatsAppService,
     @Inject(EMAIL_SERVICE) private email: EmailService,
     private settings: NotificationSettingsService,
+    private preferences: PreferenceService,
+    private dispatch: NotificationDispatchService,
   ) {}
 
-  /** Delivers a message to each recipient over the requested channels. Per-recipient
-   *  failures are swallowed (non-fatal) so one bad phone/email doesn't block the rest. */
+  /** Delivers a message to each recipient over the requested channels, filtered per-recipient
+   *  by their notification preferences for `category`. PARENT recipients carry `parentId`; a
+   *  recipient with no `parentId` (e.g. staff) always receives the full requested channel set.
+   *  Per-recipient failures are swallowed (non-fatal) so one bad phone/email doesn't block the rest. */
   async deliver(
-    _schoolId: string,
+    schoolId: string,
+    category: NotificationCategory,
     recipients: Recipient[],
     subject: string,
     message: string,
     channels: string[],
   ): Promise<{ recipientCount: number; channelsUsed: string[] }> {
+    const parentIds = recipients
+      .map((r) => r.parentId)
+      .filter((id): id is string => Boolean(id));
+    const prefs = await this.preferences.loadPreferences(schoolId, parentIds);
+
     const channelsUsed = new Set<string>();
     let recipientCount = 0;
     for (const r of recipients) {
+      const eff = this.preferences.effectiveChannels(
+        r.parentId ? prefs.get(r.parentId) : undefined,
+        category,
+        channels,
+      );
+      if (eff.length === 0) continue;
+
+      const res = await this.dispatch.sendToRecipient(r, subject, message, eff);
       let delivered = false;
-      if (channels.includes("SMS")) {
-        try {
-          await this.sms.send(r.phone, message);
-          channelsUsed.add("SMS");
-          delivered = true;
-        } catch {
-          /* per-recipient failure non-fatal */
-        }
+      if (res.smsSent) {
+        channelsUsed.add("SMS");
+        delivered = true;
       }
-      if (channels.includes("EMAIL") && r.email) {
-        try {
-          await this.email.send({ to: r.email, subject, html: `<p>${message}</p>`, text: message });
-          channelsUsed.add("EMAIL");
-          delivered = true;
-        } catch {
-          /* per-recipient failure non-fatal */
-        }
+      if (res.emailSent) {
+        channelsUsed.add("EMAIL");
+        delivered = true;
       }
-      if (channels.includes("WHATSAPP")) {
-        try {
-          await this.whatsapp.send(r.phone, message);
-          channelsUsed.add("WHATSAPP");
-          delivered = true;
-        } catch {
-          /* per-recipient failure non-fatal */
-        }
+      if (res.whatsappSent) {
+        channelsUsed.add("WHATSAPP");
+        delivered = true;
       }
       if (delivered) recipientCount++;
     }
@@ -168,7 +174,7 @@ export class NotificationsService {
     amountKobo: number;
     dueDate: Date;
     isInstallment: boolean;
-    guardians: { parent: { phone: string; email: string | null } }[];
+    guardians: { parentId: string; parent: { phone: string; email: string | null } }[];
   }): Promise<void> {
     const { schoolId, offset, targetDate, channels, dedupeId, studentName, amountKobo, dueDate, isInstallment, guardians } = args;
     const dedupeKey = `FEE_REMINDER:${dedupeId}:${offset}:${targetDate}`;
@@ -187,10 +193,15 @@ export class NotificationsService {
     const dueDateStr = dueDate.toISOString().slice(0, 10);
     const what = isInstallment ? "fees installment" : "fees balance";
     const message = `Dear Parent, ${studentName}'s ${what} of ${naira(amountKobo)} is due ${dueDateStr}. Kindly settle it. Thank you.`;
-    const recipients: Recipient[] = guardians.map((g) => ({ phone: g.parent.phone, email: g.parent.email }));
+    const recipients: Recipient[] = guardians.map((g) => ({
+      parentId: g.parentId,
+      phone: g.parent.phone,
+      email: g.parent.email,
+    }));
 
     const { recipientCount, channelsUsed } = await this.deliver(
       schoolId,
+      "FEE_REMINDER",
       recipients,
       "Fees reminder",
       message,
@@ -240,12 +251,14 @@ export class NotificationsService {
       const studentName = `${enrollment.student.firstName} ${enrollment.student.lastName}`;
       const message = `Dear Parent, ${studentName}'s results are now ready. Please log in to view the report card.`;
       const recipients: Recipient[] = enrollment.student.guardians.map((g) => ({
+        parentId: g.parentId,
         phone: g.parent.phone,
         email: g.parent.email,
       }));
 
       const { recipientCount, channelsUsed } = await this.deliver(
         schoolId,
+        "RESULTS_READY",
         recipients,
         "Results ready",
         message,

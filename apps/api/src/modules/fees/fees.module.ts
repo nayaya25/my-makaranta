@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { AuthModule } from "../../core/auth/auth.module";
 import { EmailModule } from "../../core/email/email.module";
 import { PaymentsModule } from "../payments/payments.module";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { FeesController } from "./fees.controller";
 import { FeesService } from "./fees.service";
 import { CollectionsController } from "./collections.controller";
@@ -16,7 +17,7 @@ import { InstallmentScheduleController } from "./installment-schedule.controller
 import { InstallmentScheduleService } from "./installment-schedule.service";
 
 @Module({
-  imports: [AuthModule, EmailModule, PaymentsModule],
+  imports: [AuthModule, EmailModule, PaymentsModule, NotificationsModule],
   controllers: [
     FeesController,
     CollectionsController,

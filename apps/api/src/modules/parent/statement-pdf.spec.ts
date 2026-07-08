@@ -52,7 +52,7 @@ describe("ParentService.buildStatement + renderStatementPdf (MF-3 Task 3)", () =
     });
     termId = term.id;
 
-    service = new ParentService(prisma as unknown as PrismaService, {} as never);
+    service = new ParentService(prisma as unknown as PrismaService, {} as never, {} as never);
   });
 
   afterAll(async () => {

@@ -5,6 +5,8 @@ import { TenantContext } from "../../core/tenant/tenant.context";
 import { SmsService } from "../../core/auth/sms.service";
 import { WhatsAppService } from "../../core/whatsapp/whatsapp.service";
 import { EMAIL_SERVICE, type EmailService } from "../../core/email/email.types";
+import { PreferenceService } from "../../core/notification-dispatch/preference.service";
+import { NotificationDispatchService } from "../../core/notification-dispatch/notification-dispatch.service";
 import type { RequestUser } from "../../core/auth/current-user.decorator";
 import type { CreateAnnouncementDto } from "./dto";
 
@@ -17,6 +19,8 @@ export class AnnouncementsService {
     private sms: SmsService,
     private whatsapp: WhatsAppService,
     @Inject(EMAIL_SERVICE) private email: EmailService,
+    private preferences: PreferenceService,
+    private dispatch: NotificationDispatchService,
   ) {}
 
   private async resolveParentIds(dto: CreateAnnouncementDto, schoolId: string): Promise<string[]> {
@@ -67,11 +71,8 @@ export class AnnouncementsService {
    */
   private async deliverAnnouncement(ann: Announcement, recipients: Recipient[]): Promise<void> {
     const schoolId = ann.schoolId;
-    const selected = ann.channels.filter((c) => c === "SMS" || c === "EMAIL" || c === "WHATSAPP");
-    const wantSms = selected.includes("SMS");
-    const wantEmail = selected.includes("EMAIL");
-    const wantWhatsapp = selected.includes("WHATSAPP");
-    if (!(wantSms || wantEmail || wantWhatsapp) || recipients.length === 0) return;
+    const requestedChannels = ann.channels.filter((c) => c === "SMS" || c === "EMAIL" || c === "WHATSAPP");
+    if (requestedChannels.length === 0 || recipients.length === 0) return;
     const parentIds = recipients.filter((r) => r.recipientType === "PARENT").map((r) => r.recipientId);
     const staffIds = recipients.filter((r) => r.recipientType === "STAFF").map((r) => r.recipientId);
     const [parents, staff] = await Promise.all([
@@ -82,16 +83,24 @@ export class AnnouncementsService {
       ...parents.map((p) => ({ type: "PARENT" as const, id: p.id, phone: p.phone, email: p.email })),
       ...staff.map((s) => ({ type: "STAFF" as const, id: s.id, phone: s.phone, email: s.email })),
     ];
+    const prefs = await this.preferences.loadPreferences(schoolId, parentIds);
     const text = `${ann.title} — ${ann.body}`;
     for (const c of contacts) {
-      let smsSent = false;
-      let emailSent = false;
-      let whatsappSent = false;
-      if (wantSms) { try { await this.sms.send(c.phone, text); smsSent = true; } catch { /* non-fatal */ } }
-      if (wantEmail && c.email) { try { await this.email.send({ to: c.email, subject: ann.title, html: `<p>${ann.body}</p>`, text }); emailSent = true; } catch { /* non-fatal */ } }
-      if (wantWhatsapp) { try { await this.whatsapp.send(c.phone, text); whatsappSent = true; } catch { /* non-fatal */ } }
-      if (smsSent || emailSent || whatsappSent) {
-        await this.prisma.announcementRecipient.updateMany({ where: { schoolId, announcementId: ann.id, recipientType: c.type, recipientId: c.id }, data: { smsSent, emailSent, whatsappSent } });
+      const eff = c.type === "PARENT"
+        ? this.preferences.effectiveChannels(prefs.get(c.id), "ANNOUNCEMENT", requestedChannels)
+        : requestedChannels;
+      if (eff.length === 0) continue;
+      const res = await this.dispatch.sendToRecipient(
+        { parentId: c.type === "PARENT" ? c.id : null, phone: c.phone, email: c.email },
+        ann.title,
+        text,
+        eff,
+      );
+      if (res.smsSent || res.emailSent || res.whatsappSent) {
+        await this.prisma.announcementRecipient.updateMany({
+          where: { schoolId, announcementId: ann.id, recipientType: c.type, recipientId: c.id },
+          data: { smsSent: res.smsSent, emailSent: res.emailSent, whatsappSent: res.whatsappSent },
+        });
       }
     }
   }
